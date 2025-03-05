@@ -3,7 +3,7 @@ import Header from "../src/app/components/Header";
 import Footer from "../src/app/components/Footer";
 
 import { Geist, Geist_Mono } from "next/font/google";
-import "../src/app/globals.css";
+import "../src/globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,30 +20,19 @@ export const metadata = {
   description: "Smart blog and notes application",
 };
 
-function Layout({ children }) {
+export default function Layout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <div className="flex flex-col min-h-screen">
-          {/* Header */}
           <Header />
           <div className="flex flex-1">
-
-          {/* Sidebar */}
-
-            {/* Sidebar */}
             <Sidebar />
-
-            {/* Main content */}
             <main className="flex-1 p-6">{children}</main>
           </div>
-
-          {/* Footer */}
           <Footer />
         </div>
       </body>
     </html>
   );
 }
-
-export default Layout;

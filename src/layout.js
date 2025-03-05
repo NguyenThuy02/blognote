@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 });
 
 function Layout({ children }) {
-  const [showLogin, setShowLogin] = useState(false); // Di chuyển useState vào đây
+  const [showLogin, setShowLogin] = useState(false);
 
   const toggleLogin = () => {
     setShowLogin(!showLogin);
@@ -32,9 +32,7 @@ function Layout({ children }) {
 
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <div className="mr-0">
           <button onClick={toggleLogin}>
             {showLogin}
@@ -49,20 +47,9 @@ function Layout({ children }) {
             </div>
           )}
         </div>
-        <div className="flex">
-          {/* Sidebar */}
+        <div className="flex flex-col min-h-screen">
           <Sidebar />
-
-          {/* Sidebar */}
-
-            {/* Sidebar */}
-            <Sidebar />
-
-            {/* Main content */}
-            <main className="flex-1 p-6">{children}</main>
-          </div>
-
-          {/* Footer */}
+          <main className="flex-1 p-6">{children}</main>
           <Footer />
         </div>
       </body>
