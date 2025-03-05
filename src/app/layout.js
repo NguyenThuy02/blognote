@@ -1,5 +1,8 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import Sidebar from "./components/Sidebar";
+import Header from "./components/Header"; 
+import Footer from "./components/Footer";
+
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,20 +20,30 @@ export const metadata = {
   description: "Smart blog and notes application",
 };
 
-export default function RootLayout({ children }) {
+function Layout({ children }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <div className="flex">
-          {/* Sidebar */}
-          <Sidebar />
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <div className="flex flex-col min-h-screen">
+          {/* Header */}
+          <Header />
+          <div className="flex flex-1">
 
-          {/* Nội dung chính */}
-          <main className="flex-1 p-6">{children}</main>
+          {/* Sidebar */}
+
+            {/* Sidebar */}
+            <Sidebar />
+
+            {/* Main content */}
+            <main className="flex-1 p-6">{children}</main>
+          </div>
+
+          {/* Footer */}
+          <Footer />
         </div>
       </body>
     </html>
   );
 }
+
+export default Layout;
