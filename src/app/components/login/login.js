@@ -1,3 +1,4 @@
+"use client"; // Add this line
 import { useState } from "react";
 
 export default function LoginForm() {

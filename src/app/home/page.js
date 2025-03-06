@@ -72,7 +72,6 @@ export default function Home() {
           </ul>
         </div>
 
-
           {/* Calendar Section */}
           <div className="mt-10">
           <h2 className="text-2xl font-bold text-gray-800">Sự Kiện Sắp Đến</h2>
