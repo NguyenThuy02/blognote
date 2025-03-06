@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";  
 
+
 function Header() {
   return (
     <header className="bg-gradient-to-r from-white/80 via-purple-200 to-blue-200 text-white p-6 shadow-lg transition-shadow duration-300 flex items-center justify-between h-25">
@@ -53,8 +54,8 @@ function Header() {
           Đăng ký
         </Link>
         <Link href="/login" className="text-black font-semibold hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:bg-clip-text hover:text-transparent transition-all">
-          Đăng nhập
-        </Link>
+      Đăng nhập
+    </Link> 
       </nav>
     </header>
   );

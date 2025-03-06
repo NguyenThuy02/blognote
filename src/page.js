@@ -1,3 +1,4 @@
+
 import Image from "next/image";
 import Link from "next/link";
 
@@ -24,14 +25,16 @@ export default function Home() {
           </div>
         </div>
 
+
         {/* Introduction Section */}
         <div className="p-4 mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Chào mừng bạn đến với BlogNote</h2>
           <p className="text-gray-600 mt-2">
-            Người bạn thông minh của bạn trong việc quản lý ghi chú. Tổ chức, tìm kiếm và tạo ghi chú một cách dễ dàng. 
+            Người bạn thông minh của bạn trong việc quản lý ghi chú. Tổ chức, tìm kiếm và tạo ghi chú một cách dễ dàng.
             Tăng cường năng suất của bạn với các công cụ thân thiện với người dùng được thiết kế cho việc học tập tối ưu.
           </p>
         </div>
+
 
         {/* Courses Section */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -48,6 +51,7 @@ export default function Home() {
             </div>
           ))}
         </div>
+
 
         {/* New Section at the Bottom */}
         <div className="bg-white p-4 rounded-lg shadow mt-10 transition-transform duration-200 hover:shadow-xl">
@@ -67,6 +71,7 @@ export default function Home() {
             </li>
           </ul>
         </div>
+
 
           {/* Calendar Section */}
           <div className="mt-10">
