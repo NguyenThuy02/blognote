@@ -1,3 +1,8 @@
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header"; 
+import Footer from "./components/Footer";
+
+import { Geist, Geist_Mono } from "next/font/google";
 "use client";
 import React, { useState } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -18,8 +23,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export default function RootLayout({ children }) {
-  const [showLogin, setShowLogin] = useState(false); // Di chuyển useState vào đây
+function Layout({ children }) {
+  const [showLogin, setShowLogin] = useState(false);
 
   const toggleLogin = () => {
     setShowLogin(!showLogin);
@@ -27,9 +32,7 @@ export default function RootLayout({ children }) {
 
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <div className="mr-0">
           <button onClick={toggleLogin}>
             {showLogin}
@@ -44,14 +47,14 @@ export default function RootLayout({ children }) {
             </div>
           )}
         </div>
-        <div className="flex">
-          {/* Sidebar */}
+        <div className="flex flex-col min-h-screen">
           <Sidebar />
-
-          {/* Nội dung chính */}
           <main className="flex-1 p-6">{children}</main>
+          <Footer />
         </div>
       </body>
     </html>
   );
 }
+
+export default Layout;
