@@ -5,24 +5,44 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-6">
       {/* Logo */}
-      <Image src="/next.svg" alt="Next.js logo" width={120} height={30} priority />
+      <Image
+        src="/next.svg"
+        alt="Next.js logo"
+        width={120}
+        height={30}
+        priority
+      />
 
       {/* Tiêu đề */}
       <h1 className="text-3xl font-bold text-gray-800 mt-6">📒 Smart Notes</h1>
-      <p className="text-gray-600 text-lg mt-2">Quản lý ghi chú thông minh và tiện lợi</p>
+      <p className="text-gray-600 text-lg mt-2">
+        Quản lý ghi chú thông minh và tiện lợi
+      </p>
 
       {/* Điều hướng */}
       <div className="mt-6 flex flex-wrap gap-4">
-        <Link href="/manage_note" className="bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600">
+        <Link
+          href="/manage_note"
+          className="bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600"
+        >
           Quản lý ghi chú
         </Link>
-        <Link href="/create_notes" className="bg-green-500 text-white px-4 py-2 rounded shadow hover:bg-green-600">
+        <Link
+          href="/create_notes"
+          className="bg-green-500 text-white px-4 py-2 rounded shadow hover:bg-green-600"
+        >
           Tạo ghi chú mới
         </Link>
-        <Link href="/search_notes" className="bg-yellow-500 text-white px-4 py-2 rounded shadow hover:bg-yellow-600">
+        <Link
+          href="/search_notes"
+          className="bg-yellow-500 text-white px-4 py-2 rounded shadow hover:bg-yellow-600"
+        >
           Tìm kiếm
         </Link>
-        <Link href="/report" className="bg-red-500 text-white px-4 py-2 rounded shadow hover:bg-red-600">
+        <Link
+          href="/report"
+          className="bg-red-500 text-white px-4 py-2 rounded shadow hover:bg-red-600"
+        >
           Báo cáo
         </Link>
       </div>
