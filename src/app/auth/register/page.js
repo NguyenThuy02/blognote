@@ -1,6 +1,8 @@
 "use client";
 import { useForm } from "react-hook-form";
-import React from 'react';
+import React from "react";
+import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function RegisterPage() {
   const {
@@ -9,9 +11,17 @@ export default function RegisterPage() {
     formState: { errors },
     reset,
   } = useForm();
+  const router = useRouter();
 
   const onSubmit = async (data) => {
     console.log(data);
+    // Giả lập việc đăng ký thành công
+    toast.success("Đăng ký thành công! Đang về trang chủ...");
+
+    // Chuyển hướng sau 2 giây
+    setTimeout(() => {
+      router.push("/");
+    }, 2000);
   };
 
   const handleCancel = () => {
@@ -20,6 +30,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-300 to-purple-300">
+      <Toaster position="top-right" reverseOrder={false} />
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4"
@@ -35,7 +46,10 @@ export default function RegisterPage() {
 
         {/* Form fields */}
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
+          <label
+            className="block text-gray-700 text-sm font-bold mb-2"
+            htmlFor="username"
+          >
             Username
           </label>
           <input
@@ -48,12 +62,17 @@ export default function RegisterPage() {
             placeholder="Enter your username"
           />
           {errors.username && (
-            <p className="text-red-500 text-xs italic">{errors.username.message}</p>
+            <p className="text-red-500 text-xs italic">
+              {errors.username.message}
+            </p>
           )}
         </div>
 
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+          <label
+            className="block text-gray-700 text-sm font-bold mb-2"
+            htmlFor="email"
+          >
             Email
           </label>
           <input
@@ -66,12 +85,17 @@ export default function RegisterPage() {
             placeholder="Enter your email"
           />
           {errors.email && (
-            <p className="text-red-500 text-xs italic">{errors.email.message}</p>
+            <p className="text-red-500 text-xs italic">
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+          <label
+            className="block text-gray-700 text-sm font-bold mb-2"
+            htmlFor="password"
+          >
             Password
           </label>
           <input
@@ -84,7 +108,9 @@ export default function RegisterPage() {
             placeholder="Enter your password"
           />
           {errors.password && (
-            <p className="text-red-500 text-xs italic">{errors.password.message}</p>
+            <p className="text-red-500 text-xs italic">
+              {errors.password.message}
+            </p>
           )}
         </div>
 
@@ -122,7 +148,7 @@ export default function RegisterPage() {
         <div className="mt-4 text-center">
           <span className="text-sm">
             Already have an account?{" "}
-            <a href="/auth/login" className="text-blue-500 hover:text-blue-800">
+            <a href="./login" className="text-blue-500 hover:text-blue-800">
               Login now!
             </a>
           </span>
