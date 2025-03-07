@@ -66,7 +66,7 @@ export default function Sidebar() {
           <ul className="space-y-2">
             <li>
             <Link href="/calendar_page" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
-                📅 Trang lịch
+               🗓️ Trang lịch
               </Link>
             </li>
             <li>
