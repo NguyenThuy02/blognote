@@ -10,7 +10,7 @@ export default function Sidebar() {
           <h3 className="text-gray-400 text-sm mb-2">📚 Bài viết</h3>
           <ul className="space-y-2">
             <li>
-            <Link href="/post_list" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+            <Link href="blog-list/post_list" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
                 📄 Danh sách bài viết
               </Link>
             </li>
