@@ -5,8 +5,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 //import Page from"./src/app/components/home/page";
 import Page from "../src/page.js";
 import "../src/globals.css";
-//import Login from "../src/app/components/login/login";
+import Login from "../src/app/components/login/login";
 import CalendarPage from "../src/pages/calendar_page";
+import Notelist from "../src/pages/note_list";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,7 @@ export default function Layout({ children }) {
           
           <div className="flex flex-1">
             <Sidebar />
-            <main className="flex-1 p-6"><CalendarPage/></main>
+            <main className="flex-1 p-6"><Notelist/></main>
             <notes/>
           </div>
           <Footer />
