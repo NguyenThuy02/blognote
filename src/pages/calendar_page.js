@@ -1,5 +1,6 @@
 "use client"; // Add this line
 import { useState } from 'react';
+import global from '@/app/global';
 
 const CalendarPage = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
