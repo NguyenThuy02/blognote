@@ -50,12 +50,15 @@ function Header() {
           </div>
         </div>
 
-        <Link href="/register" className="text-black font-semibold hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:bg-clip-text hover:text-transparent transition-all">
+        <Link 
+          href="/register" 
+          className="text-black font-semibold hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:bg-clip-text hover:text-transparent transition-all"
+        >
           Đăng ký
         </Link>
-        <Link href="/login" className="text-black font-semibold hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:bg-clip-text hover:text-transparent transition-all">
-      Đăng nhập
-    </Link> 
+        <Link href="/auth/login" className="text-black font-semibold hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 hover:bg-clip-text hover:text-transparent transition-all">
+          Đăng nhập
+        </Link> 
       </nav>
     </header>
   );

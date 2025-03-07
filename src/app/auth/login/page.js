@@ -1,7 +1,8 @@
 "use client";
+import React from 'react';
 import { useState } from "react";
 
-export default function Login() {
+export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({ username: "", password: "" });
@@ -23,11 +24,8 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gradient-to-r from-blue-300 to-purple-300">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm p-8 rounded-2xl shadow-lg bg-stone-50"
-      >
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-r from-blue-300 to-purple-300">
+      <div className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4">
         {/* Logo and Title */}
         <div className="flex items-center justify-center mb-10">
           <h2 className="text-gray-700 text-2xl font-bold">Login</h2>
@@ -111,7 +109,7 @@ export default function Login() {
             </a>
           </span>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
