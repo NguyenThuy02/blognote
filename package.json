@@ -11,7 +11,7 @@
   "dependencies": {
     "antd": "^5.24.2",
     "bootstrap": "^5.3.3",
-    "next": "14.2",
+    "next": "^15.2.1",
     "react": "^19.0.0",
     "react-bootstrap": "^2.10.9",
     "react-dom": "^19.0.0",
@@ -26,6 +26,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.2.1",
     "postcss": "^8.5.3",
-    "tailwindcss": "^4.0.9"
+    "tailwindcss": "^4.0.11"
   }
 }
