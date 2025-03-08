@@ -8,8 +8,8 @@ function AuthPage() {
     <Router>
       <header>
         <nav>
-          <ul>
-            <li>
+          <ul style={{ display: "flex", listStyle: "none", padding: 0 }}>
+            <li style={{ marginRight: "20px" }}>
               <Link to="/login">Login</Link>
             </li>
             <li>
@@ -20,8 +20,8 @@ function AuthPage() {
       </header>
       <main>
         <Switch>
-          <Route path="/login" component={Login} />
-          <Route path="/register" component={Register} />
+          <Route exact path="/login" component={Login} />
+          <Route exact path="/register" component={Register} />
         </Switch>
       </main>
     </Router>
