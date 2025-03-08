@@ -10,67 +10,88 @@ export default function Sidebar() {
           <h3 className="text-gray-400 text-sm mb-2">📚 Bài viết</h3>
           <ul className="space-y-2">
             <li>
-            <Link href="/note/post_list" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/blog/blog-list"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 📄 Danh sách bài viết
               </Link>
             </li>
             <li>
-            <Link href="/post_category" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/post_category"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 🏷️ Phân loại bài viết
               </Link>
             </li>
             <li>
-            <Link href="/manage_post" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/manage_post"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 ✍️ Quản lý bài viết
               </Link>
             </li>
           </ul>
         </div>
 
-
-
-
         {/* Ghi chú */}
         <div>
           <h3 className="text-gray-400 text-sm mb-2">📝 Ghi chú</h3>
           <ul className="space-y-2">
             <li>
-            <Link href="/note_list" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/note_list"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 📌 Danh sách ghi chú
               </Link>
             </li>
             <li>
-            <Link href="/create_notes" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/create_notes"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 ➕ Tạo ghi chú
               </Link>
             </li>
             <li>
-            <Link href="/manage_note" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/manage_note"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 🛠️ Quản lý ghi chú
               </Link>
             </li>
             <li>
-            <Link href="/search_notes" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/search_notes"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 🔍 Tìm kiếm ghi chú
               </Link>
             </li>
           </ul>
         </div>
 
-
-
-
         {/* Công cụ khác */}
         <div>
           <h3 className="text-gray-400 text-sm mb-2">📊 Công cụ</h3>
           <ul className="space-y-2">
             <li>
-            <Link href="/calendar_page" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
-               🗓️ Trang lịch
+              <Link
+                href="/note/post_list"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
+                🗓️ Trang lịch
               </Link>
             </li>
             <li>
-            <Link href="/report" className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded">
+              <Link
+                href="/report"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
                 📈 Thống kê ghi chú
               </Link>
             </li>
