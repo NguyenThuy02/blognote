@@ -37,9 +37,9 @@ const articles = [
 
 export default function BlogList() {
   return (
-    <div className="container mx-auto px-4 bg-gray-100">
-      <h1 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-        Danh sách Bài Viết
+    <div className="container mx-2 p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
+      <h1 className="text-3xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+        Danh sách bài viết
       </h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Card cho từng bài viết */}
