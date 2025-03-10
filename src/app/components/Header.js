@@ -45,7 +45,7 @@ function Header() {
     <header className="fixed top-0 w-full bg-gradient-to-r from-white/80 via-purple-200 to-blue-200 text-white p-7 shadow-lg transition-shadow duration-300 flex items-center justify-between h-25 z-10">
       <Link href="/" className="flex items-center" aria-label="Home">
         <Image
-          src="/BlogNote.png"
+          src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741593256/amhe1oz6r08s3lpemoqj.png"
           alt="Blog & Notes Logo"
           width={130}
           height={40}
