@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { FaPlus, FaFileImport, FaShareAlt, FaFileExport } from "react-icons/fa";
+import axios from "axios";
 
 export default function NoteApp() {
   const [title, setTitle] = useState("");
@@ -10,6 +11,10 @@ export default function NoteApp() {
   const [uploadedImages, setUploadedImages] = useState([]);
 
   const handleSaveNote = () => {
+    if (!title || !content) {
+      alert("Please fill in both title and content.");
+      return;
+    }
     console.log("Ghi chú đã lưu:", { title, content, uploadedImages });
     setTitle("");
     setContent("");
@@ -21,6 +26,23 @@ export default function NoteApp() {
     const files = Array.from(e.target.files);
     const images = files.map((file) => URL.createObjectURL(file));
     setUploadedImages(images);
+  };
+
+  const translateText = async (text, targetLang) => {
+    try {
+      const response = await axios.post("YOUR_API_ENDPOINT", {
+        q: text,
+        target: targetLang,
+        // Nếu cần, thêm headers hoặc thông tin khác
+      });
+      return response.data.translatedText; // Điều chỉnh theo cấu trúc dữ liệu của API
+    } catch (error) {
+      console.error(
+        "Error:",
+        error.response ? error.response.data : error.message
+      );
+      return text; // Trả về văn bản gốc nếu có lỗi
+    }
   };
 
   return (
@@ -47,7 +69,7 @@ export default function NoteApp() {
         onChange={(e) => setContent(e.target.value)}
         className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
       />
-      <br></br>
+      <br />
 
       <div className="flex space-x-4 text-blue-600 mb-4">
         <button
@@ -93,6 +115,27 @@ export default function NoteApp() {
           </div>
         </div>
       )}
+
+      <div className="flex space-x-4 mb-4">
+        <button
+          onClick={async () => {
+            const translated = await translateText(content, "en"); // Dịch sang tiếng Anh
+            setContent(translated);
+          }}
+          className="bg-gradient-to-r from-blue-400 to-purple-400 text-black py-2 px-4 rounded-md flex items-center"
+        >
+          Dịch sang tiếng Anh
+        </button>
+        <button
+          onClick={async () => {
+            const translated = await translateText(content, "vi"); // Dịch sang tiếng Việt
+            setContent(translated);
+          }}
+          className="bg-gradient-to-r from-blue-400 to-purple-400 text-black py-2 px-4 rounded-md flex items-center"
+        >
+          Dịch sang tiếng Việt
+        </button>
+      </div>
 
       <div className="flex justify-center mt-4 space-x-4">
         <button
