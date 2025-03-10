@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { FaFileImport, FaShareAlt, FaPlus, FaSearch, FaEdit, FaTrash, FaFileExport, FaLightbulb } from "react-icons/fa";
+import { OpenAI } from "openai";
+import {
+  FaFileImport,
+  FaShareAlt,
+  FaPlus,
+  FaSearch,
+  FaEdit,
+  FaTrash,
+  FaFileExport,
+  FaLightbulb,
+} from "react-icons/fa";
 
 const NoteApp = () => {
   const [title, setTitle] = useState("");
@@ -16,7 +26,12 @@ const NoteApp = () => {
   const handleSaveNote = () => {
     if (!title.trim() || !content.trim()) return;
 
-    const newNote = { title, content, date: new Date(), images: uploadedImages };
+    const newNote = {
+      title,
+      content,
+      date: new Date(),
+      images: uploadedImages,
+    };
     setNotes([...notes, newNote]);
 
     setTitle("");
@@ -38,7 +53,14 @@ const NoteApp = () => {
   };
 
   const handleExportNotes = () => {
-    const text = notes.map((note) => `Tiêu đề: ${note.title}\nNội dung: ${note.content}\nNgày: ${note.date.toLocaleString()}\n---\n`).join("\n");
+    const text = notes
+      .map(
+        (note) =>
+          `Tiêu đề: ${note.title}\nNội dung: ${
+            note.content
+          }\nNgày: ${note.date.toLocaleString()}\n---\n`
+      )
+      .join("\n");
     const blob = new Blob([text], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -48,47 +70,42 @@ const NoteApp = () => {
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
-    const images = files.map(file => URL.createObjectURL(file));
+    const images = files.map((file) => URL.createObjectURL(file));
     setUploadedImages(images);
   };
 
+  const handleAiSuggestion = async () => {
+    const noteContent = content; // Nội dung từ textarea
+    try {
+      const response = await fetch("/api/ai-suggestions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ noteContent }),
+      });
 
+      // Kiểm tra trạng thái phản hồi
+      if (response.status === 429) {
+        alert("Bạn đã vượt quá hạn mức sử dụng API. Vui lòng thử lại sau.");
+        return; // Dừng hàm nếu đạt đến hạn mức
+      }
 
+      if (!response.ok) throw new Error("Failed to fetch AI suggestions");
 
-const handleAiSuggestion = async () => {
-  const noteContent = content; // Nội dung từ textarea
-  try {
-    const response = await fetch('/api/ai-suggestions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ noteContent }),
-    });
-
-    // Kiểm tra trạng thái phản hồi
-    if (response.status === 429) {
-      alert('Bạn đã vượt quá hạn mức sử dụng API. Vui lòng thử lại sau.');
-      return; // Dừng hàm nếu đạt đến hạn mức
+      const aiSuggestions = await response.json();
+      alert(aiSuggestions); // Hiển thị gợi ý
+    } catch (error) {
+      console.error("Error fetching AI suggestions:", error);
+      alert(`Đã xảy ra lỗi khi lấy gợi ý từ AI: ${error.message}`);
     }
-
-    if (!response.ok) throw new Error('Failed to fetch AI suggestions');
-
-    const aiSuggestions = await response.json();
-    alert(aiSuggestions); // Hiển thị gợi ý
-  } catch (error) {
-    console.error('Error fetching AI suggestions:', error);
-    alert(`Đã xảy ra lỗi khi lấy gợi ý từ AI: ${error.message}`);
-  }
-};
-
-
-
+  };
 
   const sortedNotes = [...notes]
-    .filter((note) =>
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter(
+      (note) =>
+        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.content.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
       if (sortBy === "title") return a.title.localeCompare(b.title);
@@ -108,7 +125,10 @@ const handleAiSuggestion = async () => {
       />
 
       <div className="flex space-x-4 text-blue-600 mb-4">
-        <button onClick={() => setImageUploadVisible(!imageUploadVisible)} className="btn-gradient">
+        <button
+          onClick={() => setImageUploadVisible(!imageUploadVisible)}
+          className="btn-gradient"
+        >
           <FaPlus /> <span>Chèn ảnh</span>
         </button>
         <button className="btn-gradient">
@@ -117,7 +137,10 @@ const handleAiSuggestion = async () => {
         <button onClick={handleAiSuggestion} className="btn-gradient">
           <FaLightbulb /> <span>AI</span>
         </button>
-        <button onClick={handleExportNotes} className="btn-gradient text-green-600">
+        <button
+          onClick={handleExportNotes}
+          className="btn-gradient text-green-600"
+        >
           <FaFileExport /> <span>Xuất File</span>
         </button>
       </div>
@@ -133,7 +156,12 @@ const handleAiSuggestion = async () => {
           />
           <div className="flex flex-wrap">
             {uploadedImages.map((image, index) => (
-              <img key={index} src={image} alt={`Uploaded preview ${index}`} className="w-20 h-20 object-cover rounded-md mr-2 mb-2" />
+              <img
+                key={index}
+                src={image}
+                alt={`Uploaded preview ${index}`}
+                className="w-20 h-20 object-cover rounded-md mr-2 mb-2"
+              />
             ))}
           </div>
         </div>
@@ -147,7 +175,10 @@ const handleAiSuggestion = async () => {
       />
 
       <div className="flex justify-center mt-4">
-        <button onClick={handleSaveNote} className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center">
+        <button
+          onClick={handleSaveNote}
+          className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center"
+        >
           {editingIndex !== null ? "Cập nhật" : "Lưu"}
         </button>
       </div>
@@ -175,30 +206,50 @@ const handleAiSuggestion = async () => {
         </div>
 
         <div className="mt-8">
-          <h2 className="font-bold text-2xl text-blue-600">📌 Ghi chú đã lưu</h2>
+          <h2 className="font-bold text-2xl text-blue-600">
+            📌 Ghi chú đã lưu
+          </h2>
           <ul>
             {sortedNotes.length > 0 ? (
               sortedNotes.map((note, index) => (
-                <li key={index} className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg">
+                <li
+                  key={index}
+                  className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg"
+                >
                   <div className="flex-shrink-0 mr-4">
                     {note.images.length > 0 && (
                       <div className="flex flex-wrap">
                         {note.images.map((image, imgIndex) => (
-                          <img key={imgIndex} src={image} alt={`Note ${index} image ${imgIndex}`} className="w-20 h-20 object-cover rounded-md" />
+                          <img
+                            key={imgIndex}
+                            src={image}
+                            alt={`Note ${index} image ${imgIndex}`}
+                            className="w-20 h-20 object-cover rounded-md"
+                          />
                         ))}
                       </div>
                     )}
                   </div>
                   <div className="flex-grow">
-                    <strong className="text-purple-600 text-lg">{note.title}</strong>
+                    <strong className="text-purple-600 text-lg">
+                      {note.title}
+                    </strong>
                     <p className="text-gray-700">{note.content}</p>
-                    <small className="text-gray-500">{note.date.toLocaleString()}</small>
+                    <small className="text-gray-500">
+                      {note.date.toLocaleString()}
+                    </small>
                   </div>
                   <div className="flex space-x-3 ml-4">
-                    <button onClick={() => handleEditNote(index)} className="text-yellow-500 text-xl">
+                    <button
+                      onClick={() => handleEditNote(index)}
+                      className="text-yellow-500 text-xl"
+                    >
                       <FaEdit />
                     </button>
-                    <button onClick={() => handleDeleteNote(index)} className="text-red-500 text-xl">
+                    <button
+                      onClick={() => handleDeleteNote(index)}
+                      className="text-red-500 text-xl"
+                    >
                       <FaTrash />
                     </button>
                   </div>
