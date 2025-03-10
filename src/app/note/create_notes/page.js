@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { OpenAI } from "openai";
 import {
   FaFileImport,
   FaShareAlt,
@@ -10,7 +9,6 @@ import {
   FaEdit,
   FaTrash,
   FaFileExport,
-  FaLightbulb,
 } from "react-icons/fa";
 
 const NoteApp = () => {
@@ -74,33 +72,6 @@ const NoteApp = () => {
     setUploadedImages(images);
   };
 
-  const handleAiSuggestion = async () => {
-    const noteContent = content; // Nội dung từ textarea
-    try {
-      const response = await fetch("/api/ai-suggestions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ noteContent }),
-      });
-
-      // Kiểm tra trạng thái phản hồi
-      if (response.status === 429) {
-        alert("Bạn đã vượt quá hạn mức sử dụng API. Vui lòng thử lại sau.");
-        return; // Dừng hàm nếu đạt đến hạn mức
-      }
-
-      if (!response.ok) throw new Error("Failed to fetch AI suggestions");
-
-      const aiSuggestions = await response.json();
-      alert(aiSuggestions); // Hiển thị gợi ý
-    } catch (error) {
-      console.error("Error fetching AI suggestions:", error);
-      alert(`Đã xảy ra lỗi khi lấy gợi ý từ AI: ${error.message}`);
-    }
-  };
-
   const sortedNotes = [...notes]
     .filter(
       (note) =>
@@ -134,8 +105,8 @@ const NoteApp = () => {
         <button className="btn-gradient">
           <FaFileImport /> <span>Nhập Word/PDF</span>
         </button>
-        <button onClick={handleAiSuggestion} className="btn-gradient">
-          <FaLightbulb /> <span>AI</span>
+        <button className="btn-gradient">
+          <FaShareAlt /> <span>Chia sẻ</span>
         </button>
         <button
           onClick={handleExportNotes}
@@ -264,7 +235,7 @@ const NoteApp = () => {
 
       <style jsx>{`
         .btn-gradient {
-          background: linear-gradient(135deg, rgb(59, 158, 251), #eab8e4);
+          background: linear-gradient(135deg, #a2d2ff, #cdb4db);
           color: white;
           padding: 12px 20px;
           border-radius: 12px;
@@ -276,7 +247,7 @@ const NoteApp = () => {
           border: 1px solid rgba(255, 255, 255, 0.5);
         }
         .btn-gradient:hover {
-          background: linear-gradient(135deg, #eab8e4, rgb(62, 159, 249));
+          background: linear-gradient(135deg, #cdb4db, #a2d2ff);
           transform: scale(1.08);
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
         }
