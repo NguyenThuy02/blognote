@@ -148,7 +148,7 @@ export default function Report() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="mt-[1px] p-5 mb-[-7px] mt-[96px] p-5 mb-[-7px] max-w-6xl mx-auto p-6">
       <div className="border rounded-lg shadow-lg p-6 bg-gray-50">
         <h1 className="text-3xl font-bold mb-4 text-center">📈 Thống kê ghi chú</h1>
 

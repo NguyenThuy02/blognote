@@ -64,7 +64,7 @@ export default function NoteList() {
   const totalSpreadsheetPages = Math.ceil(spreadsheetNotes.length / notesPerPage);
 
   return (
-    <div className="max-w-full mx-auto p-6 space-y-6">
+    <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6">
 
       {/* Khung 1: Ghi chú văn bản thuần */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
@@ -92,7 +92,7 @@ export default function NoteList() {
               <button
                 key={index + 1}
                 onClick={() => setCurrentTextPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full ${currentTextPage === index + 1 ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                className={`mx-1 px-4 py-2 rounded-full ${currentTextPage === index + 1 ? 'bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg' : 'bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md'}`}
               >
                 {index + 1}
               </button>
@@ -140,7 +140,7 @@ export default function NoteList() {
               <button
                 key={index + 1}
                 onClick={() => setCurrentRichPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full ${currentRichPage === index + 1 ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                className={`mx-1 px-4 py-2 rounded-full ${currentTextPage === index + 1 ? 'bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg' : 'bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md'}`}
               >
                 {index + 1}
               </button>
@@ -178,7 +178,7 @@ export default function NoteList() {
               <button
                 key={index + 1}
                 onClick={() => setCurrentSketchPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full ${currentSketchPage === index + 1 ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                className={`mx-1 px-4 py-2 rounded-full ${currentTextPage === index + 1 ? 'bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg' : 'bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md'}`}
               >
                 {index + 1}
               </button>
@@ -216,7 +216,7 @@ export default function NoteList() {
               <button
                 key={index + 1}
                 onClick={() => setCurrentSpreadsheetPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full ${currentSpreadsheetPage === index + 1 ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}`}
+                className={`mx-1 px-4 py-2 rounded-full ${currentTextPage === index + 1 ? 'bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg' : 'bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md'}`}
               >
                 {index + 1}
               </button>

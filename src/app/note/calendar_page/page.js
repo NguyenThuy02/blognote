@@ -29,7 +29,7 @@ const CalendarPage = () => {
   const daysInMonth = getDaysInMonth(currentMonth, currentYear);
  
   return (
-    <div className="container mx-auto p-5 relative bg-white rounded-xl shadow-lg">
+    <div className="mt-[97px] p-5 mb-[-7px] container mx-auto p-5 relative bg-white rounded-xl shadow-lg">
       <h1 className="text-4xl font-bold mb-6 text-center bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">Trang Lịch</h1>
       <div className="flex justify-between items-center mb-6">
         <button
