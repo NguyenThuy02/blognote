@@ -1,7 +1,9 @@
 "use client";
 
+
 import { useState } from "react";
-import { FaFileImport, FaShareAlt, FaPlus, FaSearch, FaEdit, FaTrash, FaFileExport, FaLightbulb } from "react-icons/fa";
+import { FaFileImport, FaShareAlt, FaPlus, FaSearch, FaEdit, FaTrash, FaFileExport } from "react-icons/fa";
+
 
 const NoteApp = () => {
   const [title, setTitle] = useState("");
@@ -13,11 +15,14 @@ const NoteApp = () => {
   const [imageUploadVisible, setImageUploadVisible] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
 
+
   const handleSaveNote = () => {
     if (!title.trim() || !content.trim()) return;
 
+
     const newNote = { title, content, date: new Date(), images: uploadedImages };
     setNotes([...notes, newNote]);
+
 
     setTitle("");
     setContent("");
@@ -25,10 +30,12 @@ const NoteApp = () => {
     setImageUploadVisible(false);
   };
 
+
   const handleDeleteNote = (index) => {
     const updatedNotes = notes.filter((_, i) => i !== index);
     setNotes(updatedNotes);
   };
+
 
   const handleEditNote = (index) => {
     setTitle(notes[index].title);
@@ -36,6 +43,7 @@ const NoteApp = () => {
     setUploadedImages(notes[index].images);
     setEditingIndex(index);
   };
+
 
   const handleExportNotes = () => {
     const text = notes.map((note) => `Tiêu đề: ${note.title}\nNội dung: ${note.content}\nNgày: ${note.date.toLocaleString()}\n---\n`).join("\n");
@@ -46,43 +54,12 @@ const NoteApp = () => {
     link.click();
   };
 
+
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
     const images = files.map(file => URL.createObjectURL(file));
     setUploadedImages(images);
   };
-
-
-
-
-const handleAiSuggestion = async () => {
-  const noteContent = content; // Nội dung từ textarea
-  try {
-    const response = await fetch('/api/ai-suggestions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ noteContent }),
-    });
-
-    // Kiểm tra trạng thái phản hồi
-    if (response.status === 429) {
-      alert('Bạn đã vượt quá hạn mức sử dụng API. Vui lòng thử lại sau.');
-      return; // Dừng hàm nếu đạt đến hạn mức
-    }
-
-    if (!response.ok) throw new Error('Failed to fetch AI suggestions');
-
-    const aiSuggestions = await response.json();
-    alert(aiSuggestions); // Hiển thị gợi ý
-  } catch (error) {
-    console.error('Error fetching AI suggestions:', error);
-    alert(`Đã xảy ra lỗi khi lấy gợi ý từ AI: ${error.message}`);
-  }
-};
-
-
 
 
   const sortedNotes = [...notes]
@@ -95,9 +72,11 @@ const handleAiSuggestion = async () => {
       return new Date(b.date) - new Date(a.date);
     });
 
+
   return (
     <div className="max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
       <h1 className="text-3xl font-bold text-center mb-6">Ứng dụng Ghi chú</h1>
+
 
       <input
         type="text"
@@ -107,6 +86,7 @@ const handleAiSuggestion = async () => {
         className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
       />
 
+
       <div className="flex space-x-4 text-blue-600 mb-4">
         <button onClick={() => setImageUploadVisible(!imageUploadVisible)} className="btn-gradient">
           <FaPlus /> <span>Chèn ảnh</span>
@@ -114,13 +94,14 @@ const handleAiSuggestion = async () => {
         <button className="btn-gradient">
           <FaFileImport /> <span>Nhập Word/PDF</span>
         </button>
-        <button onClick={handleAiSuggestion} className="btn-gradient">
-          <FaLightbulb /> <span>AI</span>
+        <button className="btn-gradient">
+          <FaShareAlt /> <span>Chia sẻ</span>
         </button>
         <button onClick={handleExportNotes} className="btn-gradient text-green-600">
           <FaFileExport /> <span>Xuất File</span>
         </button>
       </div>
+
 
       {imageUploadVisible && (
         <div className="mb-4">
@@ -139,6 +120,7 @@ const handleAiSuggestion = async () => {
         </div>
       )}
 
+
       <textarea
         placeholder="Nội dung ghi chú"
         value={content}
@@ -146,11 +128,13 @@ const handleAiSuggestion = async () => {
         className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
       />
 
+
       <div className="flex justify-center mt-4">
         <button onClick={handleSaveNote} className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center">
           {editingIndex !== null ? "Cập nhật" : "Lưu"}
         </button>
       </div>
+
 
       {/* New Section for Sorting and Notes */}
       <div className="mt-6 p-4 border border-gray-300 rounded-lg">
@@ -165,6 +149,7 @@ const handleAiSuggestion = async () => {
           />
         </div>
 
+
         <div className="flex justify-between mt-6 text-blue-600">
           <button onClick={() => setSortBy("title")}>
             ↕ Sắp xếp theo tiêu đề
@@ -173,6 +158,7 @@ const handleAiSuggestion = async () => {
             ↕ Sắp xếp theo ngày cập nhật
           </button>
         </div>
+
 
         <div className="mt-8">
           <h2 className="font-bold text-2xl text-blue-600">📌 Ghi chú đã lưu</h2>
@@ -211,9 +197,10 @@ const handleAiSuggestion = async () => {
         </div>
       </div>
 
+
       <style jsx>{`
         .btn-gradient {
-          background: linear-gradient(135deg, rgb(59, 158, 251), #eab8e4);
+          background: linear-gradient(135deg, #a2d2ff, #cdb4db);
           color: white;
           padding: 12px 20px;
           border-radius: 12px;
@@ -225,7 +212,7 @@ const handleAiSuggestion = async () => {
           border: 1px solid rgba(255, 255, 255, 0.5);
         }
         .btn-gradient:hover {
-          background: linear-gradient(135deg, #eab8e4, rgb(62, 159, 249));
+          background: linear-gradient(135deg, #cdb4db, #a2d2ff);
           transform: scale(1.08);
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
         }
@@ -233,5 +220,6 @@ const handleAiSuggestion = async () => {
     </div>
   );
 };
+
 
 export default NoteApp;

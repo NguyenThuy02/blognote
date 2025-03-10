@@ -42,7 +42,7 @@ export default function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link
-                href="/note_list"
+                href="/note/note_list"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 📌 Danh sách ghi chú
@@ -50,7 +50,7 @@ export default function Sidebar() {
             </li>
             <li>
               <Link
-                href="/create_notes"
+                href="/note/create_notes"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 ➕ Tạo ghi chú
@@ -58,7 +58,7 @@ export default function Sidebar() {
             </li>
             <li>
               <Link
-                href="/manage_note"
+                href="/note/manage_note"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 🛠️ Quản lý ghi chú
@@ -66,7 +66,7 @@ export default function Sidebar() {
             </li>
             <li>
               <Link
-                href="/search_notes"
+                href="/note/search_notes"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 🔍 Tìm kiếm ghi chú
@@ -81,7 +81,7 @@ export default function Sidebar() {
           <ul className="space-y-2">
             <li>
               <Link
-                href="/note/post_list"
+                href="/note/calendar_page"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 🗓️ Trang lịch
@@ -89,7 +89,7 @@ export default function Sidebar() {
             </li>
             <li>
               <Link
-                href="/report"
+                href="/note/report"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 📈 Thống kê ghi chú

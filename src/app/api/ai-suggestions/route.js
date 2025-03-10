@@ -1,12 +1,15 @@
-import { OpenAI } from 'openai';
+const express = require('express');
+const { OpenAI } = require('openai');
 
+const app = express();
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Đảm bảo biến môi trường này được thiết lập
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function POST(request) {
-  const { noteContent } = await request.json();
+app.use(express.json());
 
+app.post('/api/suggest-structure', async (req, res) => {
+  const { noteContent } = req.body;
   const prompt = `
     Bạn là một trợ lý AI. Dựa trên ghi chú sau:
     "${noteContent}"
@@ -25,11 +28,14 @@ export async function POST(request) {
 
     console.log('API Response:', response); // In ra phản hồi từ API
     
-    return new Response(JSON.stringify(response.choices[0].message.content), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    res.json(response.choices[0].message.content);
   } catch (error) {
     console.error('Error fetching AI suggestions:', error);
-    return new Response('Đã xảy ra lỗi', { status: 500 });
+    res.status(500).send('Đã xảy ra lỗi');
   }
-}
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
