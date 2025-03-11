@@ -57,10 +57,15 @@ const NoteApp = () => {
     }
 
     try {
+      // Kiểm tra và log thông tin hình ảnh trước khi lưu
+      const imageUrl = uploadedImages.length > 0 ? uploadedImages[uploadedImages.length - 1] : null;
+      console.log('Current uploaded images:', uploadedImages);
+      console.log('Image URL to be saved:', imageUrl);
+
       const noteData = {
         title: title.trim(),
         content: content.trim(),
-        image_url: uploadedImages.length > 0 ? uploadedImages[uploadedImages.length - 1] : null, // Lấy URL hình ảnh mới nhất
+        image_url: imageUrl,
         updated_at: new Date().toISOString()
       };
 
@@ -77,6 +82,7 @@ const NoteApp = () => {
 
         if (error) throw error;
 
+        console.log('Updated note data:', data);
         // Cập nhật state
         setNotes(notes.map(note => 
           note.id === editingId ? { ...note, ...data } : note
@@ -92,6 +98,7 @@ const NoteApp = () => {
 
         if (error) throw error;
 
+        console.log('Created new note:', data);
         // Thêm ghi chú mới vào đầu danh sách
         setNotes([data, ...notes]);
       }
@@ -103,6 +110,9 @@ const NoteApp = () => {
       setImageUploadVisible(false);
       setEditingIndex(null);
       setError("");
+
+      // Refresh notes để đảm bảo dữ liệu mới nhất
+      await fetchNotes();
 
       console.log('Note saved successfully');
     } catch (err) {
@@ -168,8 +178,10 @@ const NoteApp = () => {
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('upload_preset', 'blognote'); // Thay đổi thành upload preset của bạn
+        formData.append('upload_preset', 'blognote');
         formData.append('cloud_name', 'dlaoxrnad');
+
+        console.log('Uploading file:', file.name);
 
         const response = await fetch(
           'https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload',
@@ -187,12 +199,24 @@ const NoteApp = () => {
 
         const data = await response.json();
         console.log('Upload successful:', data);
+        
+        // Kiểm tra URL trả về
+        if (!data.secure_url) {
+          throw new Error('No secure URL received from Cloudinary');
+        }
+        
         return data.secure_url;
       });
 
       const uploadedUrls = await Promise.all(uploadPromises);
-      console.log('All uploads completed:', uploadedUrls);
-      setUploadedImages(prev => [...prev, ...uploadedUrls]);
+      console.log('All uploads completed. URLs:', uploadedUrls);
+      
+      // Kiểm tra URLs trước khi cập nhật state
+      if (uploadedUrls.length > 0) {
+        setUploadedImages(prev => [...prev, ...uploadedUrls]);
+        console.log('Updated uploadedImages state:', uploadedUrls);
+      }
+      
       setError("");
     } catch (err) {
       console.error("Error uploading images:", err);
