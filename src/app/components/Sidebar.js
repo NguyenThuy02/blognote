@@ -119,6 +119,14 @@ export default function Sidebar() {
                 📈 Thống kê ghi chú
               </Link>
             </li>
+            <li>
+              <Link
+                href="/note/weather"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
+                🌤️ Thời tiết
+              </Link>
+            </li>
           </ul>
         </div>
       </nav>
