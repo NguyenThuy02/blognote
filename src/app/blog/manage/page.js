@@ -22,7 +22,7 @@ const initialArticles = [
   // Thêm các bài viết khác nếu cần
 ];
 
-export default function ArticleManagement() {
+export default function ManageApp() {
   const [articles, setArticles] = useState(initialArticles);
   const [newArticle, setNewArticle] = useState({
     title: "",

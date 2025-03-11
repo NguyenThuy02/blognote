@@ -4,7 +4,7 @@ import Image from "next/image";
 import { FaPlus, FaFileImport, FaShareAlt, FaFileExport } from "react-icons/fa";
 import axios from "axios";
 
-export default function NoteApp() {
+export default function PostApp() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [imageUploadVisible, setImageUploadVisible] = useState(false);

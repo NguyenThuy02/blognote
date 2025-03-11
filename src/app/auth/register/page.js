@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
 
-export default function TrangDangKy() {
+export default function RegisterApp() {
   const {
     register,
     handleSubmit,
@@ -39,7 +39,7 @@ export default function TrangDangKy() {
         <div className="flex items-center justify-center mb-10">
           <h2 className="text-gray-700 text-2xl font-bold">Đăng Ký</h2>
           <Image
-            src="/login.gif"
+            src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681302/msvum6dk9ii7fvzewqan.gif"
             alt="Logo"
             width={50}
             height={50}
@@ -137,7 +137,7 @@ export default function TrangDangKy() {
         <div className="mt-6 flex justify-between">
           <button
             type="submit"
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
             Đăng Ký
           </button>

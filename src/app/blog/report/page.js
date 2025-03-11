@@ -13,7 +13,7 @@ const initialArticles = [
   { id: 5, title: "Bài viết 5", status: "published", date: "2023-05-01" },
 ];
 
-export default function BlogStatistics() {
+export default function ReportApp() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -27,6 +27,22 @@ export default function BlogStatistics() {
   const deletedCount = initialArticles.filter(
     (article) => article.status === "deleted"
   ).length;
+
+  /*
+    const exportToExcel = () => {
+    const data = initialArticles.map(({ id, title, status, date }) => ({
+      id,
+      title,
+      status,
+      date,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Articles');
+    XLSX.writeFile(wb, 'articles.xlsx');
+  };
+
+  */
 
   // Dữ liệu cho biểu đồ
   const chartData = {

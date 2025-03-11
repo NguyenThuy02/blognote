@@ -17,3 +17,5 @@ const uploadImage = async (filePath) => {
 
 // Gọi hàm upload
 uploadImage("./public/BlogNote.png");
+uploadImage("./public/login.gif");
+uploadImage("./public/search.svg");

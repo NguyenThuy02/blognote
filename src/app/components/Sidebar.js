@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-white text-black mt-[120px] p-5 mb-4 rounded-lg shadow-md border border-gray-200 min-h-fit ml-4 mt-6 font-roboto">
+    <aside className="w-64 bg-white text-black mt-[120px] p-5 mb-4 rounded-lg shadow-md border border-gray-200 min-h-fit ml-4 font-roboto">
       <h2 className="text-xl font-semibold mb-5">📌 Quản lý nội dung</h2>
       <nav className="space-y-4">
         {/* Bài viết */}

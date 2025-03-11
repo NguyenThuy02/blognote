@@ -35,7 +35,7 @@ const articles = [
 
 const categories = ["Câu đố", "Tài liệu học tập", "Kỹ năng sống"]; // Các chủ đề
 
-export default function ArticleCategory() {
+export default function ClassfyApp() {
   const [selectedCategory, setSelectedCategory] = useState("");
 
   const filteredArticles = articles.filter((article) => {

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
 
-export default function TrangDangNhap() {
+export default function LoginApp() {
   const [tenDangNhap, setTenDangNhap] = useState("");
   const [matKhau, setMatKhau] = useState("");
   const [loi, setLoi] = useState({ tenDangNhap: "", matKhau: "" });
@@ -41,7 +41,7 @@ export default function TrangDangNhap() {
         <div className="flex items-center justify-center mb-10">
           <h2 className="text-gray-700 text-2xl font-bold">Đăng Nhập</h2>
           <Image
-            src="/login.gif"
+            src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681302/msvum6dk9ii7fvzewqan.gif"
             alt="Logo"
             width={50}
             height={50}
@@ -109,7 +109,7 @@ export default function TrangDangNhap() {
           <div className="mt-6">
             <button
               type="submit"
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
             >
               Đăng Nhập
             </button>

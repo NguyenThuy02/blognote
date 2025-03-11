@@ -50,7 +50,7 @@ const articles = [
   },
 ];
 
-export default function BlogList() {
+export default function BloglistApp() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleSearchChange = (event) => {
@@ -73,7 +73,7 @@ export default function BlogList() {
             className="border border-gray-300 rounded-full px-4 py-2 pr-10 focus:outline-none focus:border-blue-400 focus:ring focus:ring-blue-300 transition duration-200 w-full shadow-md"
           />
           <Image
-            src="/search.svg" // Đường dẫn tới biểu tượng tìm kiếm
+            src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681498/nkydita1doyqs2igrdbd.svg" // Đường dẫn tới biểu tượng tìm kiếm
             alt="Search Icon"
             width={24}
             height={24}
