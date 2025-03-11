@@ -27,7 +27,7 @@ export default function SearchNotes() {
   }, [search, category]);
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="mt-[97px] p-5 mb-[-7px] max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">🔍 Tìm kiếm Ghi Chú</h1>
       <input
         type="text"
