@@ -56,51 +56,58 @@ const NoteApp = () => {
       return;
     }
 
-    const newNote = { 
-      title, 
-      content, 
-      image_url: uploadedImages.length > 0 ? uploadedImages[0] : null,
-      updated_at: new Date(),
-      category_id: null,
-      font_style: null,
-      font_size: null
-    };
-
     try {
+      const noteData = {
+        title: title.trim(),
+        content: content.trim(),
+        image_url: uploadedImages.length > 0 ? uploadedImages[uploadedImages.length - 1] : null, // Lấy URL hình ảnh mới nhất
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Saving note with data:', noteData);
+
       if (editingId !== null) {
+        // Cập nhật ghi chú
         const { data, error } = await supabase
           .from("notes")
-          .update({ 
-            title, 
-            content, 
-            image_url: uploadedImages.length > 0 ? uploadedImages[0] : null,
-            updated_at: new Date(),
-          })
+          .update(noteData)
           .eq("id", editingId)
           .select()
           .single();
+
         if (error) throw error;
-        setNotes(notes.map((note) => (note.id === editingId ? data : note)));
+
+        // Cập nhật state
+        setNotes(notes.map(note => 
+          note.id === editingId ? { ...note, ...data } : note
+        ));
         setEditingId(null);
       } else {
+        // Tạo ghi chú mới
         const { data, error } = await supabase
           .from("notes")
-          .insert([newNote])
+          .insert([noteData])
           .select()
           .single();
+
         if (error) throw error;
-        setNotes([...notes, data]);
+
+        // Thêm ghi chú mới vào đầu danh sách
+        setNotes([data, ...notes]);
       }
 
+      // Reset form
       setTitle("");
       setContent("");
-      setUploadedImages([]);
+      setUploadedImages([]); // Reset uploaded images
       setImageUploadVisible(false);
       setEditingIndex(null);
       setError("");
+
+      console.log('Note saved successfully');
     } catch (err) {
-      console.error("Error saving note:", err.message);
-      setError("Có lỗi khi lưu ghi chú.");
+      console.error("Error saving note:", err);
+      setError("Có lỗi khi lưu ghi chú: " + err.message);
     }
   };
 
@@ -126,9 +133,10 @@ const NoteApp = () => {
     const note = notes[index];
     setTitle(note.title);
     setContent(note.content);
-    setUploadedImages(note.image_url ? [note.image_url] : []);
+    setUploadedImages(note.image_url ? [note.image_url] : []); // Load image URL if exists
     setEditingIndex(index);
     setEditingId(note.id);
+    setImageUploadVisible(true); // Show image upload section when editing
     setError("");
   };
 
@@ -148,10 +156,48 @@ const NoteApp = () => {
     link.click();
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
-    const images = files.map((file) => URL.createObjectURL(file));
-    setUploadedImages(images);
+    
+    try {
+      const uploadPromises = files.map(async (file) => {
+        // Kiểm tra kích thước file
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+          throw new Error("File quá lớn. Vui lòng chọn file nhỏ hơn 10MB");
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'blognote'); // Thay đổi thành upload preset của bạn
+        formData.append('cloud_name', 'dlaoxrnad');
+
+        const response = await fetch(
+          'https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload',
+          {
+            method: 'POST',
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Upload error details:', errorData);
+          throw new Error(`Upload failed: ${errorData.error?.message || 'Unknown error'}`);
+        }
+
+        const data = await response.json();
+        console.log('Upload successful:', data);
+        return data.secure_url;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      console.log('All uploads completed:', uploadedUrls);
+      setUploadedImages(prev => [...prev, ...uploadedUrls]);
+      setError("");
+    } catch (err) {
+      console.error("Error uploading images:", err);
+      setError(err.message || "Không thể tải lên hình ảnh. Vui lòng thử lại.");
+    }
   };
 
   const handleImportFile = async (e) => {
