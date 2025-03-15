@@ -3,12 +3,9 @@ import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 
 function App() {
   return (
-    <Router>
-      <Switch>
-        {/* */}
-        {/* */}
-      </Switch>
-    </Router>
+    <div className="container mx-auto p-5">
+      <h1 className="text-4xl font-bold">Home Page</h1>
+    </div>
   );
 }
 
