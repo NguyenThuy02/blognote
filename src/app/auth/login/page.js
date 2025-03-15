@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
+import { supabase } from "../../../lib/supabase"; // Đảm bảo rằng bạn đã cấu hình đúng đường dẫn
 
 export default function LoginApp() {
   const [tenDangNhap, setTenDangNhap] = useState("");
@@ -10,7 +11,7 @@ export default function LoginApp() {
   const [loi, setLoi] = useState({ tenDangNhap: "", matKhau: "" });
   const router = useRouter();
 
-  const xuLyGui = (e) => {
+  const xuLyGui = async (e) => {
     e.preventDefault();
 
     let loiMoi = { tenDangNhap: "", matKhau: "" };
@@ -21,9 +22,19 @@ export default function LoginApp() {
     setLoi(loiMoi);
 
     if (!loiMoi.tenDangNhap && !loiMoi.matKhau) {
-      console.log("Đăng nhập với:", { tenDangNhap, matKhau });
+      // Kiểm tra thông tin đăng nhập với Supabase
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .or(`email.eq.${tenDangNhap},name.eq.${tenDangNhap}`)
+        .single();
 
-      // Hiển thị thông báo nhỏ (toast)
+      if (error || !data || data.password !== matKhau) {
+        toast.error("Tên đăng nhập hoặc mật khẩu không chính xác!");
+        return;
+      }
+
+      // Hiển thị thông báo thành công
       toast.success("Đăng nhập thành công! Đang về trang chủ...");
 
       // Chuyển trang sau 2 giây

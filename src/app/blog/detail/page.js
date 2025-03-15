@@ -1,54 +1,71 @@
 "use client";
-import { useRouter } from "next/navigation"; // Change this import
+import React from "react";
 import Image from "next/image";
 
-const articles = [
-  {
-    id: 1,
-    title: "Bài viết 1",
-    content: "Nội dung chi tiết của bài viết 1.",
-    author: "Tác giả 1",
-    date: "01/01/2023",
-    tags: ["tag1", "tag2"],
-    src: "/path/to/image1.jpg",
-  },
-];
-
-export default function DetailApp() {
-  const router = useRouter();
-  const { id } = router.query; // Lấy id từ URL
-  const article = articles.find((article) => article.id === parseInt(id));
-
-  if (!article) {
-    return <p>Đang tải...</p>; // Thông báo nếu không tìm thấy bài viết
-  }
-
+const PostDetail = ({ post }) => {
   return (
-    <div className="p-5 mt-10 rounded-lg shadow-md border border-gray-200 bg-gray-100">
-      <h1 className="text-4xl font-bold mb-4">{article.title}</h1>
-      <Image
-        src={article.src}
-        alt={article.title}
-        width={600}
-        height={400}
-        className="rounded-md mb-4"
-      />
-      <p className="text-gray-600 mb-2">Được tạo bởi: {article.author}</p>
-      <p className="text-gray-600 mb-4">Ngày: {article.date}</p>
-      <div className="mb-4">
-        <h2 className="text-2xl font-semibold">Nội dung:</h2>
-        <p className="text-gray-800">{article.content}</p>
+    <div className="container mx-auto p-5">
+      {/* Tiêu đề bài viết */}
+      <h1 className="text-4xl font-bold">{post.title}</h1>
+
+      {/* Thông tin tác giả và ngày đăng */}
+      <div className="flex items-center mt-2">
+        <Image
+          src={post.authorImage}
+          alt={post.author}
+          width={50}
+          height={50}
+          className="rounded-full"
+        />
+        <div className="ml-3">
+          <p className="font-semibold">{post.author}</p>
+          <p className="text-gray-600">{post.date}</p>
+        </div>
       </div>
-      <div className="mt-4 flex flex-wrap">
-        {article.tags.map((tag) => (
-          <span
-            key={tag}
-            className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-2 mb-1"
+
+      {/* Nội dung bài viết */}
+      <div className="mt-5">
+        <div dangerouslySetInnerHTML={{ __html: post.content }} />
+      </div>
+
+      {/* Tùy chọn chia sẻ bài viết */}
+      <div className="mt-5">
+        <p>Chia sẻ bài viết:</p>
+        <div className="flex space-x-4">
+          <a href={`https://facebook.com/sharer/sharer.php?u=${post.url}`}>
+            Facebook
+          </a>
+          <a href={`https://twitter.com/intent/tweet?url=${post.url}`}>
+            Twitter
+          </a>
+          <a
+            href={`https://www.linkedin.com/shareArticle?mini=true&url=${post.url}`}
           >
-            {tag}
-          </span>
-        ))}
+            LinkedIn
+          </a>
+        </div>
+      </div>
+
+      {/* Bình luận */}
+      <div className="mt-5">
+        <h2 className="text-2xl">Bình luận</h2>
+        {/* Thêm mã cho mục bình luận ở đây */}
+      </div>
+
+      {/* Các bài viết liên quan */}
+      <div className="mt-5">
+        <h2 className="text-2xl">Bài viết liên quan</h2>
+        {/* Danh sách bài viết liên quan */}
+      </div>
+
+      {/* Nút quay lại */}
+      <div className="mt-5">
+        <button className="bg-blue-500 text-white px-4 py-2 rounded">
+          Quay lại danh sách bài viết
+        </button>
       </div>
     </div>
   );
-}
+};
+
+export default PostDetail;

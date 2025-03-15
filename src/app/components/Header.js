@@ -5,7 +5,7 @@ import Image from "next/image";
 
 function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true); // State for loading
+  const [loading, setLoading] = useState(true); // Trạng thái đang tải
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -20,9 +20,9 @@ function Header() {
           setIsLoggedIn(true);
         }
       } catch (error) {
-        console.error("Error checking login status:", error);
+        console.error("Lỗi khi kiểm tra trạng thái đăng nhập:", error);
       } finally {
-        setLoading(false); // Stop loading when done
+        setLoading(false); // Dừng tải khi hoàn thành
       }
     };
 
@@ -37,16 +37,16 @@ function Header() {
       });
       setIsLoggedIn(false);
     } catch (error) {
-      console.error("Error logging out:", error);
+      console.error("Lỗi khi đăng xuất:", error);
     }
   };
 
   return (
     <header className="fixed top-0 w-full bg-gradient-to-r from-white/80 via-purple-200 to-blue-200 text-white p-7 shadow-lg transition-shadow duration-300 flex items-center justify-between h-25 z-10">
-      <Link href="/" className="flex items-center" aria-label="Home">
+      <Link href="/" className="flex items-center" aria-label="Trang chủ">
         <Image
           src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741593256/amhe1oz6r08s3lpemoqj.png"
-          alt="Blog & Notes Logo"
+          alt="Logo Blog & Ghi chú"
           width={130}
           height={40}
           className="h-auto transition-transform duration-200 transform hover:scale-105 active:scale-95"
@@ -65,6 +65,15 @@ function Header() {
             >
               Đăng xuất
             </button>
+            <Link href="/profile" aria-label="Trang cá nhân">
+              <Image
+                src="/path/to/user-icon.png" // Thay thế bằng đường dẫn tới biểu tượng người dùng
+                alt="Biểu tượng người dùng"
+                width={30}
+                height={30}
+                className="h-auto transition-transform duration-200 transform hover:scale-105 active:scale-95"
+              />
+            </Link>
           </>
         ) : (
           <Link

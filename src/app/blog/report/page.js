@@ -17,34 +17,24 @@ export default function ReportApp() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Đếm số lượng bài viết theo trạng thái
-  const publishedCount = initialArticles.filter(
+  const filterArticles = initialArticles.filter((article) => {
+    const date = new Date(article.date);
+    return (
+      (!startDate || date >= new Date(startDate)) &&
+      (!endDate || date <= new Date(endDate))
+    );
+  });
+
+  const publishedCount = filterArticles.filter(
     (article) => article.status === "published"
   ).length;
-  const draftCount = initialArticles.filter(
+  const draftCount = filterArticles.filter(
     (article) => article.status === "draft"
   ).length;
-  const deletedCount = initialArticles.filter(
+  const deletedCount = filterArticles.filter(
     (article) => article.status === "deleted"
   ).length;
 
-  /*
-    const exportToExcel = () => {
-    const data = initialArticles.map(({ id, title, status, date }) => ({
-      id,
-      title,
-      status,
-      date,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Articles');
-    XLSX.writeFile(wb, 'articles.xlsx');
-  };
-
-  */
-
-  // Dữ liệu cho biểu đồ
   const chartData = {
     labels: ["Đã đăng", "Nháp", "Đã xóa"],
     datasets: [
@@ -52,11 +42,28 @@ export default function ReportApp() {
         label: "Số lượng bài viết",
         data: [publishedCount, draftCount, deletedCount],
         backgroundColor: "rgba(75, 192, 192, 0.6)",
-        barThickness: 60, // Độ dày của cột
-        categoryPercentage: 0.6, // Khoảng cách giữa các nhóm
-        barPercentage: 0.5, // Khoảng cách giữa các cột trong một nhóm
+        barThickness: 60,
+        categoryPercentage: 0.6,
+        barPercentage: 0.5,
       },
     ],
+  };
+
+  const maxCount = Math.max(publishedCount, draftCount, deletedCount);
+  const stepSize = maxCount < 10 ? 1 : maxCount < 100 ? 5 : 10;
+
+  const chartOptions = {
+    scales: {
+      y: {
+        ticks: {
+          stepSize: stepSize,
+        },
+        grid: {
+          lineWidth: 1,
+          color: "rgba(200, 200, 200, 0.5)",
+        },
+      },
+    },
   };
 
   const exportReport = () => {
@@ -69,7 +76,6 @@ export default function ReportApp() {
         Thống kê Blog
       </h1>
 
-      {/* Tổng quan bài viết */}
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-indigo-600">
           Tổng quan bài viết
@@ -88,7 +94,6 @@ export default function ReportApp() {
         </p>
       </div>
 
-      {/* Lọc theo thời gian */}
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-indigo-600">
           Lọc theo thời gian
@@ -97,17 +102,16 @@ export default function ReportApp() {
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-2 mr-2 focus:outline-none focus:border-blue-400"
+          className="border border-gray-300 rounded px-3 py-2 mr-2 focus:outline-none focus:border-blue-400"
         />
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-2 focus:outline-none focus:border-blue-400"
+          className="border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-400"
         />
       </div>
 
-      {/* Nút xuất báo cáo */}
       <div className="mb-5">
         <button
           onClick={exportReport}
@@ -117,25 +121,26 @@ export default function ReportApp() {
         </button>
       </div>
 
-      {/* Danh sách bài viết trong khoảng thời gian */}
-      <div>
-        <h2 className="text-xl font-semibold text-indigo-600">
-          Bài viết trong khoảng thời gian
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-indigo-600 mb-5">
+          Kết quả lọc
         </h2>
-        <ul>
-          {initialArticles
-            .filter((article) => {
-              const date = new Date(article.date);
-              return (
-                (!startDate || date >= new Date(startDate)) &&
-                (!endDate || date <= new Date(endDate))
-              );
-            })
-            .map((article) => (
-              <li key={article.id} className="py-2 text-gray-700">
-                {article.title} -{" "}
-                <span
-                  className={`font-bold ${
+        <table className="min-w-full border border-gray-300 bg-white rounded-lg shadow-md overflow-hidden">
+          <thead className="bg-gray-200 rounded-t-lg">
+            <tr>
+              <th className="border border-gray-300 px-4 py-2">Tiêu đề</th>
+              <th className="border border-gray-300 px-4 py-2">Trạng thái</th>
+              <th className="border border-gray-300 px-4 py-2">Ngày</th>
+            </tr>
+          </thead>
+          <tbody className="rounded-b-lg">
+            {filterArticles.map((article) => (
+              <tr key={article.id} className="hover:bg-gray-100">
+                <td className="border border-gray-300 px-4 py-2">
+                  {article.title}
+                </td>
+                <td
+                  className={`border border-gray-300 px-4 py-2 ${
                     article.status === "published"
                       ? "text-green-500"
                       : article.status === "draft"
@@ -144,17 +149,18 @@ export default function ReportApp() {
                   }`}
                 >
                   {article.status}
-                </span>{" "}
-                - Ngày: {article.date}
-              </li>
+                </td>
+                <td className="border border-gray-300 px-4 py-2">
+                  {article.date}
+                </td>
+              </tr>
             ))}
-        </ul>
+          </tbody>
+        </table>
       </div>
-
-      {/* Biểu đồ thống kê */}
       <div className="max-w-3xl mx-auto p-6 mt-10">
         <h2 className="text-2xl font-bold mb-4">📈 Thống kê bài viết</h2>
-        <Bar data={chartData} />
+        <Bar data={chartData} options={chartOptions} />
       </div>
     </div>
   );

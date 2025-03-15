@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
+import { supabase } from "../../../lib/supabase"; // Import kết nối Supabase
 
 export default function RegisterApp() {
   const {
@@ -13,16 +14,74 @@ export default function RegisterApp() {
     reset,
   } = useForm();
   const router = useRouter();
+  const [loading, setLoading] = React.useState(false);
+
+  // Thêm độ trễ giữa các yêu cầu gửi email
+  const throttleEmailRequest = (callback) => {
+    setTimeout(callback, 3000); // Đặt độ trễ 3 giây
+  };
 
   const onSubmit = async (data) => {
-    console.log(data);
-    // Giả lập việc đăng ký thành công
-    toast.success("Đăng ký thành công! Đang về trang chủ...");
+    if (loading) {
+      toast.error("Vui lòng chờ trước khi thử lại.");
+      return; // Ngăn không cho gửi yêu cầu nếu đang xử lý
+    }
+    setLoading(true);
+    try {
+      // Kiểm tra xem email đã được đăng ký chưa
+      const { data: existingUser, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", data.email.trim())
+        .single();
 
-    // Chuyển hướng sau 2 giây
-    setTimeout(() => {
-      router.push("/");
-    }, 2000);
+      if (userError && userError.code !== "PGRST116") {
+        // Lỗi nếu không có kết quả
+        throw userError;
+      }
+
+      if (existingUser) {
+        toast.error("Email đã được sử dụng.");
+        return;
+      }
+
+      // Đăng ký người dùng
+      const { user, error } = await supabase.auth.signUp({
+        email: data.email.trim(),
+        password: data.password,
+      });
+
+      if (error) {
+        if (error.message.includes("rate limit exceeded")) {
+          toast.error("Quá nhiều yêu cầu, vui lòng thử lại sau.");
+        } else {
+          toast.error("Đăng ký thất bại: " + error.message);
+        }
+        return;
+      }
+
+      // Chèn thông tin người dùng bổ sung vào bảng 'users' mà không cần id
+      const { error: insertError } = await supabase.from("users").insert([
+        {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+        },
+      ]);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast.success("Đăng ký thành công! Vui lòng đăng nhập để tiếp tục...");
+      throttleEmailRequest(() => {
+        router.push("/auth/login");
+      });
+    } catch (error) {
+      toast.error("Đăng ký thất bại: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -51,23 +110,21 @@ export default function RegisterApp() {
         <div className="mb-4">
           <label
             className="block text-gray-700 text-sm font-bold mb-2"
-            htmlFor="username"
+            htmlFor="name"
           >
             Tên đăng nhập
           </label>
           <input
             type="text"
-            id="username"
-            {...register("username", { required: "Tên đăng nhập là bắt buộc" })}
+            id="name"
+            {...register("name", { required: "Tên đăng nhập là bắt buộc" })}
             className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
-              errors.username ? "border-red-500" : ""
+              errors.name ? "border-red-500" : ""
             }`}
             placeholder="Nhập tên đăng nhập của bạn"
           />
-          {errors.username && (
-            <p className="text-red-500 text-xs italic">
-              {errors.username.message}
-            </p>
+          {errors.name && (
+            <p className="text-red-500 text-xs italic">{errors.name.message}</p>
           )}
         </div>
 
@@ -81,7 +138,13 @@ export default function RegisterApp() {
           <input
             type="email"
             id="email"
-            {...register("email", { required: "Email là bắt buộc" })}
+            {...register("email", {
+              required: "Email là bắt buộc",
+              pattern: {
+                value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                message: "Email không đúng định dạng",
+              },
+            })}
             className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
               errors.email ? "border-red-500" : ""
             }`}
@@ -137,9 +200,12 @@ export default function RegisterApp() {
         <div className="mt-6 flex justify-between">
           <button
             type="submit"
-            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            disabled={loading}
+            className={`bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
-            Đăng Ký
+            {loading ? "Đang đăng ký..." : "Đăng Ký"}
           </button>
           <button
             type="button"
