@@ -43,7 +43,7 @@ app.listen(PORT, () => {
 import React from "react";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 
-function OpenAI() {
+function NoteApplication() {
   return (
     <div className="container mx-auto p-5">
       <h1 className="text-4xl font-bold">Home Page</h1>
@@ -51,4 +51,4 @@ function OpenAI() {
   );
 }
 
-export default OpenAI;
+export default NoteApplication;
