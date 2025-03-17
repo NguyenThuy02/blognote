@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase } from "../../../lib/supabase";
+import { supabase2 } from "../../../lib/supabase";
 
 export default function ManageNotes() {
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -17,7 +17,7 @@ export default function ManageNotes() {
 
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase2
         .from("notess")
         .select(
           "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data"
@@ -81,7 +81,7 @@ export default function ManageNotes() {
     
     if (newTitle && newContent) {
       try {
-        const { error } = await supabase
+        const { error } = await supabase2
           .from("notess")
           .update({
             title: newTitle,
@@ -104,7 +104,7 @@ export default function ManageNotes() {
   const handleDelete = async (noteId) => {
     if (confirm("Are you sure you want to delete this note?")) {
       try {
-        const { error } = await supabase
+        const { error } = await supabase2
           .from("notess")
           .delete()
           .eq("id", noteId);

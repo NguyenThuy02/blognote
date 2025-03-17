@@ -1,8 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-// Lấy thông tin từ biến môi trường (sẽ cấu hình sau)
-const supabaseUrl = "https://egamzsfcrwmkvttgnkhl.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnYW16c2Zjcndta3Z0dGdua2hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE2MTY2NDcsImV4cCI6MjA1NzE5MjY0N30.PrSacIOoLDHpc52ECZTCd_57EzlSHnKAmtHLp38WIBk";
+// Project 1
+const supabaseUrl1 = process.env.NEXT_PUBLIC_SUPABASE_URL_PROJECT_1;
+const supabaseAnonKey1 = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_PROJECT_1;
+const supabase1 = createClient(supabaseUrl1, supabaseAnonKey1);
 
-// Khởi tạo client Supabase
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Project 2
+const supabaseUrl2 = process.env.NEXT_PUBLIC_SUPABASE_URL_PROJECT_2;
+const supabaseAnonKey2 = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_PROJECT_2;
+const supabase2 = createClient(supabaseUrl2, supabaseAnonKey2);
+
+export { supabase1, supabase2 };

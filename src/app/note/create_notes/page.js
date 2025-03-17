@@ -1,12 +1,35 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "../../../lib/supabase";
+import { supabase2 } from "../../../lib/supabase";
 import {
-  FaFileImport, FaShareAlt, FaPlus, FaSearch, FaEdit, FaTrash, FaFileExport,
-  FaBars, FaSmile, FaTimes, FaBold, FaItalic, FaAlignLeft, FaAlignCenter,
-  FaAlignRight, FaAlignJustify, FaListUl, FaListOl, FaIndent, FaOutdent,
-  FaImage, FaFont, FaFill, FaUndo, FaRedo, FaBell, FaBellSlash,
+  FaFileImport,
+  FaShareAlt,
+  FaPlus,
+  FaSearch,
+  FaEdit,
+  FaTrash,
+  FaFileExport,
+  FaBars,
+  FaSmile,
+  FaTimes,
+  FaBold,
+  FaItalic,
+  FaAlignLeft,
+  FaAlignCenter,
+  FaAlignRight,
+  FaAlignJustify,
+  FaListUl,
+  FaListOl,
+  FaIndent,
+  FaOutdent,
+  FaImage,
+  FaFont,
+  FaFill,
+  FaUndo,
+  FaRedo,
+  FaBell,
+  FaBellSlash,
 } from "react-icons/fa";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -42,7 +65,9 @@ const NoteApp = () => {
 
   const [todos, setTodos] = useState([]);
   const [spreadsheetData, setSpreadsheetData] = useState(
-    Array(10).fill().map(() => Array(10).fill(""))
+    Array(10)
+      .fill()
+      .map(() => Array(10).fill(""))
   );
   const [spreadsheetHistory, setSpreadsheetHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -54,7 +79,7 @@ const NoteApp = () => {
 
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase2
         .from("notess")
         .select(
           "id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification"
@@ -110,7 +135,9 @@ const NoteApp = () => {
         code: err.code,
         details: err.details,
       });
-      setError("Không thể tải ghi chú: " + (err.message || "Lỗi không xác định"));
+      setError(
+        "Không thể tải ghi chú: " + (err.message || "Lỗi không xác định")
+      );
     }
   };
 
@@ -133,7 +160,9 @@ const NoteApp = () => {
 
     try {
       const imageUrl =
-        uploadedImages.length > 0 ? uploadedImages[uploadedImages.length - 1] : null;
+        uploadedImages.length > 0
+          ? uploadedImages[uploadedImages.length - 1]
+          : null;
 
       // Xác định classification dựa trên note_type
       let classification;
@@ -178,10 +207,11 @@ const NoteApp = () => {
         text_align: currentNoteType === "rich" ? textAlign : null,
         text_color: currentNoteType === "rich" ? textColor : null,
         background_color: currentNoteType === "rich" ? backgroundColor : null,
-        todos:
-          currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
+        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
         spreadsheet_data:
-          currentNoteType === "spreadsheet" ? JSON.stringify(spreadsheetData) : null,
+          currentNoteType === "spreadsheet"
+            ? JSON.stringify(spreadsheetData)
+            : null,
         classification: classification,
         category_id: categoryMap[category] || 1, // Mặc định là Personal (ID = 1) nếu không khớp
       };
@@ -189,7 +219,7 @@ const NoteApp = () => {
       console.log("Saving note with data:", noteData);
 
       if (editingId !== null) {
-        const { data, error } = await supabase
+        const { data, error } = await supabase2
           .from("notess")
           .update(noteData)
           .eq("id", editingId)
@@ -202,7 +232,7 @@ const NoteApp = () => {
           )
         );
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await supabase2
           .from("notess")
           .insert([noteData])
           .select()
@@ -220,14 +250,19 @@ const NoteApp = () => {
         details: err.details,
         hint: err.hint,
       });
-      setError("Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định"));
+      setError(
+        "Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định")
+      );
     }
   };
 
   const handleDeleteNote = async (noteId) => {
     if (!confirm("Bạn có chắc muốn xóa ghi chú này không?")) return;
     try {
-      const { error } = await supabase.from("notess").delete().eq("id", noteId);
+      const { error } = await supabase2
+        .from("notess")
+        .delete()
+        .eq("id", noteId);
       if (error) throw error;
       setNotes(notes.filter((note) => note.id !== noteId));
       setError("");
@@ -236,7 +271,9 @@ const NoteApp = () => {
         message: err.message,
         code: err.code,
       });
-      setError("Không thể xóa ghi chú: " + (err.message || "Lỗi không xác định"));
+      setError(
+        "Không thể xóa ghi chú: " + (err.message || "Lỗi không xác định")
+      );
     }
   };
 
@@ -256,13 +293,17 @@ const NoteApp = () => {
     setTodos(note.todos || []);
     setSpreadsheetData(
       note.spreadsheet_data ||
-        Array(10).fill().map(() => Array(10).fill(""))
+        Array(10)
+          .fill()
+          .map(() => Array(10).fill(""))
     );
     setSpreadsheetHistory([
       JSON.parse(
         JSON.stringify(
           note.spreadsheet_data ||
-            Array(10).fill().map(() => Array(10).fill(""))
+            Array(10)
+              .fill()
+              .map(() => Array(10).fill(""))
         )
       ),
     ]);
@@ -296,7 +337,11 @@ const NoteApp = () => {
     setTextColor("#000000");
     setBackgroundColor("#ffffff");
     setTodos([]);
-    setSpreadsheetData(Array(10).fill().map(() => Array(10).fill("")));
+    setSpreadsheetData(
+      Array(10)
+        .fill()
+        .map(() => Array(10).fill(""))
+    );
     setSpreadsheetHistory([]);
     setHistoryIndex(-1);
     setReminderTime("");
@@ -325,7 +370,9 @@ const NoteApp = () => {
         } else {
           contentStr = note.content;
         }
-        return `Tiêu đề: ${note.title}\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date(
+        return `Tiêu đề: ${
+          note.title
+        }\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date(
           note.updated_at
         ).toLocaleString()}\n---\n`;
       })
@@ -447,9 +494,9 @@ const NoteApp = () => {
     }
     const shareData = { title, text: shareText, url: window.location.href };
     if (navigator.share) {
-      navigator.share(shareData).catch((err) =>
-        console.error("Lỗi khi chia sẻ:", err)
-      );
+      navigator
+        .share(shareData)
+        .catch((err) => console.error("Lỗi khi chia sẻ:", err));
     } else {
       const fullText = `${shareData.title}\n${shareData.text}\n${shareData.url}`;
       navigator.clipboard
@@ -490,7 +537,11 @@ const NoteApp = () => {
     if (!content.trim()) return;
     setTodos([
       ...todos,
-      { text: content.trim(), completed: false, reminder: reminderTime || null },
+      {
+        text: content.trim(),
+        completed: false,
+        reminder: reminderTime || null,
+      },
     ]);
     setContent("");
     setReminderTime("");
@@ -506,9 +557,7 @@ const NoteApp = () => {
 
   const removeReminder = (index) => {
     setTodos(
-      todos.map((todo, i) =>
-        i === index ? { ...todo, reminder: null } : todo
-      )
+      todos.map((todo, i) => (i === index ? { ...todo, reminder: null } : todo))
     );
   };
 
@@ -561,15 +610,113 @@ const NoteApp = () => {
 
   const emojiList = [
     ...new Set([
-      "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓", "😇", "🥳",
-      "😂", "🤗", "😢", "😭", "😡", "😤", "😱", "😳", "🤔", "🙄", "😴", "🤤",
-      "👍", "👎", "👏", "🙌", "✋", "👊", "✌️", "🤝", "🙏", "💪", "👀", "👉",
-      "❤️", "💕", "💖", "💙", "💚", "💛", "💜", "🖤", "💔", "💘", "✨", "⭐",
-      "🌟", "🔥", "💡", "🎉", "🎈", "🎁", "🎂", "🍰", "🍕", "🍔", "🍟", "🍦",
-      "☕", "🍵", "🍺", "🍷", "🥂", "🍹", "🌈", "☀️", "🌙", "☁️", "⛄",
-      "⚡", "🌊", "🌸", "🌺", "🌼", "🍁", "🍂", "🍃", "📌", "✅", "❌", "❓",
-      "❗", "🚀", "✈️", "🚗", "🚢", "🏠", "🏡", "🏝️", "⛰️", "🎵", "🎶", "🎤",
-      "🎧", "📱", "💻", "📷", "📸", "🎥", "📺", "⏰", "⌚", "🔧", "⚙️", "💰",
+      "😀",
+      "😃",
+      "😄",
+      "😊",
+      "😍",
+      "🥰",
+      "😘",
+      "😜",
+      "😎",
+      "🤓",
+      "😇",
+      "🥳",
+      "😂",
+      "🤗",
+      "😢",
+      "😭",
+      "😡",
+      "😤",
+      "😱",
+      "😳",
+      "🤔",
+      "🙄",
+      "😴",
+      "🤤",
+      "👍",
+      "👎",
+      "👏",
+      "🙌",
+      "✋",
+      "👊",
+      "✌️",
+      "🤝",
+      "🙏",
+      "💪",
+      "👀",
+      "👉",
+      "❤️",
+      "💕",
+      "💖",
+      "💙",
+      "💚",
+      "💛",
+      "💜",
+      "🖤",
+      "💔",
+      "💘",
+      "✨",
+      "⭐",
+      "🌟",
+      "🔥",
+      "💡",
+      "🎉",
+      "🎈",
+      "🎁",
+      "🎂",
+      "🍰",
+      "🍕",
+      "🍔",
+      "🍟",
+      "🍦",
+      "☕",
+      "🍵",
+      "🍺",
+      "🍷",
+      "🥂",
+      "🍹",
+      "🌈",
+      "☀️",
+      "🌙",
+      "☁️",
+      "⛄",
+      "⚡",
+      "🌊",
+      "🌸",
+      "🌺",
+      "🌼",
+      "🍁",
+      "🍂",
+      "🍃",
+      "📌",
+      "✅",
+      "❌",
+      "❓",
+      "❗",
+      "🚀",
+      "✈️",
+      "🚗",
+      "🚢",
+      "🏠",
+      "🏡",
+      "🏝️",
+      "⛰️",
+      "🎵",
+      "🎶",
+      "🎤",
+      "🎧",
+      "📱",
+      "💻",
+      "📷",
+      "📸",
+      "🎥",
+      "📺",
+      "⏰",
+      "⌚",
+      "🔧",
+      "⚙️",
+      "💰",
     ]),
   ];
 
@@ -602,7 +749,8 @@ const NoteApp = () => {
     }
     const lines = text.split("\n");
     const listItems = lines.map((line) => `- ${line}`).join("\n");
-    const newContent = content.substring(0, start) + listItems + content.substring(end);
+    const newContent =
+      content.substring(0, start) + listItems + content.substring(end);
     setContentWithSelection(newContent, start, start + listItems.length);
     setError("");
   };
@@ -617,7 +765,8 @@ const NoteApp = () => {
     const listItems = lines
       .map((line, index) => `${index + 1}. ${line}`)
       .join("\n");
-    const newContent = content.substring(0, start) + listItems + content.substring(end);
+    const newContent =
+      content.substring(0, start) + listItems + content.substring(end);
     setContentWithSelection(newContent, start, start + listItems.length);
     setError("");
   };
@@ -631,7 +780,8 @@ const NoteApp = () => {
     const lines = text.split("\n");
     const indentedLines = lines.map((line) => `  ${line}`);
     const listItems = indentedLines.join("\n");
-    const newContent = content.substring(0, start) + listItems + content.substring(end);
+    const newContent =
+      content.substring(0, start) + listItems + content.substring(end);
     setContentWithSelection(newContent, start, start + listItems.length);
     setError("");
   };
@@ -645,14 +795,17 @@ const NoteApp = () => {
     const lines = text.split("\n");
     const outdentedLines = lines.map((line) => line.replace(/^  /, ""));
     const listItems = outdentedLines.join("\n");
-    const newContent = content.substring(0, start) + listItems + content.substring(end);
+    const newContent =
+      content.substring(0, start) + listItems + content.substring(end);
     setContentWithSelection(newContent, start, start + listItems.length);
     setError("");
   };
 
   return (
     <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-center mb-6 text-gray-700">Ghi chú</h1>
+      <h1 className="text-3xl font-bold text-center mb-6 text-gray-700">
+        Ghi chú
+      </h1>
 
       <input
         type="text"
@@ -664,7 +817,10 @@ const NoteApp = () => {
 
       <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
         <div className="relative">
-          <button onClick={() => setNoteTypeMenu(!noteTypeMenu)} className="btn-gradient">
+          <button
+            onClick={() => setNoteTypeMenu(!noteTypeMenu)}
+            className="btn-gradient"
+          >
             <FaBars /> <span>Tạo Ghi Chú</span>
           </button>
           {noteTypeMenu && (
@@ -702,7 +858,10 @@ const NoteApp = () => {
           currentNoteType !== "spreadsheet" && (
             <>
               <div className="relative">
-                <button onClick={handleImageButtonClick} className="btn-gradient">
+                <button
+                  onClick={handleImageButtonClick}
+                  className="btn-gradient"
+                >
                   <FaPlus /> <span>Chèn ảnh</span>
                 </button>
                 <input
@@ -752,12 +911,18 @@ const NoteApp = () => {
           <FaShareAlt /> <span>Chia sẻ</span>
         </button>
 
-        <button onClick={handleExportNotes} className="btn-gradient text-green-600">
+        <button
+          onClick={handleExportNotes}
+          className="btn-gradient text-green-600"
+        >
           <FaFileExport /> <span>Xuất File</span>
         </button>
 
         <div className="relative">
-          <button onClick={() => setCategoryMenu(!categoryMenu)} className="btn-gradient">
+          <button
+            onClick={() => setCategoryMenu(!categoryMenu)}
+            className="btn-gradient"
+          >
             <FaBars /> <span>Thể loại: {category}</span>
           </button>
           {categoryMenu && (
@@ -985,9 +1150,7 @@ const NoteApp = () => {
                   className="w-5 h-5"
                 />
                 <span
-                  className={
-                    todo.completed ? "line-through text-gray-500" : ""
-                  }
+                  className={todo.completed ? "line-through text-gray-500" : ""}
                 >
                   {todo.text}
                 </span>
@@ -1030,15 +1193,16 @@ const NoteApp = () => {
               {spreadsheetData.map((row, rowIndex) => (
                 <tr key={rowIndex}>
                   {row.map((cell, colIndex) => (
-                    <td
-                      key={colIndex}
-                      className="border border-gray-300 p-1"
-                    >
+                    <td key={colIndex} className="border border-gray-300 p-1">
                       <input
                         type="text"
                         value={cell}
                         onChange={(e) =>
-                          updateSpreadsheetCell(rowIndex, colIndex, e.target.value)
+                          updateSpreadsheetCell(
+                            rowIndex,
+                            colIndex,
+                            e.target.value
+                          )
                         }
                         className="w-full h-full border-none p-1 focus:outline-none"
                       />
@@ -1084,7 +1248,9 @@ const NoteApp = () => {
         </div>
 
         <div className="mt-8">
-          <h2 className="font-bold text-2xl text-blue-600">📌 Ghi chú đã lưu</h2>
+          <h2 className="font-bold text-2xl text-blue-600">
+            📌 Ghi chú đã lưu
+          </h2>
           <ul>
             {sortedNotes.length > 0 ? (
               sortedNotes.map((note) => (
@@ -1122,9 +1288,11 @@ const NoteApp = () => {
                                     ? { ...t, completed: !t.completed }
                                     : t
                                 );
-                                supabase
+                                supabase2
                                   .from("notess")
-                                  .update({ todos: JSON.stringify(updatedTodos) })
+                                  .update({
+                                    todos: JSON.stringify(updatedTodos),
+                                  })
                                   .eq("id", note.id)
                                   .then(() => fetchNotes());
                               }}
@@ -1132,7 +1300,9 @@ const NoteApp = () => {
                             />
                             <span
                               className={
-                                todo.completed ? "line-through text-gray-500" : ""
+                                todo.completed
+                                  ? "line-through text-gray-500"
+                                  : ""
                               }
                             >
                               {todo.text}
@@ -1146,10 +1316,13 @@ const NoteApp = () => {
                                 {!todo.completed && (
                                   <button
                                     onClick={() => {
-                                      const updatedTodos = note.todos.map((t, i) =>
-                                        i === index ? { ...t, reminder: null } : t
+                                      const updatedTodos = note.todos.map(
+                                        (t, i) =>
+                                          i === index
+                                            ? { ...t, reminder: null }
+                                            : t
                                       );
-                                      supabase
+                                      supabase2
                                         .from("notess")
                                         .update({
                                           todos: JSON.stringify(updatedTodos),
@@ -1178,20 +1351,20 @@ const NoteApp = () => {
                               .slice(0, 3)
                               .map((row, rowIndex) => (
                                 <tr key={rowIndex}>
-                                  {Array.isArray(row)
-                                    ? row.slice(0, 3).map((cell, colIndex) => (
-                                        <td
-                                          key={colIndex}
-                                          className="border border-gray-300 p-1"
-                                        >
-                                          {cell}
-                                        </td>
-                                      ))
-                                    : (
-                                        <td className="border border-gray-300 p-1">
-                                          Invalid Row
-                                        </td>
-                                      )}
+                                  {Array.isArray(row) ? (
+                                    row.slice(0, 3).map((cell, colIndex) => (
+                                      <td
+                                        key={colIndex}
+                                        className="border border-gray-300 p-1"
+                                      >
+                                        {cell}
+                                      </td>
+                                    ))
+                                  ) : (
+                                    <td className="border border-gray-300 p-1">
+                                      Invalid Row
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                           </tbody>

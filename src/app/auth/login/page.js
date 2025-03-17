@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
-import { supabase } from "../../../lib/supabase"; // Đảm bảo rằng bạn đã cấu hình đúng đường dẫn
+import { supabase1 } from "../../../lib/supabase"; // Đảm bảo rằng bạn đã cấu hình đúng đường dẫn
 
 export default function LoginApp() {
   const [tenDangNhap, setTenDangNhap] = useState("");
@@ -23,7 +23,7 @@ export default function LoginApp() {
 
     if (!loiMoi.tenDangNhap && !loiMoi.matKhau) {
       // Kiểm tra thông tin đăng nhập với Supabase
-      const { data, error } = await supabase
+      const { data: data1, error: error1 } = await supabase1
         .from("users")
         .select("*")
         .or(`email.eq.${tenDangNhap},name.eq.${tenDangNhap}`)

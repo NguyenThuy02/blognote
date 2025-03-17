@@ -1,19 +1,18 @@
-'use client'; // Mark component as Client Component
+"use client"; // Mark component as Client Component
 
-import { useState, useEffect } from 'react'; // Import hooks
-import { supabase } from './../../lib/supabase'; // Path to your Supabase client
+import { useState, useEffect } from "react"; // Import hooks
+import { supabase2 } from "./../../lib/supabase"; // Path to your Supabase client
 
 export default function NotePage() {
-  const [title, setTitle] = useState(''); // State to hold note title
+  const [title, setTitle] = useState(""); // State to hold note title
   const [notes, setNotes] = useState([]); // State to hold the list of notes
 
   // Function to fetch notes from Supabase
   const fetchNotes = async () => {
-    const { data, error } = await supabase.from('notes').select('*');
+    const { data, error } = await supabase2.from("notes").select("*");
     if (error) {
-      console.error('Error fetching notes:', error.message);
+      console.error("Error fetching notes:", error.message);
     } else {
-
       setNotes(data || []); // Update state with fetched notes
     }
   };
@@ -21,14 +20,12 @@ export default function NotePage() {
   // Function to handle form submission (adding a new note)
   const handleSubmit = async (e) => {
     e.preventDefault(); // Prevent default form submission
-    const { data, error } = await supabase
-      .from('notes')
-      .insert([{ title }]); // Insert the new note into the table
+    const { data, error } = await supabase2.from("notes").insert([{ title }]); // Insert the new note into the table
 
     if (error) {
-      console.error('Error adding note:', error.message);
+      console.error("Error adding note:", error.message);
     } else {
-      setTitle(''); // Reset the input field after submission
+      setTitle(""); // Reset the input field after submission
       fetchNotes(); // Fetch updated list of notes after adding the new one
     }
   };
@@ -57,7 +54,7 @@ export default function NotePage() {
         {notes.length > 0 ? (
           notes.map((note) => (
             <li key={note.id} className="p-2 bg-gray-100 rounded">
-              {note.title || 'Không có tiêu đề'}
+              {note.title || "Không có tiêu đề"}
             </li>
           ))
         ) : (

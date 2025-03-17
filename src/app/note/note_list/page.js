@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { supabase } from "../../../lib/supabase";
+import { supabase2 } from "../../../lib/supabase";
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
@@ -25,7 +25,7 @@ export default function NoteList() {
   // Fetch notes from Supabase
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase2
         .from("notess")
         .select(
           "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data"
@@ -45,8 +45,12 @@ export default function NoteList() {
       // Categorize notes based on note_type
       setTextNotes(mappedNotes.filter((note) => note.note_type === "plain"));
       setRichNotes(mappedNotes.filter((note) => note.note_type === "rich"));
-      setSketchNotes(mappedNotes.filter((note) => note.note_type === "whiteboard"));
-      setSpreadsheetNotes(mappedNotes.filter((note) => note.note_type === "spreadsheet"));
+      setSketchNotes(
+        mappedNotes.filter((note) => note.note_type === "whiteboard")
+      );
+      setSpreadsheetNotes(
+        mappedNotes.filter((note) => note.note_type === "spreadsheet")
+      );
     } catch (err) {
       console.error("Error fetching notes:", err);
     }
@@ -65,7 +69,9 @@ export default function NoteList() {
   const totalTextPages = Math.ceil(textNotes.length / notesPerPage);
   const totalRichPages = Math.ceil(richNotes.length / notesPerPage);
   const totalSketchPages = Math.ceil(sketchNotes.length / notesPerPage);
-  const totalSpreadsheetPages = Math.ceil(spreadsheetNotes.length / notesPerPage);
+  const totalSpreadsheetPages = Math.ceil(
+    spreadsheetNotes.length / notesPerPage
+  );
 
   return (
     <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6">
@@ -82,7 +88,10 @@ export default function NoteList() {
               >
                 <h3 className="font-semibold">{note.title}</h3>
                 <p className="text-gray-600">{note.description}</p>
-                <Link href={`/note/${note.id}`} className="text-blue-500 mt-2 block">
+                <Link
+                  href={`/note/${note.id}`}
+                  className="text-blue-500 mt-2 block"
+                >
                   Xem chi tiết →
                 </Link>
               </div>
@@ -133,7 +142,10 @@ export default function NoteList() {
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
         <h2 className="text-xl font-bold mb-4">🖼️ Ghi chú văn bản phong phú</h2>
         <div className="grid grid-cols-4 gap-4">
-          {paginate(richNotes.filter((note) => !note.image), currentRichPage)
+          {paginate(
+            richNotes.filter((note) => !note.image),
+            currentRichPage
+          )
             .slice(0, showMoreRich ? richNotes.length : 4)
             .map((note) => (
               <div
@@ -142,14 +154,20 @@ export default function NoteList() {
               >
                 <h3 className="font-semibold">{note.title}</h3>
                 <p className="text-gray-600">{note.description}</p>
-                <Link href={`/note/${note.id}`} className="text-blue-500 mt-2 block">
+                <Link
+                  href={`/note/${note.id}`}
+                  className="text-blue-500 mt-2 block"
+                >
                   Xem chi tiết →
                 </Link>
               </div>
             ))}
         </div>
         <div className="grid grid-cols-4 gap-4 mt-4">
-          {paginate(richNotes.filter((note) => note.image), currentRichPage)
+          {paginate(
+            richNotes.filter((note) => note.image),
+            currentRichPage
+          )
             .slice(0, showMoreRich ? richNotes.length : 4)
             .map((note) => (
               <div
@@ -165,7 +183,10 @@ export default function NoteList() {
                 )}
                 <h3 className="font-semibold">{note.title}</h3>
                 <p className="text-gray-600">{note.description}</p>
-                <Link href={`/note/${note.id}`} className="text-blue-500 mt-2 block">
+                <Link
+                  href={`/note/${note.id}`}
+                  className="text-blue-500 mt-2 block"
+                >
                   Xem chi tiết →
                 </Link>
               </div>
@@ -214,7 +235,9 @@ export default function NoteList() {
 
       {/* Khung 3: Ghi chú danh sách công việc */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h2 className="text-xl font-bold mb-4">📝 Ghi chú danh sách công việc</h2>
+        <h2 className="text-xl font-bold mb-4">
+          📝 Ghi chú danh sách công việc
+        </h2>
         <div className="grid grid-cols-4 gap-4">
           {paginate(sketchNotes, currentSketchPage)
             .slice(0, showMoreSketch ? sketchNotes.length : 4)
@@ -225,7 +248,10 @@ export default function NoteList() {
               >
                 <h3 className="font-semibold">{note.title}</h3>
                 <p className="text-gray-600">{note.description}</p>
-                <Link href={`/note/${note.id}`} className="text-blue-500 mt-2 block">
+                <Link
+                  href={`/note/${note.id}`}
+                  className="text-blue-500 mt-2 block"
+                >
                   Xem chi tiết công việc →
                 </Link>
               </div>
@@ -285,7 +311,10 @@ export default function NoteList() {
               >
                 <h3 className="font-semibold">{note.title}</h3>
                 <p className="text-gray-600">{note.description}</p>
-                <Link href={`/note/${note.id}`} className="text-blue-500 mt-2 block">
+                <Link
+                  href={`/note/${note.id}`}
+                  className="text-blue-500 mt-2 block"
+                >
                   Đi đến bảng →
                 </Link>
               </div>
@@ -302,7 +331,9 @@ export default function NoteList() {
         {showMoreSpreadsheet && (
           <div className="flex justify-center mt-4">
             <button
-              onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage - 1)}
+              onClick={() =>
+                setCurrentSpreadsheetPage(currentSpreadsheetPage - 1)
+              }
               disabled={currentSpreadsheetPage === 1}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
@@ -322,7 +353,9 @@ export default function NoteList() {
               </button>
             ))}
             <button
-              onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)}
+              onClick={() =>
+                setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)
+              }
               disabled={currentSpreadsheetPage === totalSpreadsheetPages}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
