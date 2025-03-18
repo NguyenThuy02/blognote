@@ -305,18 +305,17 @@ export default function PostApp() {
   const resetNotification = () => setNotification(null);
 
   // Hàm xóa hình ảnh
-  const handleDeleteImage = (imageUrl) => {
-    setUploadedImages(uploadedImages.filter((image) => image.url !== imageUrl));
-    setImageError(""); // Reset lỗi hình ảnh
+  const handleRemoveImage = (index) => {
+    setUploadedImages((prevImages) => prevImages.filter((_, i) => i !== index));
   };
 
   // Hàm xóa tệp
-  const handleDeleteFile = (fileUrl) => {
-    setUploadedFiles(uploadedFiles.filter((file) => file.url !== fileUrl));
+  const handleRemoveFile = (index) => {
+    setUploadedFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen mt-[76px] mb-[-7px] gap-5 p-5 m-[-25px]">
+    <div className="flex flex-col lg:flex-row min-h-screen mt-[76px] mb-[-7px] gap-5 p-5 m-[-15px]">
       <div className="lg:flex-1">
         <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
           {notification && (
@@ -379,7 +378,7 @@ export default function PostApp() {
               />
             </label>
             <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-              <FaFileImport className="mr-2" /> <span>Nhập Word/PDF</span>
+              <FaFileImport className="mr-2" /> <span>File Word/PDF</span>
               <input
                 type="file"
                 accept=".doc,.docx,.pdf"
@@ -396,7 +395,7 @@ export default function PostApp() {
 
           {uploadedImages.length > 0 && (
             <div className="mt-4">
-              <h3 className="font-bold">Hình ảnh đã tải lên:</h3>
+              <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
               <ul className="flex flex-wrap">
                 {uploadedImages.map((image, index) =>
                   isValidUrl(image.url) ? (
@@ -414,13 +413,13 @@ export default function PostApp() {
                         />
                         <button
                           onClick={() => handleRemoveImage(index)}
-                          className="absolute top-0 right-0 p-1 text-red-500 hover:text-red-700"
+                          className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
                           title="Xóa hình ảnh"
                         >
                           <FaTimes />
                         </button>
                       </div>
-                      <span className="text-blue-600 underline">
+                      <span className="text-blue-500 underline">
                         {image.name}
                       </span>
                     </li>
@@ -429,7 +428,7 @@ export default function PostApp() {
                       key={index}
                       className="flex flex-col items-center mb-4 mr-4"
                     >
-                      <span className="text-red-600">
+                      <span className="text-red-500">
                         URL hình ảnh không hợp lệ
                       </span>
                     </li>
@@ -441,18 +440,15 @@ export default function PostApp() {
 
           {uploadedFiles.length > 0 && (
             <div className="mt-4">
-              <h3 className="font-bold">Tệp đã tải lên:</h3>
-              <ul className="flex flex-wrap">
+              <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
+              <ul className="mr-5">
                 {uploadedFiles.map((file, index) => (
-                  <li
-                    key={index}
-                    className="flex flex-col items-center mb-4 mr-4"
-                  >
-                    <div className="relative">
-                      <span className="text-blue-600">{file.name}</span>
+                  <li key={index} className="mb-1">
+                    <div className="flex items-center">
+                      <span className="text-blue-500">{file.name}</span>
                       <button
                         onClick={() => handleRemoveFile(index)}
-                        className="absolute top-0 right-0 p-1 text-red-500 hover:text-red-700"
+                        className="p-1 text-red-400 hover:text-red-500"
                         title="Xóa tệp"
                       >
                         <FaTimes />
@@ -463,6 +459,7 @@ export default function PostApp() {
               </ul>
             </div>
           )}
+
           <div className="flex justify-center mt-4 space-x-4">
             <button
               onClick={handleSaveDraft}

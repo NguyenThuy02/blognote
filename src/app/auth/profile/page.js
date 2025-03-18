@@ -1,15 +1,6 @@
 "use client";
 
-import React from "react";
-
-export default function Profile() {
-  return (
-    <div>
-      <h1>Profile</h1>
-    </div>
-  );
-}
-/*import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { supabase } from "../../../lib/supabase"; // Đảm bảo đường dẫn chính xác
@@ -60,12 +51,10 @@ export default function Profile() {
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-r from-blue-300 to-purple-300">
       <Toaster position="top-right" reverseOrder={false} />
       <div className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4">
-       
         <div className="flex items-center justify-center mb-10">
           <h2 className="text-gray-700 text-2xl font-bold">Hồ sơ của bạn</h2>
         </div>
 
-       
         {userInfo ? (
           <div className="mb-4">
             <p className="text-gray-700 text-sm font-bold">
@@ -81,7 +70,6 @@ export default function Profile() {
           </p>
         )}
 
-      
         <div className="mt-6">
           <button
             onClick={handleBack}
@@ -93,4 +81,4 @@ export default function Profile() {
       </div>
     </div>
   );
-}*/
+}
