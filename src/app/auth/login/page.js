@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
-import { supabase1 } from "../../../lib/supabase"; // Ensure correct path configuration
+import { supabase } from "../../../lib/supabase"; // Ensure correct path configuration
 
 export default function LoginApp() {
   const [username, setUsername] = useState("");
@@ -29,7 +29,7 @@ export default function LoginApp() {
 
     try {
       // Kiểm tra thông tin đăng nhập với Supabase
-      const { data: userData, error: fetchError } = await supabase1
+      const { data: userData, error: fetchError } = await supabase
         .from("users")
         .select("*")
         .or(`email.eq.${username},name.eq.${username}`)

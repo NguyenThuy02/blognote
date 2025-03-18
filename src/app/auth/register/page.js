@@ -4,7 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
-import { supabase1 } from "../../../lib/supabase"; // Import kết nối Supabase
+import { supabase } from "../../../lib/supabase"; // Import kết nối Supabase
 
 export default function RegisterApp() {
   const {
@@ -29,7 +29,7 @@ export default function RegisterApp() {
     setLoading(true);
     try {
       // Kiểm tra xem email đã được đăng ký chưa
-      const { data: existingUser, error: userError } = await supabase1
+      const { data: existingUser, error: userError } = await supabase
         .from("users")
         .select("*")
         .eq("email", data.email.trim())
@@ -46,7 +46,7 @@ export default function RegisterApp() {
       }
 
       // Đăng ký người dùng
-      const { user, error } = await supabase1.auth.signUp({
+      const { user, error } = await supabase.auth.signUp({
         email: data.email.trim(),
         password: data.password,
       });
@@ -61,7 +61,7 @@ export default function RegisterApp() {
       }
 
       // Chèn thông tin người dùng bổ sung vào bảng 'users' mà không cần id
-      const { error: insertError } = await supabase1.from("users").insert([
+      const { error: insertError } = await supabase.from("users").insert([
         {
           name: data.name,
           email: data.email,

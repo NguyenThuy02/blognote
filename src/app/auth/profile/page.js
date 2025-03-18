@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { supabase1 } from "../../../lib/supabase"; // Ensure the path is correct
+import { supabase } from "../../../lib/supabase"; // Ensure the path is correct
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -10,7 +10,7 @@ export default function Profile() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data, error } = await supabase1.auth.getUser();
+      const { data, error } = await supabase.auth.getUser();
       if (error) {
         toast.error("Không thể lấy thông tin người dùng!");
         return;
