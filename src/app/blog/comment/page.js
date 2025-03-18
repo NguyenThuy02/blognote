@@ -53,7 +53,7 @@ export default function CommentApp() {
   };
 
   return (
-    <div className="bg-white p-5 rounded-lg shadow-md mt-[99px] relative">
+    <div className="bg-white text-gray-700 p-5 rounded-lg shadow-md mt-[99px] relative">
       <h1 className="text-4xl font-bold font-montserrat text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-400 mb-6">
         Nhận xét và phản hồi
       </h1>

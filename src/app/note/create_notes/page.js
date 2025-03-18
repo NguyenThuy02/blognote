@@ -802,655 +802,661 @@ const NoteApp = () => {
   };
 
   return (
-    <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-center mb-6 text-gray-700">
-        Ghi chú
-      </h1>
+    <div className="text-gray-700">
+      <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
+        <h1 className="text-3xl font-bold text-center mb-6 text-gray-700">
+          Ghi chú
+        </h1>
 
-      <input
-        type="text"
-        placeholder="Tiêu đề ghi chú"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-      />
+        <input
+          type="text"
+          placeholder="Tiêu đề ghi chú"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
+        />
 
-      <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
-        <div className="relative">
-          <button
-            onClick={() => setNoteTypeMenu(!noteTypeMenu)}
-            className="btn-gradient"
-          >
-            <FaBars /> <span>Tạo Ghi Chú</span>
+        <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
+          <div className="relative">
+            <button
+              onClick={() => setNoteTypeMenu(!noteTypeMenu)}
+              className="btn-gradient"
+            >
+              <FaBars /> <span>Tạo Ghi Chú</span>
+            </button>
+            {noteTypeMenu && (
+              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleNoteTypeChange("plain")}
+                >
+                  📝 Ghi chú văn bản thuần
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleNoteTypeChange("rich")}
+                >
+                  🖋 Ghi chú văn bản phong phú
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleNoteTypeChange("whiteboard")}
+                >
+                  🎨 Ghi chú danh sách công việc
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleNoteTypeChange("spreadsheet")}
+                >
+                  📊 Ghi chú bảng tính
+                </button>
+              </div>
+            )}
+          </div>
+
+          {currentNoteType !== "plain" &&
+            currentNoteType !== "whiteboard" &&
+            currentNoteType !== "spreadsheet" && (
+              <>
+                <div className="relative">
+                  <button
+                    onClick={handleImageButtonClick}
+                    className="btn-gradient"
+                  >
+                    <FaPlus /> <span>Chèn ảnh</span>
+                  </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="btn-gradient"
+                  >
+                    <FaSmile /> <span>icon</span>
+                  </button>
+                  {showEmojiPicker && (
+                    <div className="emoji-picker absolute z-10 bg-white border rounded-lg p-2 shadow-lg w-64 max-h-48 overflow-y-auto">
+                      {emojiList.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => addEmoji(emoji)}
+                          className="p-2 hover:bg-gray-100 text-2xl"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+          <label className="btn-gradient cursor-pointer">
+            <FaFileImport /> <span>Nhập Word/PDF</span>
+            <input
+              type="file"
+              accept=".docx,application/pdf"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+          </label>
+
+          <button onClick={handleShareNote} className="btn-gradient">
+            <FaShareAlt /> <span>Chia sẻ</span>
           </button>
-          {noteTypeMenu && (
-            <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleNoteTypeChange("plain")}
-              >
-                📝 Ghi chú văn bản thuần
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleNoteTypeChange("rich")}
-              >
-                🖋 Ghi chú văn bản phong phú
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleNoteTypeChange("whiteboard")}
-              >
-                🎨 Ghi chú danh sách công việc
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleNoteTypeChange("spreadsheet")}
-              >
-                📊 Ghi chú bảng tính
-              </button>
-            </div>
-          )}
+
+          <button
+            onClick={handleExportNotes}
+            className="btn-gradient text-green-600"
+          >
+            <FaFileExport /> <span>Xuất File</span>
+          </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setCategoryMenu(!categoryMenu)}
+              className="btn-gradient"
+            >
+              <FaBars /> <span>Thể loại: {category}</span>
+            </button>
+            {categoryMenu && (
+              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleCategoryChange("Personal")}
+                >
+                  👤 Personal
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleCategoryChange("Study")}
+                >
+                  📚 Study
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleCategoryChange("Entertainment")}
+                >
+                  🎬 Entertainment
+                </button>
+                <button
+                  className="dropdown-item hover:bg-light-blue-100"
+                  onClick={() => handleCategoryChange("Upload")}
+                >
+                  📤 Upload
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {currentNoteType !== "plain" &&
-          currentNoteType !== "whiteboard" &&
-          currentNoteType !== "spreadsheet" && (
-            <>
-              <div className="relative">
+        {currentNoteType === "plain" || currentNoteType === "rich" ? (
+          <>
+            {currentNoteType === "rich" && (
+              <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
+                <select
+                  value={fontFamily}
+                  onChange={(e) => setFontFamily(e.target.value)}
+                  className="border p-1 rounded bg-white"
+                >
+                  <option value="Verdana">Verdana</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                </select>
+                <select
+                  value={fontSize}
+                  onChange={(e) => setFontSize(e.target.value)}
+                  className="border p-1 rounded bg-white"
+                >
+                  <option value="10pt">10pt</option>
+                  <option value="12pt">12pt</option>
+                  <option value="14pt">14pt</option>
+                  <option value="16pt">16pt</option>
+                  <option value="18pt">18pt</option>
+                </select>
+                <button
+                  onClick={() =>
+                    setFontWeight(fontWeight === "bold" ? "normal" : "bold")
+                  }
+                  className={`border p-2 rounded ${
+                    fontWeight === "bold" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaBold />
+                </button>
+                <button
+                  onClick={() =>
+                    setFontStyle(fontStyle === "italic" ? "normal" : "italic")
+                  }
+                  className={`border p-2 rounded ${
+                    fontStyle === "italic" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaItalic />
+                </button>
+                <button
+                  onClick={() => setTextAlign("left")}
+                  className={`border p-2 rounded ${
+                    textAlign === "left" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaAlignLeft />
+                </button>
+                <button
+                  onClick={() => setTextAlign("center")}
+                  className={`border p-2 rounded ${
+                    textAlign === "center" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaAlignCenter />
+                </button>
+                <button
+                  onClick={() => setTextAlign("right")}
+                  className={`border p-2 rounded ${
+                    textAlign === "right" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaAlignRight />
+                </button>
+                <button
+                  onClick={() => setTextAlign("justify")}
+                  className={`border p-2 rounded ${
+                    textAlign === "justify" ? "bg-blue-200" : "bg-white"
+                  } hover:bg-blue-100`}
+                >
+                  <FaAlignJustify />
+                </button>
+                <button
+                  onClick={handleUnorderedList}
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
+                >
+                  <FaListUl />
+                </button>
+                <button
+                  onClick={handleOrderedList}
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
+                >
+                  <FaListOl />
+                </button>
+                <button
+                  onClick={handleIndent}
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
+                >
+                  <FaIndent />
+                </button>
+                <button
+                  onClick={handleOutdent}
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
+                >
+                  <FaOutdent />
+                </button>
                 <button
                   onClick={handleImageButtonClick}
-                  className="btn-gradient"
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
                 >
-                  <FaPlus /> <span>Chèn ảnh</span>
+                  <FaImage />
                 </button>
                 <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  className="hidden"
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => setTextColor(e.target.value)}
+                  className="border p-1 rounded w-8 h-8"
+                />
+                <input
+                  type="color"
+                  value={backgroundColor}
+                  onChange={(e) => setBackgroundColor(e.target.value)}
+                  className="border p-1 rounded w-8 h-8"
                 />
               </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="btn-gradient"
-                >
-                  <FaSmile /> <span>icon</span>
-                </button>
-                {showEmojiPicker && (
-                  <div className="emoji-picker absolute z-10 bg-white border rounded-lg p-2 shadow-lg w-64 max-h-48 overflow-y-auto">
-                    {emojiList.map((emoji) => (
+            )}
+            {uploadedImages.length > 0 && (
+              <div className="mb-4 p-4 border border-gray-300 rounded-lg flex justify-center">
+                <div className="flex flex-wrap gap-4 max-w-3xl">
+                  {uploadedImages.map((image, index) => (
+                    <div key={index} className="relative">
+                      <Image
+                        src={image}
+                        alt={`Uploaded preview ${index}`}
+                        width={300}
+                        height={300}
+                        className="object-contain rounded-md"
+                      />
                       <button
-                        key={emoji}
-                        onClick={() => addEmoji(emoji)}
-                        className="p-2 hover:bg-gray-100 text-2xl"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                        title="Xóa ảnh"
                       >
-                        {emoji}
+                        <FaTimes size={16} />
                       </button>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </>
-          )}
-
-        <label className="btn-gradient cursor-pointer">
-          <FaFileImport /> <span>Nhập Word/PDF</span>
-          <input
-            type="file"
-            accept=".docx,application/pdf"
-            onChange={handleImportFile}
-            className="hidden"
-          />
-        </label>
-
-        <button onClick={handleShareNote} className="btn-gradient">
-          <FaShareAlt /> <span>Chia sẻ</span>
-        </button>
-
-        <button
-          onClick={handleExportNotes}
-          className="btn-gradient text-green-600"
-        >
-          <FaFileExport /> <span>Xuất File</span>
-        </button>
-
-        <div className="relative">
-          <button
-            onClick={() => setCategoryMenu(!categoryMenu)}
-            className="btn-gradient"
-          >
-            <FaBars /> <span>Thể loại: {category}</span>
-          </button>
-          {categoryMenu && (
-            <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleCategoryChange("Personal")}
-              >
-                👤 Personal
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleCategoryChange("Study")}
-              >
-                📚 Study
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleCategoryChange("Entertainment")}
-              >
-                🎬 Entertainment
-              </button>
-              <button
-                className="dropdown-item hover:bg-light-blue-100"
-                onClick={() => handleCategoryChange("Upload")}
-              >
-                📤 Upload
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {currentNoteType === "plain" || currentNoteType === "rich" ? (
-        <>
-          {currentNoteType === "rich" && (
-            <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
-              <select
-                value={fontFamily}
-                onChange={(e) => setFontFamily(e.target.value)}
-                className="border p-1 rounded bg-white"
-              >
-                <option value="Verdana">Verdana</option>
-                <option value="Arial">Arial</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Courier New">Courier New</option>
-              </select>
-              <select
-                value={fontSize}
-                onChange={(e) => setFontSize(e.target.value)}
-                className="border p-1 rounded bg-white"
-              >
-                <option value="10pt">10pt</option>
-                <option value="12pt">12pt</option>
-                <option value="14pt">14pt</option>
-                <option value="16pt">16pt</option>
-                <option value="18pt">18pt</option>
-              </select>
-              <button
-                onClick={() =>
-                  setFontWeight(fontWeight === "bold" ? "normal" : "bold")
-                }
-                className={`border p-2 rounded ${
-                  fontWeight === "bold" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaBold />
-              </button>
-              <button
-                onClick={() =>
-                  setFontStyle(fontStyle === "italic" ? "normal" : "italic")
-                }
-                className={`border p-2 rounded ${
-                  fontStyle === "italic" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaItalic />
-              </button>
-              <button
-                onClick={() => setTextAlign("left")}
-                className={`border p-2 rounded ${
-                  textAlign === "left" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaAlignLeft />
-              </button>
-              <button
-                onClick={() => setTextAlign("center")}
-                className={`border p-2 rounded ${
-                  textAlign === "center" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaAlignCenter />
-              </button>
-              <button
-                onClick={() => setTextAlign("right")}
-                className={`border p-2 rounded ${
-                  textAlign === "right" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaAlignRight />
-              </button>
-              <button
-                onClick={() => setTextAlign("justify")}
-                className={`border p-2 rounded ${
-                  textAlign === "justify" ? "bg-blue-200" : "bg-white"
-                } hover:bg-blue-100`}
-              >
-                <FaAlignJustify />
-              </button>
-              <button
-                onClick={handleUnorderedList}
-                className="border p-2 rounded bg-white hover:bg-blue-100"
-              >
-                <FaListUl />
-              </button>
-              <button
-                onClick={handleOrderedList}
-                className="border p-2 rounded bg-white hover:bg-blue-100"
-              >
-                <FaListOl />
-              </button>
-              <button
-                onClick={handleIndent}
-                className="border p-2 rounded bg-white hover:bg-blue-100"
-              >
-                <FaIndent />
-              </button>
-              <button
-                onClick={handleOutdent}
-                className="border p-2 rounded bg-white hover:bg-blue-100"
-              >
-                <FaOutdent />
-              </button>
-              <button
-                onClick={handleImageButtonClick}
-                className="border p-2 rounded bg-white hover:bg-blue-100"
-              >
-                <FaImage />
-              </button>
-              <input
-                type="color"
-                value={textColor}
-                onChange={(e) => setTextColor(e.target.value)}
-                className="border p-1 rounded w-8 h-8"
-              />
-              <input
-                type="color"
-                value={backgroundColor}
-                onChange={(e) => setBackgroundColor(e.target.value)}
-                className="border p-1 rounded w-8 h-8"
-              />
-            </div>
-          )}
-          {uploadedImages.length > 0 && (
-            <div className="mb-4 p-4 border border-gray-300 rounded-lg flex justify-center">
-              <div className="flex flex-wrap gap-4 max-w-3xl">
-                {uploadedImages.map((image, index) => (
-                  <div key={index} className="relative">
-                    <Image
-                      src={image}
-                      alt={`Uploaded preview ${index}`}
-                      width={300}
-                      height={300}
-                      className="object-contain rounded-md"
-                    />
-                    <button
-                      onClick={() => handleRemoveImage(index)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                      title="Xóa ảnh"
-                    >
-                      <FaTimes size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <textarea
-            ref={textAreaRef}
-            placeholder="Nội dung ghi chú"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
-            style={{
-              fontFamily: currentNoteType === "rich" ? fontFamily : "Verdana",
-              fontSize: currentNoteType === "rich" ? fontSize : "14pt",
-              fontWeight: currentNoteType === "rich" ? fontWeight : "normal",
-              fontStyle: currentNoteType === "rich" ? fontStyle : "normal",
-              textAlign: currentNoteType === "rich" ? textAlign : "left",
-              color: currentNoteType === "rich" ? textColor : "#000000",
-              backgroundColor:
-                currentNoteType === "rich" ? backgroundColor : "#ffffff",
-            }}
-          />
-        </>
-      ) : currentNoteType === "whiteboard" ? (
-        <div className="mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <input
-              type="text"
-              placeholder="Thêm công việc (Enter để thêm)..."
+            )}
+            <textarea
+              ref={textAreaRef}
+              placeholder="Nội dung ghi chú"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onKeyPress={handleTodoKeyPress}
-              className="flex-grow border-2 border-gray-300 p-2 rounded-lg"
+              className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
+              style={{
+                fontFamily: currentNoteType === "rich" ? fontFamily : "Verdana",
+                fontSize: currentNoteType === "rich" ? fontSize : "14pt",
+                fontWeight: currentNoteType === "rich" ? fontWeight : "normal",
+                fontStyle: currentNoteType === "rich" ? fontStyle : "normal",
+                textAlign: currentNoteType === "rich" ? textAlign : "left",
+                color: currentNoteType === "rich" ? textColor : "#000000",
+                backgroundColor:
+                  currentNoteType === "rich" ? backgroundColor : "#ffffff",
+              }}
             />
-            <input
-              type="datetime-local"
-              value={reminderTime}
-              onChange={(e) => setReminderTime(e.target.value)}
-              className="border-2 border-gray-300 p-2 rounded-lg"
-            />
-            <button onClick={addTodo} className="btn-gradient">
-              <FaPlus /> Thêm
-            </button>
-          </div>
-          <ul className="space-y-2">
-            {todos.map((todo, index) => (
-              <li key={index} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={todo.completed}
-                  onChange={() => toggleTodo(index)}
-                  className="w-5 h-5"
-                />
-                <span
-                  className={todo.completed ? "line-through text-gray-500" : ""}
-                >
-                  {todo.text}
-                </span>
-                {todo.reminder && (
-                  <small className="ml-2 text-gray-500 flex items-center">
-                    <FaBell className="mr-1" /> (Nhắc nhở:{" "}
-                    {new Date(todo.reminder).toLocaleString()})
-                  </small>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : currentNoteType === "spreadsheet" ? (
-        <div className="mb-4 overflow-x-auto">
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={undoSpreadsheet}
-              disabled={historyIndex <= 0}
-              className={`btn-gradient ${
-                historyIndex <= 0 ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              <FaUndo /> Quay lại
-            </button>
-            <button
-              onClick={redoSpreadsheet}
-              disabled={historyIndex >= spreadsheetHistory.length - 1}
-              className={`btn-gradient ${
-                historyIndex >= spreadsheetHistory.length - 1
-                  ? "opacity-50 cursor-not-allowed"
-                  : ""
-              }`}
-            >
-              <FaRedo /> Tiến tới
-            </button>
-          </div>
-          <table className="border-collapse border border-gray-300">
-            <tbody>
-              {spreadsheetData.map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((cell, colIndex) => (
-                    <td key={colIndex} className="border border-gray-300 p-1">
-                      <input
-                        type="text"
-                        value={cell}
-                        onChange={(e) =>
-                          updateSpreadsheetCell(
-                            rowIndex,
-                            colIndex,
-                            e.target.value
-                          )
-                        }
-                        className="w-full h-full border-none p-1 focus:outline-none"
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {error && <p className="text-red-500">{error}</p>}
-
-      <div className="flex justify-center mt-4">
-        <button
-          onClick={handleSaveNote}
-          className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center"
-        >
-          {editingId !== null ? "Cập nhật" : "Lưu"}
-        </button>
-      </div>
-
-      <div className="mt-6 p-4 border border-gray-300 rounded-lg">
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-4 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm ghi chú..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full border-2 border-gray-300 p-4 pl-12 rounded-xl transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-          />
-        </div>
-
-        <div className="flex justify-between mt-6 text-blue-600">
-          <button onClick={() => setSortBy("title")}>
-            ↕ Sắp xếp theo tiêu đề
-          </button>
-          <button onClick={() => setSortBy("updated_at")}>
-            ↕ Sắp xếp theo ngày cập nhật
-          </button>
-        </div>
-
-        <div className="mt-8">
-          <h2 className="font-bold text-2xl text-blue-600">
-            📌 Ghi chú đã lưu
-          </h2>
-          <ul>
-            {sortedNotes.length > 0 ? (
-              sortedNotes.map((note) => (
-                <li
-                  key={note.id}
-                  className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg"
-                >
-                  <div className="flex-shrink-0 mr-4">
-                    {note.image_url && (
-                      <Image
-                        src={note.image_url}
-                        alt={`Note ${note.id} image`}
-                        width={80}
-                        height={80}
-                        className="w-20 h-20 object-cover rounded-md"
-                      />
-                    )}
-                  </div>
-                  <div className="flex-grow">
-                    <strong className="text-purple-600 text-lg">
-                      {note.title}
-                    </strong>
-                    {note.note_type === "whiteboard" &&
-                    Array.isArray(note.todos) &&
-                    note.todos.length > 0 ? (
-                      <ul className="list-disc pl-5">
-                        {note.todos.map((todo, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={todo.completed}
-                              onChange={() => {
-                                const updatedTodos = note.todos.map((t, i) =>
-                                  i === index
-                                    ? { ...t, completed: !t.completed }
-                                    : t
-                                );
-                                supabase2
-                                  .from("notess")
-                                  .update({
-                                    todos: JSON.stringify(updatedTodos),
-                                  })
-                                  .eq("id", note.id)
-                                  .then(() => fetchNotes());
-                              }}
-                              className="w-5 h-5"
-                            />
-                            <span
-                              className={
-                                todo.completed
-                                  ? "line-through text-gray-500"
-                                  : ""
-                              }
-                            >
-                              {todo.text}
-                            </span>
-                            {todo.reminder && (
-                              <>
-                                <small className="ml-2 text-gray-500 flex items-center">
-                                  <FaBell className="mr-1" /> (Nhắc nhở:{" "}
-                                  {new Date(todo.reminder).toLocaleString()})
-                                </small>
-                                {!todo.completed && (
-                                  <button
-                                    onClick={() => {
-                                      const updatedTodos = note.todos.map(
-                                        (t, i) =>
-                                          i === index
-                                            ? { ...t, reminder: null }
-                                            : t
-                                      );
-                                      supabase2
-                                        .from("notess")
-                                        .update({
-                                          todos: JSON.stringify(updatedTodos),
-                                        })
-                                        .eq("id", note.id)
-                                        .then(() => fetchNotes());
-                                    }}
-                                    className="ml-2 text-red-500 hover:text-red-700"
-                                    title="Tắt nhắc nhở"
-                                  >
-                                    <FaBellSlash />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : note.note_type === "spreadsheet" &&
-                      Array.isArray(note.spreadsheet_data) &&
-                      note.spreadsheet_data.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="border-collapse border border-gray-300 text-sm">
-                          <tbody>
-                            {note.spreadsheet_data
-                              .slice(0, 3)
-                              .map((row, rowIndex) => (
-                                <tr key={rowIndex}>
-                                  {Array.isArray(row) ? (
-                                    row.slice(0, 3).map((cell, colIndex) => (
-                                      <td
-                                        key={colIndex}
-                                        className="border border-gray-300 p-1"
-                                      >
-                                        {cell}
-                                      </td>
-                                    ))
-                                  ) : (
-                                    <td className="border border-gray-300 p-1">
-                                      Invalid Row
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                        <small>
-                          (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
-                          {note.spreadsheet_data[0]?.length || 0})
-                        </small>
-                      </div>
-                    ) : (
-                      <p className="text-gray-700">{note.content}</p>
-                    )}
-                    <small className="text-gray-500">
-                      {new Date(note.updated_at).toLocaleString()}
+          </>
+        ) : currentNoteType === "whiteboard" ? (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Thêm công việc (Enter để thêm)..."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onKeyPress={handleTodoKeyPress}
+                className="flex-grow border-2 border-gray-300 p-2 rounded-lg"
+              />
+              <input
+                type="datetime-local"
+                value={reminderTime}
+                onChange={(e) => setReminderTime(e.target.value)}
+                className="border-2 border-gray-300 p-2 rounded-lg"
+              />
+              <button onClick={addTodo} className="btn-gradient">
+                <FaPlus /> Thêm
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {todos.map((todo, index) => (
+                <li key={index} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={todo.completed}
+                    onChange={() => toggleTodo(index)}
+                    className="w-5 h-5"
+                  />
+                  <span
+                    className={
+                      todo.completed ? "line-through text-gray-500" : ""
+                    }
+                  >
+                    {todo.text}
+                  </span>
+                  {todo.reminder && (
+                    <small className="ml-2 text-gray-500 flex items-center">
+                      <FaBell className="mr-1" /> (Nhắc nhở:{" "}
+                      {new Date(todo.reminder).toLocaleString()})
                     </small>
-                  </div>
-                  <div className="flex space-x-3 ml-4">
-                    <button
-                      onClick={() => handleEditNote(note)}
-                      className="text-green-600 text-xl hover:text-green-800 transition duration-200"
-                      title="Sửa ghi chú"
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteNote(note.id)}
-                      className="text-red-500 text-xl hover:text-red-700 transition duration-200"
-                      title="Xóa ghi chú"
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
+                  )}
                 </li>
-              ))
-            ) : (
-              <p className="text-gray-500 mt-3">Không tìm thấy ghi chú nào.</p>
-            )}
-          </ul>
-        </div>
-      </div>
+              ))}
+            </ul>
+          </div>
+        ) : currentNoteType === "spreadsheet" ? (
+          <div className="mb-4 overflow-x-auto">
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={undoSpreadsheet}
+                disabled={historyIndex <= 0}
+                className={`btn-gradient ${
+                  historyIndex <= 0 ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <FaUndo /> Quay lại
+              </button>
+              <button
+                onClick={redoSpreadsheet}
+                disabled={historyIndex >= spreadsheetHistory.length - 1}
+                className={`btn-gradient ${
+                  historyIndex >= spreadsheetHistory.length - 1
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                <FaRedo /> Tiến tới
+              </button>
+            </div>
+            <table className="border-collapse border border-gray-300">
+              <tbody>
+                {spreadsheetData.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map((cell, colIndex) => (
+                      <td key={colIndex} className="border border-gray-300 p-1">
+                        <input
+                          type="text"
+                          value={cell}
+                          onChange={(e) =>
+                            updateSpreadsheetCell(
+                              rowIndex,
+                              colIndex,
+                              e.target.value
+                            )
+                          }
+                          className="w-full h-full border-none p-1 focus:outline-none"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-      <style jsx>{`
-        .btn-gradient {
-          background: linear-gradient(135deg, #6aa8ff, #b57edc);
-          color: white;
-          padding: 12px 20px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 16px;
-          transition: all 0.3s ease-in-out;
-          border: 1px solid lightgray;
-        }
-        .btn-gradient:hover {
-          background: linear-gradient(135deg, #b57edc, #6aa8ff);
-          transform: scale(1.08);
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-        .btn-gradient:disabled {
-          background: gray;
-          transform: none;
-          box-shadow: none;
-        }
-        .dropdown-item {
-          display: block;
-          width: 100%;
-          padding: 10px;
-          text-align: left;
-          border: none;
-          background: none;
-          cursor: pointer;
-          transition: background 0.3s ease;
-        }
-        .dropdown-item:hover {
-          background-color: rgba(173, 216, 230, 0.5);
-        }
-        .border-light-blue-300 {
-          border-color: #6aa8ff;
-        }
-        .emoji-picker {
-          top: 100%;
-          left: 0;
-          transform: translateY(10px);
-        }
-      `}</style>
+        {error && <p className="text-red-500">{error}</p>}
+
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={handleSaveNote}
+            className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center"
+          >
+            {editingId !== null ? "Cập nhật" : "Lưu"}
+          </button>
+        </div>
+
+        <div className="mt-6 p-4 border border-gray-300 rounded-lg">
+          <div className="relative">
+            <FaSearch className="absolute left-4 top-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm ghi chú..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full border-2 border-gray-300 p-4 pl-12 rounded-xl transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+
+          <div className="flex justify-between mt-6 text-blue-600">
+            <button onClick={() => setSortBy("title")}>
+              ↕ Sắp xếp theo tiêu đề
+            </button>
+            <button onClick={() => setSortBy("updated_at")}>
+              ↕ Sắp xếp theo ngày cập nhật
+            </button>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="font-bold text-2xl text-blue-600">
+              📌 Ghi chú đã lưu
+            </h2>
+            <ul>
+              {sortedNotes.length > 0 ? (
+                sortedNotes.map((note) => (
+                  <li
+                    key={note.id}
+                    className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg"
+                  >
+                    <div className="flex-shrink-0 mr-4">
+                      {note.image_url && (
+                        <Image
+                          src={note.image_url}
+                          alt={`Note ${note.id} image`}
+                          width={80}
+                          height={80}
+                          className="w-20 h-20 object-cover rounded-md"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-grow">
+                      <strong className="text-purple-600 text-lg">
+                        {note.title}
+                      </strong>
+                      {note.note_type === "whiteboard" &&
+                      Array.isArray(note.todos) &&
+                      note.todos.length > 0 ? (
+                        <ul className="list-disc pl-5">
+                          {note.todos.map((todo, index) => (
+                            <li key={index} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={todo.completed}
+                                onChange={() => {
+                                  const updatedTodos = note.todos.map((t, i) =>
+                                    i === index
+                                      ? { ...t, completed: !t.completed }
+                                      : t
+                                  );
+                                  supabase2
+                                    .from("notess")
+                                    .update({
+                                      todos: JSON.stringify(updatedTodos),
+                                    })
+                                    .eq("id", note.id)
+                                    .then(() => fetchNotes());
+                                }}
+                                className="w-5 h-5"
+                              />
+                              <span
+                                className={
+                                  todo.completed
+                                    ? "line-through text-gray-500"
+                                    : ""
+                                }
+                              >
+                                {todo.text}
+                              </span>
+                              {todo.reminder && (
+                                <>
+                                  <small className="ml-2 text-gray-500 flex items-center">
+                                    <FaBell className="mr-1" /> (Nhắc nhở:{" "}
+                                    {new Date(todo.reminder).toLocaleString()})
+                                  </small>
+                                  {!todo.completed && (
+                                    <button
+                                      onClick={() => {
+                                        const updatedTodos = note.todos.map(
+                                          (t, i) =>
+                                            i === index
+                                              ? { ...t, reminder: null }
+                                              : t
+                                        );
+                                        supabase2
+                                          .from("notess")
+                                          .update({
+                                            todos: JSON.stringify(updatedTodos),
+                                          })
+                                          .eq("id", note.id)
+                                          .then(() => fetchNotes());
+                                      }}
+                                      className="ml-2 text-red-500 hover:text-red-700"
+                                      title="Tắt nhắc nhở"
+                                    >
+                                      <FaBellSlash />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : note.note_type === "spreadsheet" &&
+                        Array.isArray(note.spreadsheet_data) &&
+                        note.spreadsheet_data.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="border-collapse border border-gray-300 text-sm">
+                            <tbody>
+                              {note.spreadsheet_data
+                                .slice(0, 3)
+                                .map((row, rowIndex) => (
+                                  <tr key={rowIndex}>
+                                    {Array.isArray(row) ? (
+                                      row.slice(0, 3).map((cell, colIndex) => (
+                                        <td
+                                          key={colIndex}
+                                          className="border border-gray-300 p-1"
+                                        >
+                                          {cell}
+                                        </td>
+                                      ))
+                                    ) : (
+                                      <td className="border border-gray-300 p-1">
+                                        Invalid Row
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                          <small>
+                            (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
+                            {note.spreadsheet_data[0]?.length || 0})
+                          </small>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700">{note.content}</p>
+                      )}
+                      <small className="text-gray-500">
+                        {new Date(note.updated_at).toLocaleString()}
+                      </small>
+                    </div>
+                    <div className="flex space-x-3 ml-4">
+                      <button
+                        onClick={() => handleEditNote(note)}
+                        className="text-green-600 text-xl hover:text-green-800 transition duration-200"
+                        title="Sửa ghi chú"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteNote(note.id)}
+                        className="text-red-500 text-xl hover:text-red-700 transition duration-200"
+                        title="Xóa ghi chú"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <p className="text-gray-500 mt-3">
+                  Không tìm thấy ghi chú nào.
+                </p>
+              )}
+            </ul>
+          </div>
+        </div>
+
+        <style jsx>{`
+          .btn-gradient {
+            background: linear-gradient(135deg, #6aa8ff, #b57edc);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease-in-out;
+            border: 1px solid lightgray;
+          }
+          .btn-gradient:hover {
+            background: linear-gradient(135deg, #b57edc, #6aa8ff);
+            transform: scale(1.08);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+          }
+          .btn-gradient:disabled {
+            background: gray;
+            transform: none;
+            box-shadow: none;
+          }
+          .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            text-align: left;
+            border: none;
+            background: none;
+            cursor: pointer;
+            transition: background 0.3s ease;
+          }
+          .dropdown-item:hover {
+            background-color: rgba(173, 216, 230, 0.5);
+          }
+          .border-light-blue-300 {
+            border-color: #6aa8ff;
+          }
+          .emoji-picker {
+            top: 100%;
+            left: 0;
+            transform: translateY(10px);
+          }
+        `}</style>
+      </div>
     </div>
   );
 };

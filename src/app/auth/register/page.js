@@ -96,7 +96,7 @@ export default function RegisterApp() {
         className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4"
       >
         <div className="flex items-center justify-center mb-10">
-          <h2 className="text-gray-700 text-2xl font-bold">Đăng Ký</h2>
+          <h2 className="text-black text-2xl font-bold">Đăng Ký</h2>
           <Image
             src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681302/msvum6dk9ii7fvzewqan.gif"
             alt="Logo"
@@ -109,7 +109,7 @@ export default function RegisterApp() {
         {/* Các trường biểu mẫu */}
         <div className="mb-4">
           <label
-            className="block text-gray-700 text-sm font-bold mb-2"
+            className="block text-gray-700 text-base font-bold mb-2"
             htmlFor="name"
           >
             Tên đăng nhập
@@ -118,7 +118,7 @@ export default function RegisterApp() {
             type="text"
             id="name"
             {...register("name", { required: "Tên đăng nhập là bắt buộc" })}
-            className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+            className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
               errors.name ? "border-red-500" : ""
             }`}
             placeholder="Nhập tên đăng nhập của bạn"
@@ -130,7 +130,7 @@ export default function RegisterApp() {
 
         <div className="mb-4">
           <label
-            className="block text-gray-700 text-sm font-bold mb-2"
+            className="block text-gray-700 text-base font-bold mb-2"
             htmlFor="email"
           >
             Email
@@ -145,7 +145,7 @@ export default function RegisterApp() {
                 message: "Email không đúng định dạng",
               },
             })}
-            className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+            className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
               errors.email ? "border-red-500" : ""
             }`}
             placeholder="Nhập email của bạn"
@@ -159,7 +159,7 @@ export default function RegisterApp() {
 
         <div className="mb-4">
           <label
-            className="block text-gray-700 text-sm font-bold mb-2"
+            className="block text-gray-700 text-base font-bold mb-2"
             htmlFor="password"
           >
             Mật khẩu
@@ -168,7 +168,7 @@ export default function RegisterApp() {
             type="password"
             id="password"
             {...register("password", { required: "Mật khẩu là bắt buộc" })}
-            className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+            className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
               errors.password ? "border-red-500" : ""
             }`}
             placeholder="Nhập mật khẩu của bạn"
@@ -205,7 +205,7 @@ export default function RegisterApp() {
               loading ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
-            {loading ? "Đang đăng ký..." : "Đăng Ký"}
+            {loading ? "Đang đăng ký..." : "Đăng ký"}
           </button>
           <button
             type="button"
@@ -217,9 +217,12 @@ export default function RegisterApp() {
         </div>
 
         <div className="mt-4 text-center">
-          <span className="text-sm">
+          <span className="text-gray-700 text-sm">
             Đã có tài khoản?{" "}
-            <a href="./login" className="text-blue-500 hover:text-blue-800">
+            <a
+              href="./login"
+              className="text-blue-500 hover:text-blue-800 text-base"
+            >
               Đăng nhập ngay!
             </a>
           </span>

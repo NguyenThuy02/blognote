@@ -94,7 +94,7 @@ export default function ReportApp() {
         </p>
       </div>
 
-      <div className="mb-5">
+      <div className="text-gray-700 mb-5">
         <h2 className="text-xl font-semibold text-indigo-600">
           Lọc theo thời gian
         </h2>
@@ -115,13 +115,13 @@ export default function ReportApp() {
       <div className="mb-5">
         <button
           onClick={exportReport}
-          className="bg-blue-500 text-white px-4 py-2 rounded transition duration-200 hover:bg-blue-600"
+          className="bg-blue-500 text-black px-4 py-2 rounded transition duration-200 hover:bg-blue-600"
         >
           Xuất báo cáo
         </button>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-5 text-gray-700">
         <h2 className="text-xl font-semibold text-indigo-600 mb-5">
           Kết quả lọc
         </h2>
@@ -159,7 +159,9 @@ export default function ReportApp() {
         </table>
       </div>
       <div className="max-w-3xl mx-auto p-6 mt-10">
-        <h2 className="text-2xl font-bold mb-4">📈 Thống kê bài viết</h2>
+        <h2 className="text-2xl text-gray-700 font-bold mb-4">
+          📈 Thống kê bài viết
+        </h2>
         <Bar data={chartData} options={chartOptions} />
       </div>
     </div>

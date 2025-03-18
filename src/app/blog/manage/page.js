@@ -92,11 +92,13 @@ export default function ManageApp() {
   return (
     <div className="flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200">
       <div className="w-2/3 p-5 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg border-r border-gray-200">
-        <h1 className="text-2xl font-bold mb-5">Quản lý bài viết</h1>
+        <h1 className="text-2xl text-gray-700 font-bold mb-5">
+          Quản lý bài viết
+        </h1>
         <ul>
           {articles.map((article) => (
             <div key={article.id}>
-              <li className="flex justify-between items-center mb-4">
+              <li className="flex justify-between items-center text-gray-700 mb-4">
                 <div
                   onClick={() => handleToggleDetails(article.id)}
                   className="cursor-pointer"
@@ -144,9 +146,9 @@ export default function ManageApp() {
         {/* Thông báo xóa thành công */}
       </div>
 
-      <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2">
+      <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2 text-gray-700">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">
+          <h2 className="text-2xl font-bold text-gray-700">
             {isEditing ? "Chỉnh sửa bài viết" : "Thêm bài viết mới"}
           </h2>
           <button

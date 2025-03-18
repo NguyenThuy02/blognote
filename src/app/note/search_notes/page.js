@@ -19,15 +19,16 @@ export default function SearchNotes() {
 
   useEffect(() => {
     // Tìm kiếm ghi chú dựa trên từ khóa và danh mục
-    const results = notes.filter(note => 
-      (category === "Tất cả" || note.category === category) &&
-      note.title.toLowerCase().includes(search.toLowerCase())
+    const results = notes.filter(
+      (note) =>
+        (category === "Tất cả" || note.category === category) &&
+        note.title.toLowerCase().includes(search.toLowerCase())
     );
     setFilteredNotes(results);
   }, [search, category]);
 
   return (
-    <div className="mt-[97px] p-5 mb-[-7px] max-w-3xl mx-auto p-6">
+    <div className="text-gray-700 mt-[97px] p-5 mb-[-7px] max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">🔍 Tìm kiếm Ghi Chú</h1>
       <input
         type="text"
@@ -36,21 +37,30 @@ export default function SearchNotes() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <select 
+      <select
         className="w-full mb-4 px-4 py-2 border rounded-md"
         value={category}
         onChange={(e) => setCategory(e.target.value)}
       >
-        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        {categories.map((cat) => (
+          <option key={cat} value={cat}>
+            {cat}
+          </option>
+        ))}
       </select>
       <div className="mt-4">
         {search ? (
           <div>
-            <p>🔎 Kết quả tìm kiếm cho: <strong>{search}</strong> trong danh mục: <strong>{category}</strong></p>
+            <p>
+              🔎 Kết quả tìm kiếm cho: <strong>{search}</strong> trong danh mục:{" "}
+              <strong>{category}</strong>
+            </p>
             {filteredNotes.length > 0 ? (
               <ul className="list-disc list-inside">
-                {filteredNotes.map(note => (
-                  <li key={note.id} className="py-1">{note.title}</li>
+                {filteredNotes.map((note) => (
+                  <li key={note.id} className="py-1">
+                    {note.title}
+                  </li>
                 ))}
               </ul>
             ) : (

@@ -3,44 +3,64 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import Image from "next/image";
-import { supabase1 } from "../../../lib/supabase"; // Đảm bảo rằng bạn đã cấu hình đúng đường dẫn
+import { supabase1 } from "../../../lib/supabase"; // Ensure correct path configuration
 
 export default function LoginApp() {
-  const [tenDangNhap, setTenDangNhap] = useState("");
-  const [matKhau, setMatKhau] = useState("");
-  const [loi, setLoi] = useState({ tenDangNhap: "", matKhau: "" });
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({ username: "", password: "" });
   const router = useRouter();
 
-  const xuLyGui = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    let loiMoi = { tenDangNhap: "", matKhau: "" };
+    let newErrors = { username: "", password: "" };
 
-    if (!tenDangNhap) loiMoi.tenDangNhap = "Tên đăng nhập là bắt buộc!";
-    if (!matKhau) loiMoi.matKhau = "Mật khẩu là bắt buộc!";
+    // Kiểm tra tên đăng nhập và mật khẩu
+    if (!username) newErrors.username = "Tên đăng nhập là bắt buộc!";
+    if (!password) newErrors.password = "Mật khẩu là bắt buộc!";
 
-    setLoi(loiMoi);
+    setErrors(newErrors);
 
-    if (!loiMoi.tenDangNhap && !loiMoi.matKhau) {
+    // Nếu có lỗi thì dừng lại
+    if (newErrors.username || newErrors.password) {
+      return;
+    }
+
+    try {
       // Kiểm tra thông tin đăng nhập với Supabase
-      const { data: data1, error: error1 } = await supabase1
+      const { data: userData, error: fetchError } = await supabase1
         .from("users")
         .select("*")
-        .or(`email.eq.${tenDangNhap},name.eq.${tenDangNhap}`)
+        .or(`email.eq.${username},name.eq.${username}`)
         .single();
 
-      if (error || !data || data.password !== matKhau) {
-        toast.error("Tên đăng nhập hoặc mật khẩu không chính xác!");
+      // Nếu có lỗi khi lấy dữ liệu hoặc không có người dùng
+      if (fetchError || !userData) {
+        toast.error("Tên đăng nhập không chính xác!");
         return;
       }
 
-      // Hiển thị thông báo thành công
+      // Kiểm tra mật khẩu (giả sử mật khẩu đã được mã hóa trong cơ sở dữ liệu)
+      if (userData.password !== password) {
+        toast.error("Mật khẩu không chính xác!");
+        return;
+      }
+
+      // Lưu thông tin người dùng vào localStorage sau khi đăng nhập thành công
+      localStorage.setItem("user", JSON.stringify(userData));
+
+      // Đăng nhập thành công
       toast.success("Đăng nhập thành công! Đang về trang chủ...");
 
-      // Chuyển trang sau 2 giây
+      // Chuyển hướng sau 2 giây
       setTimeout(() => {
         router.push("/");
       }, 2000);
+    } catch (error) {
+      // Xử lý lỗi nếu có
+      toast.error("Có lỗi xảy ra. Vui lòng thử lại!");
+      console.error(error);
     }
   };
 
@@ -48,9 +68,9 @@ export default function LoginApp() {
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-r from-blue-300 to-purple-300">
       <Toaster position="top-right" reverseOrder={false} />
       <div className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4">
-        {/* Logo và Tiêu đề */}
+        {/* Logo and Title */}
         <div className="flex items-center justify-center mb-10">
-          <h2 className="text-gray-700 text-2xl font-bold">Đăng Nhập</h2>
+          <h2 className="text-black text-2xl font-bold">Đăng Nhập</h2>
           <Image
             src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681302/msvum6dk9ii7fvzewqan.gif"
             alt="Logo"
@@ -60,78 +80,81 @@ export default function LoginApp() {
           />
         </div>
 
-        {/* Biểu mẫu */}
-        <form onSubmit={xuLyGui}>
-          {/* Tên đăng nhập */}
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          {/* Username */}
           <div className="mb-4">
             <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="tenDangNhap"
+              className="block text-gray-700 text-base font-bold mb-2"
+              htmlFor="username"
             >
               Tên đăng nhập hoặc Email
             </label>
             <input
               type="text"
-              id="tenDangNhap"
-              value={tenDangNhap}
-              onChange={(e) => setTenDangNhap(e.target.value)}
-              className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
-                loi.tenDangNhap ? "border-red-500" : ""
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+                errors.username ? "border-red-500" : ""
               }`}
               placeholder="Nhập tên đăng nhập hoặc email của bạn"
             />
-            {loi.tenDangNhap && (
-              <p className="text-red-500 text-xs italic">{loi.tenDangNhap}</p>
+            {errors.username && (
+              <p className="text-red-500 text-xs italic">{errors.username}</p>
             )}
           </div>
 
-          {/* Mật khẩu */}
+          {/* Password */}
           <div className="mb-4">
             <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="matKhau"
+              className="block text-gray-700 text-base font-bold mb-2"
+              htmlFor="password"
             >
               Mật khẩu
             </label>
             <input
               type="password"
-              id="matKhau"
-              value={matKhau}
-              onChange={(e) => setMatKhau(e.target.value)}
-              className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
-                loi.matKhau ? "border-red-500" : ""
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+                errors.password ? "border-red-500" : ""
               }`}
               placeholder="Nhập mật khẩu của bạn"
             />
-            {loi.matKhau && (
-              <p className="text-red-500 text-xs italic">{loi.matKhau}</p>
+            {errors.password && (
+              <p className="text-red-500 text-xs italic">{errors.password}</p>
             )}
           </div>
 
-          {/* Ghi nhớ tôi */}
+          {/* Remember me */}
           <div className="flex items-center justify-between">
             <label className="flex items-center">
               <input type="checkbox" className="mr-2 leading-tight" />
-              <span className="text-sm">Ghi nhớ tôi</span>
+              <span className="text-sm text-gray-700">Ghi nhớ tôi</span>
             </label>
           </div>
 
-          {/* Nút Đăng Nhập */}
+          {/* Submit Button */}
           <div className="mt-6">
             <button
               type="submit"
               className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
             >
-              Đăng Nhập
+              Đăng nhập
             </button>
           </div>
         </form>
 
-        {/* Liên kết Đăng Ký */}
+        {/* Register Link */}
         <div className="mt-4 text-center">
-          <span className="text-sm">
+          <span className="text-sm text-gray-700">
             hoặc{" "}
-            <a href="./register" className="text-blue-500 hover:text-blue-800">
+            <a
+              href="./register"
+              className="text-blue-500 text-base hover:text-blue-800"
+            >
               Đăng ký ngay!
             </a>
           </span>

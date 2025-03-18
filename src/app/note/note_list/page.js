@@ -74,7 +74,7 @@ export default function NoteList() {
   );
 
   return (
-    <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6">
+    <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 text-gray-700">
       {/* Khung 1: Ghi chú văn bản thuần */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
         <h2 className="text-xl font-bold mb-4">📄 Ghi chú văn bản thuần</h2>
