@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { FaPlus, FaFileImport, FaTimes, FaRegStickyNote } from "react-icons/fa";
-import { supabase1 } from "../../../lib/supabase";
+import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,7 @@ export default function PostApp() {
 
   const fetchPosts = async () => {
     try {
-      const { data, error } = await supabase1
+      const { data, error } = await supabase
         .from("demos")
         .select("id, title, content, images, files, created_at")
         .order("created_at", { ascending: false });
@@ -82,7 +82,7 @@ export default function PostApp() {
       };
 
       if (editingId !== null) {
-        const { data, error } = await supabase1
+        const { data, error } = await supabase
           .from("demos")
           .update(draftData)
           .eq("id", editingId)
@@ -95,7 +95,7 @@ export default function PostApp() {
           type: "success",
         });
       } else {
-        const { data, error } = await supabase1
+        const { data, error } = await supabase
           .from("demos")
           .insert([draftData])
           .select()
@@ -129,7 +129,7 @@ export default function PostApp() {
         files: uploadedFiles.map((file) => file.url).join(","),
       };
 
-      const { data, error } = await supabase1
+      const { data, error } = await supabase
         .from("posts")
         .insert([publishedData])
         .select()
@@ -138,7 +138,7 @@ export default function PostApp() {
       if (error) throw error;
 
       if (editingId !== null) {
-        await supabase1.from("demos").delete().eq("id", editingId);
+        await supabase.from("demos").delete().eq("id", editingId);
       }
 
       setNotification({
@@ -160,7 +160,7 @@ export default function PostApp() {
   const handleDeleteDraft = async (postId) => {
     if (!confirm("Bạn có chắc muốn xóa bản nháp này không?")) return;
     try {
-      const { error } = await supabase1.from("demos").delete().eq("id", postId);
+      const { error } = await supabase.from("demos").delete().eq("id", postId);
       if (error) throw error;
       setPosts(posts.filter((post) => post.id !== postId));
       setNotification({
