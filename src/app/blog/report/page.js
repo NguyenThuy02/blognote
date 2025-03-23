@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Bar } from "react-chartjs-2";
 import { Chart, CategoryScale, LinearScale, BarElement } from "chart.js";
+import { BarChartOutlined } from "@ant-design/icons";
 
 Chart.register(CategoryScale, LinearScale, BarElement);
 
@@ -160,7 +161,8 @@ export default function ReportApp() {
       </div>
       <div className="max-w-3xl mx-auto p-6 mt-10">
         <h2 className="text-2xl text-gray-700 font-bold mb-4">
-          📈 Thống kê bài viết
+          <BarChartOutlined className="mr-3" />
+          Thống kê bài viết
         </h2>
         <Bar data={chartData} options={chartOptions} />
       </div>

@@ -14,6 +14,7 @@
     "aframe": "^1.7.0",
     "antd": "^5.24.2",
     "axios": "^1.8.2",
+    "bcryptjs": "^3.0.2",
     "bootstrap": "^5.3.3",
     "chart.js": "^4.4.8",
     "cloudinary": "^2.5.1",

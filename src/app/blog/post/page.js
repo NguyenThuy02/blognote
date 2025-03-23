@@ -1,7 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { FaPlus, FaFileImport, FaTimes, FaRegStickyNote } from "react-icons/fa";
+import { FaTimes } from "react-icons/fa";
+import {
+  FileImageOutlined,
+  FileTextOutlined,
+  VideoCameraOutlined,
+  DiffOutlined,
+} from "@ant-design/icons";
 import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
@@ -12,6 +18,10 @@ export default function PostApp() {
   const [content, setContent] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploadedVideos, setUploadedVideos] = useState([]);
+  const [isUploadingImage, setIsUploadingImage] = useState(false); // State cho hình ảnh
+  const [isUploadingFile, setIsUploadingFile] = useState(false); // State cho file
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false); // State cho video
   const [notification, setNotification] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [imageError, setImageError] = useState("");
@@ -30,7 +40,7 @@ export default function PostApp() {
     try {
       const { data, error } = await supabase
         .from("demos")
-        .select("id, title, content, images, files, created_at")
+        .select("id, title, content, images, files, videos, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -44,6 +54,10 @@ export default function PostApp() {
           files:
             post.files && typeof post.files === "string"
               ? post.files.split(",")
+              : [],
+          videos:
+            post.videos && typeof post.videos === "string"
+              ? post.videos.split(",")
               : [],
         }))
       );
@@ -79,6 +93,7 @@ export default function PostApp() {
         content,
         images: uploadedImages.map((image) => image.url).join(","),
         files: uploadedFiles.map((file) => file.url).join(","),
+        videos: uploadedVideos.map((video) => video.url).join(","),
       };
 
       if (editingId !== null) {
@@ -127,6 +142,7 @@ export default function PostApp() {
         content,
         images: uploadedImages.map((image) => image.url).join(","),
         files: uploadedFiles.map((file) => file.url).join(","),
+        videos: uploadedVideos.map((video) => video.url).join(","),
       };
 
       const { data, error } = await supabase
@@ -180,6 +196,7 @@ export default function PostApp() {
     setContent(post.content);
     setUploadedImages(post.images.map((url) => ({ url, name: "Image" })));
     setUploadedFiles(post.files.map((url) => ({ url, name: "File" })));
+    setUploadedVideos(post.videos.map((url) => ({ url, name: "Video" })));
     setEditingId(post.id);
     setImageError("");
     setTitleError("");
@@ -191,6 +208,10 @@ export default function PostApp() {
     setContent("");
     setUploadedImages([]);
     setUploadedFiles([]);
+    setUploadedVideos([]);
+    setIsUploadingImage(false); // Reset trạng thái hình ảnh
+    setIsUploadingFile(false); // Reset trạng thái file
+    setIsUploadingVideo(false); // Reset trạng thái video
     setImageError("");
     setTitleError("");
     setContentError("");
@@ -213,6 +234,7 @@ export default function PostApp() {
       return;
     }
 
+    setIsUploadingImage(true); // Bật trạng thái tải hình ảnh
     try {
       const uploadedUrls = await Promise.all(
         files.map(async (file) => {
@@ -236,6 +258,8 @@ export default function PostApp() {
       setImageError("");
     } catch (err) {
       setImageError(err.message || "Không thể tải lên hình ảnh.");
+    } finally {
+      setIsUploadingImage(false); // Tắt trạng thái tải hình ảnh
     }
   };
 
@@ -257,6 +281,7 @@ export default function PostApp() {
       return;
     }
 
+    setIsUploadingFile(true); // Bật trạng thái tải file
     try {
       const uploadedFileUrls = await Promise.all(
         validFiles.map(async (file) => {
@@ -282,6 +307,48 @@ export default function PostApp() {
         message: err.message || "Không thể tải lên tệp.",
         type: "error",
       });
+    } finally {
+      setIsUploadingFile(false); // Tắt trạng thái tải file
+    }
+  };
+
+  const handleVideoUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    const validVideos = files.filter((file) => file.type.startsWith("video/"));
+
+    if (validVideos.length !== files.length) {
+      setNotification({
+        message: "Vui lòng chỉ tải lên tệp video.",
+        type: "warning",
+      });
+      return;
+    }
+
+    setIsUploadingVideo(true); // Bật trạng thái tải video
+    try {
+      const uploadedVideoUrls = await Promise.all(
+        validVideos.map(async (file) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("upload_preset", "blognote");
+          formData.append("cloud_name", "dlaoxrnad");
+          const response = await fetch(
+            "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
+            { method: "POST", body: formData }
+          );
+          if (!response.ok) throw new Error("Upload video failed");
+          const data = await response.json();
+          return { url: data.secure_url, name: file.name };
+        })
+      );
+      setUploadedVideos((prevVideos) => [...prevVideos, ...uploadedVideoUrls]);
+    } catch (err) {
+      setNotification({
+        message: err.message || "Không thể tải lên video.",
+        type: "error",
+      });
+    } finally {
+      setIsUploadingVideo(false); // Tắt trạng thái tải video
     }
   };
 
@@ -304,14 +371,16 @@ export default function PostApp() {
 
   const resetNotification = () => setNotification(null);
 
-  // Hàm xóa hình ảnh
   const handleRemoveImage = (index) => {
     setUploadedImages((prevImages) => prevImages.filter((_, i) => i !== index));
   };
 
-  // Hàm xóa tệp
   const handleRemoveFile = (index) => {
     setUploadedFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveVideo = (index) => {
+    setUploadedVideos((prevVideos) => prevVideos.filter((_, i) => i !== index));
   };
 
   return (
@@ -337,9 +406,7 @@ export default function PostApp() {
             Viết bài
           </h1>
 
-          <h2 className="text-xl font-bold font-montserrat text-black mb-3">
-            Tiêu đề bài viết
-          </h2>
+          <h2 className="text-xl text-black mb-3">Tiêu đề bài viết</h2>
           <input
             type="text"
             placeholder="Nhập tiêu đề bài viết"
@@ -352,9 +419,7 @@ export default function PostApp() {
             <p className="text-red-600 text-sm mb-2">{titleError}</p>
           )}
 
-          <h2 className="text-xl font-bold font-montserrat text-black mb-3 mt-4">
-            Nội dung bài viết
-          </h2>
+          <h2 className="text-xl text-black mb-3 mt-4">Nội dung bài viết</h2>
           <textarea
             placeholder="Nhập nội dung bài viết"
             value={content}
@@ -368,7 +433,7 @@ export default function PostApp() {
 
           <div className="flex space-x-4 text-blue-600 mb-4 mt-3">
             <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-              <FaPlus className="mr-2" /> <span>Chèn ảnh</span>
+              <FileImageOutlined className="mr-2" /> <span>Chèn ảnh</span>
               <input
                 type="file"
                 accept="image/*"
@@ -378,12 +443,22 @@ export default function PostApp() {
               />
             </label>
             <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-              <FaFileImport className="mr-2" /> <span>File Word/PDF</span>
+              <FileTextOutlined className="mr-2" /> <span>Tệp Word/PDF</span>
               <input
                 type="file"
                 accept=".doc,.docx,.pdf"
                 multiple
                 onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
+            <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
+              <VideoCameraOutlined className="mr-2" /> <span>Video</span>
+              <input
+                type="file"
+                accept="video/*"
+                multiple
+                onChange={handleVideoUpload}
                 className="hidden"
               />
             </label>
@@ -393,7 +468,18 @@ export default function PostApp() {
             <p className="text-red-600 text-sm mb-2">{imageError}</p>
           )}
 
-          {uploadedImages.length > 0 && (
+          {/* Trạng thái tải hình ảnh */}
+          {isUploadingImage && (
+            <div className="mt-4">
+              <h3 className="font-bold mb-3">Đang tải hình ảnh...</h3>
+              <div className="flex items-center">
+                <div className="loader mr-2"></div>
+                <span className="text-gray-600">Vui lòng chờ...</span>
+              </div>
+            </div>
+          )}
+
+          {uploadedImages.length > 0 && !isUploadingImage && (
             <div className="mt-4">
               <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
               <ul className="flex flex-wrap">
@@ -438,7 +524,18 @@ export default function PostApp() {
             </div>
           )}
 
-          {uploadedFiles.length > 0 && (
+          {/* Trạng thái tải file */}
+          {isUploadingFile && (
+            <div className="mt-4">
+              <h3 className="font-bold mb-3">Đang tải tệp...</h3>
+              <div className="flex items-center">
+                <div className="loader mr-2"></div>
+                <span className="text-gray-600">Vui lòng chờ...</span>
+              </div>
+            </div>
+          )}
+
+          {uploadedFiles.length > 0 && !isUploadingFile && (
             <div className="mt-4">
               <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
               <ul className="mr-5">
@@ -453,6 +550,46 @@ export default function PostApp() {
                       >
                         <FaTimes />
                       </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Trạng thái tải video */}
+          {isUploadingVideo && (
+            <div className="mt-4">
+              <h3 className="font-bold mb-3">Đang tải video...</h3>
+              <div className="flex items-center">
+                <div className="loader mr-2"></div>
+                <span className="text-gray-600">Vui lòng chờ...</span>
+              </div>
+            </div>
+          )}
+
+          {uploadedVideos.length > 0 && !isUploadingVideo && (
+            <div className="mt-4">
+              <h3 className="font-bold mb-3">Video đã tải lên:</h3>
+              <ul className="mr-5">
+                {uploadedVideos.map((video, index) => (
+                  <li key={index} className="mb-4">
+                    <div className="flex items-center">
+                      <video
+                        src={video.url}
+                        controls
+                        className="w-40 h-24 object-cover rounded-md mr-2"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-blue-500">{video.name}</span>
+                        <button
+                          onClick={() => handleRemoveVideo(index)}
+                          className="p-1 text-red-400 hover:text-red-500"
+                          title="Xóa video"
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -484,19 +621,19 @@ export default function PostApp() {
       </div>
 
       <div className="lg:w-1/3 lg:max-w-sm">
-        <div className="p-4 border border-gray-300 rounded-lg bg-white h-[calc(0.75*(100vh-150px))] flex flex-col">
+        <div className="p-4 border border-gray-300 rounded-lg bg-white h-[calc(0.75*(100vh-5px))] flex flex-col">
           <div className="sticky top-0 bg-white z-0 pb-2 border-b border-gray-200">
             <h2 className="font-bold text-2xl text-gray-700">
-              <FaRegStickyNote className="inline mr-2" /> Bản nháp đã lưu
+              <DiffOutlined className="inline mr-2" /> Bản nháp đã lưu
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto mt-2 scrollbar-hidden">
+          <div className="flex-1 overflow-y-auto mt-1 scrollbar-hidden">
             <ul>
               {posts.length > 0 ? (
                 posts.map((post) => (
                   <li
                     key={post.id}
-                    className="border-2 border-gray-200 p-4 rounded-xl mb-4 flex flex-col transition duration-300 hover:shadow-lg"
+                    className="border-2 border-gray-200 p-4 rounded-xl mb-2 flex flex-col transition duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-start">
                       <div className="flex-shrink-0 mr-1">
@@ -511,8 +648,8 @@ export default function PostApp() {
                             />
                           )}
                       </div>
-                      <div className="flex-grow">
-                        <strong className="text-black text-lg">
+                      <div className="flex-grow ml-3">
+                        <strong className="text-yellow-600 text-lg">
                           {post.title}
                         </strong>
                         <p className="text-gray-700 text-sm">
@@ -550,11 +687,27 @@ export default function PostApp() {
 
         <style jsx>{`
           .scrollbar-hidden::-webkit-scrollbar {
-            display: none; /* Ẩn thanh cuộn trên Chrome, Safari, Edge */
+            display: none;
           }
           .scrollbar-hidden {
-            -ms-overflow-style: none; /* Ẩn thanh cuộn trên IE và Edge */
-            scrollbar-width: none; /* Ẩn thanh cuộn trên Firefox */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
       </div>

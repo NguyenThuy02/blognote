@@ -3,8 +3,10 @@ import { useForm } from "react-hook-form";
 import React from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import Image from "next/image";
-import { supabase } from "../../../lib/supabase"; // Import kết nối Supabase
+import { supabase } from "../../../lib/supabase";
+import bcrypt from "bcryptjs"; // Thêm bcrypt
 
 export default function RegisterApp() {
   const {
@@ -15,20 +17,19 @@ export default function RegisterApp() {
   } = useForm();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
 
-  // Thêm độ trễ giữa các yêu cầu gửi email
   const throttleEmailRequest = (callback) => {
-    setTimeout(callback, 3000); // Đặt độ trễ 3 giây
+    setTimeout(callback, 3000);
   };
 
   const onSubmit = async (data) => {
     if (loading) {
       toast.error("Vui lòng chờ trước khi thử lại.");
-      return; // Ngăn không cho gửi yêu cầu nếu đang xử lý
+      return;
     }
     setLoading(true);
     try {
-      // Kiểm tra xem email đã được đăng ký chưa
       const { data: existingUser, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -36,7 +37,6 @@ export default function RegisterApp() {
         .single();
 
       if (userError && userError.code !== "PGRST116") {
-        // Lỗi nếu không có kết quả
         throw userError;
       }
 
@@ -45,10 +45,13 @@ export default function RegisterApp() {
         return;
       }
 
-      // Đăng ký người dùng
+      // Mã hóa mật khẩu trước khi lưu
+      const salt = await bcrypt.genSalt(10); // Tạo salt với độ dài 10
+      const hashedPassword = await bcrypt.hash(data.password, salt);
+
       const { user, error } = await supabase.auth.signUp({
         email: data.email.trim(),
-        password: data.password,
+        password: data.password, // Supabase Auth vẫn cần mật khẩu gốc
       });
 
       if (error) {
@@ -60,12 +63,12 @@ export default function RegisterApp() {
         return;
       }
 
-      // Chèn thông tin người dùng bổ sung vào bảng 'users' mà không cần id
+      // Lưu thông tin người dùng với mật khẩu đã mã hóa
       const { error: insertError } = await supabase.from("users").insert([
         {
           name: data.name,
           email: data.email,
-          password: data.password,
+          password: hashedPassword, // Lưu mật khẩu đã mã hóa
         },
       ]);
 
@@ -106,7 +109,6 @@ export default function RegisterApp() {
           />
         </div>
 
-        {/* Các trường biểu mẫu */}
         <div className="mb-4">
           <label
             className="block text-gray-700 text-base font-bold mb-2"
@@ -117,7 +119,7 @@ export default function RegisterApp() {
           <input
             type="text"
             id="name"
-            {...register("name", { required: "Tên đăng nhập là bắt buộc" })}
+            {...register("name", { required: "Tên đăng nhập là bắt buộc!" })}
             className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
               errors.name ? "border-red-500" : ""
             }`}
@@ -139,7 +141,7 @@ export default function RegisterApp() {
             type="email"
             id="email"
             {...register("email", {
-              required: "Email là bắt buộc",
+              required: "Email là bắt buộc!",
               pattern: {
                 value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
                 message: "Email không đúng định dạng",
@@ -164,15 +166,27 @@ export default function RegisterApp() {
           >
             Mật khẩu
           </label>
-          <input
-            type="password"
-            id="password"
-            {...register("password", { required: "Mật khẩu là bắt buộc" })}
-            className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
-              errors.password ? "border-red-500" : ""
-            }`}
-            placeholder="Nhập mật khẩu của bạn"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              id="password"
+              {...register("password", { required: "Mật khẩu là bắt buộc!" })}
+              className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+                errors.password ? "border-red-500" : ""
+              }`}
+              placeholder="Nhập mật khẩu của bạn"
+            />
+            <span
+              className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (
+                <EyeInvisibleOutlined className="text-gray-500" />
+              ) : (
+                <EyeOutlined className="text-gray-500" />
+              )}
+            </span>
+          </div>
           {errors.password && (
             <p className="text-red-500 text-xs italic">
               {errors.password.message}
@@ -185,7 +199,7 @@ export default function RegisterApp() {
             type="checkbox"
             id="terms"
             {...register("terms", {
-              required: "Bạn phải chấp nhận các điều khoản",
+              required: "Bạn phải chấp nhận các điều khoản!",
             })}
             className="mr-2 leading-tight"
           />
@@ -201,7 +215,7 @@ export default function RegisterApp() {
           <button
             type="submit"
             disabled={loading}
-            className={`bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
+            className={`bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
               loading ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
@@ -210,7 +224,7 @@ export default function RegisterApp() {
           <button
             type="button"
             onClick={handleCancel}
-            className="bg-gray-300 hover:bg-gray-500 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
             Hủy
           </button>

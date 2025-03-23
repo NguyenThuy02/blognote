@@ -2,12 +2,15 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import Image from "next/image";
-import { supabase } from "../../../lib/supabase"; // Ensure correct path configuration
+import { supabase } from "../../../lib/supabase";
+import bcrypt from "bcryptjs"; // Thêm bcrypt
 
 export default function LoginApp() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ username: "", password: "" });
   const router = useRouter();
 
@@ -16,49 +19,42 @@ export default function LoginApp() {
 
     let newErrors = { username: "", password: "" };
 
-    // Kiểm tra tên đăng nhập và mật khẩu
     if (!username) newErrors.username = "Tên đăng nhập là bắt buộc!";
     if (!password) newErrors.password = "Mật khẩu là bắt buộc!";
 
     setErrors(newErrors);
 
-    // Nếu có lỗi thì dừng lại
     if (newErrors.username || newErrors.password) {
       return;
     }
 
     try {
-      // Kiểm tra thông tin đăng nhập với Supabase
       const { data: userData, error: fetchError } = await supabase
         .from("users")
         .select("*")
         .or(`email.eq.${username},name.eq.${username}`)
         .single();
 
-      // Nếu có lỗi khi lấy dữ liệu hoặc không có người dùng
       if (fetchError || !userData) {
         toast.error("Tên đăng nhập không chính xác!");
         return;
       }
 
-      // Kiểm tra mật khẩu (giả sử mật khẩu đã được mã hóa trong cơ sở dữ liệu)
-      if (userData.password !== password) {
+      // So sánh mật khẩu nhập vào với mật khẩu đã mã hóa
+      const isPasswordValid = await bcrypt.compare(password, userData.password);
+      if (!isPasswordValid) {
         toast.error("Mật khẩu không chính xác!");
         return;
       }
 
-      // Lưu thông tin người dùng vào localStorage sau khi đăng nhập thành công
+      // Lưu thông tin người dùng vào localStorage
       localStorage.setItem("user", JSON.stringify(userData));
 
-      // Đăng nhập thành công
       toast.success("Đăng nhập thành công! Đang về trang chủ...");
-
-      // Chuyển hướng sau 2 giây
       setTimeout(() => {
         router.push("/");
       }, 2000);
     } catch (error) {
-      // Xử lý lỗi nếu có
       toast.error("Có lỗi xảy ra. Vui lòng thử lại!");
       console.error(error);
     }
@@ -68,7 +64,6 @@ export default function LoginApp() {
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-r from-blue-300 to-purple-300">
       <Toaster position="top-right" reverseOrder={false} />
       <div className="w-full max-w-sm p-8 px-12 rounded-2xl shadow-lg bg-stone-50 relative m-4">
-        {/* Logo and Title */}
         <div className="flex items-center justify-center mb-10">
           <h2 className="text-black text-2xl font-bold">Đăng Nhập</h2>
           <Image
@@ -80,12 +75,10 @@ export default function LoginApp() {
           />
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit}>
-          {/* Username */}
-          <div className="mb-4">
+          <div className="mb-7">
             <label
-              className="block text-gray-700 text-base font-bold mb-2"
+              className="block text-gray-700 text-base font-bold mb-3"
               htmlFor="username"
             >
               Tên đăng nhập hoặc Email
@@ -105,59 +98,58 @@ export default function LoginApp() {
             )}
           </div>
 
-          {/* Password */}
-          <div className="mb-4">
+          <div className="mb-7 ">
             <label
-              className="block text-gray-700 text-base font-bold mb-2"
+              className="block text-gray-700 text-base font-bold mb-3"
               htmlFor="password"
             >
               Mật khẩu
             </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
-                errors.password ? "border-red-500" : ""
-              }`}
-              placeholder="Nhập mật khẩu của bạn"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`shadow appearance-none border rounded w-full py-2 px-3 text-sm text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+                  errors.password ? "border-red-500" : ""
+                }`}
+                placeholder="Nhập mật khẩu của bạn"
+              />
+              <span
+                className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeInvisibleOutlined className="text-gray-500" />
+                ) : (
+                  <EyeOutlined className="text-gray-500" />
+                )}
+              </span>
+            </div>
             {errors.password && (
               <p className="text-red-500 text-xs italic">{errors.password}</p>
             )}
           </div>
 
-          {/* Remember me */}
-          <div className="flex items-center justify-between">
-            <label className="flex items-center">
-              <input type="checkbox" className="mr-2 leading-tight" />
-              <span className="text-sm text-gray-700">Ghi nhớ tôi</span>
-            </label>
-          </div>
-
-          {/* Submit Button */}
           <div className="mt-6">
             <button
               type="submit"
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
             >
               Đăng nhập
             </button>
           </div>
         </form>
 
-        {/* Register Link */}
-        <div className="mt-4 text-center">
-          <span className="text-sm text-gray-700">
-            hoặc{" "}
-            <a
-              href="./register"
-              className="text-blue-500 text-base hover:text-blue-800"
-            >
-              Đăng ký ngay!
-            </a>
-          </span>
+        <div className="mt-4 text-center text-sm text-gray-700 space-y-3">
+          <span className="block">hoặc</span>
+          <a
+            href="./register"
+            className="block text-blue-500 hover:text-blue-800 text-lg font-medium"
+          >
+            Đăng ký ngay!
+          </a>
         </div>
       </div>
     </div>

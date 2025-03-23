@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { MessageOutlined } from "@ant-design/icons";
 
 const commentsData = [
   {
@@ -70,7 +71,7 @@ export default function CommentApp() {
             className="text-blue-500 mt-2"
             onClick={() => setReplyToCommentId(comment.id)}
           >
-            Phản hồi
+            <MessageOutlined className="mr-1" title="Phản hồi" />
           </button>
 
           {replyToCommentId === comment.id && (
