@@ -85,7 +85,7 @@ export default function Sidebar() {
                 href="/note/search_notes"
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
-                🔍 Tìm kiếm ghi chú
+                🔍 Tìm kiếm gợi ý ghi chú
               </Link>
             </li>
             <li>
