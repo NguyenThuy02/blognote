@@ -3,7 +3,7 @@ import React from "react";
 
 const PostDetail = () => {
   return (
-    <div className="container mx-auto p-5">
+    <div className="text-gray-700 container mx-auto p-5">
       {/* Tiêu đề bài viết */}
       <h1 className="text-4xl font-bold">demo</h1>
     </div>

@@ -36,18 +36,6 @@ export default function ManageApp() {
   const [expandedArticleId, setExpandedArticleId] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleDelete = (id) => {
-    setArticles(articles.filter((article) => article.id !== id));
-    setSuccessMessage("Bài viết đã được xóa thành công!");
-    setTimeout(() => {
-      setSuccessMessage(""); // Ẩn thông báo sau 3 giây
-    }, 3000);
-
-    if (expandedArticleId === id) {
-      setExpandedArticleId(null); // Ẩn thông tin chi tiết nếu bài viết bị xóa
-    }
-  };
-
   const handleEdit = (article) => {
     setNewArticle(article);
     setIsEditing(true);
@@ -55,6 +43,10 @@ export default function ManageApp() {
 
   const handleToggleDetails = (id) => {
     setExpandedArticleId(expandedArticleId === id ? null : id);
+  };
+
+  const handleDelete = (id) => {
+    setArticles(articles.filter((article) => article.id !== id));
   };
 
   const handleAddArticle = () => {
@@ -92,11 +84,13 @@ export default function ManageApp() {
   return (
     <div className="flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200">
       <div className="w-2/3 p-5 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg border-r border-gray-200">
-        <h1 className="text-2xl font-bold mb-5">Quản lý bài viết</h1>
+        <h1 className="text-2xl text-gray-700 font-bold mb-5">
+          Quản lý bài viết
+        </h1>
         <ul>
           {articles.map((article) => (
             <div key={article.id}>
-              <li className="flex justify-between items-center mb-4">
+              <li className="flex justify-between items-center text-gray-700 mb-4">
                 <div
                   onClick={() => handleToggleDetails(article.id)}
                   className="cursor-pointer"
@@ -113,20 +107,20 @@ export default function ManageApp() {
                 <div>
                   <button
                     onClick={() => handleEdit(article)}
-                    className="text-blue-500 mr-2 hover:underline"
+                    className="text-green-500 hover:text-green-600 text-base mr-2 underline"
                   >
                     Chỉnh sửa
                   </button>
                   <button
                     onClick={() => handleDelete(article.id)}
-                    className="text-red-500 hover:underline"
+                    className="text-red-500 hover:text-red-600 text-base underline"
                   >
                     Xóa
                   </button>
                 </div>
               </li>
               {expandedArticleId === article.id && (
-                <div className="ml-8 mb-4 bg-gray-50 p-2 rounded border border-gray-300">
+                <div className="ml-2 mb-4 bg-gray-50 p-2 rounded border border-gray-300">
                   <h2 className="text-xl font-bold">{article.title}</h2>
                   <p className="text-gray-600">{article.summary}</p>
                   <p className="mt-2 font-semibold text-gray-800">
@@ -144,26 +138,11 @@ export default function ManageApp() {
         {/* Thông báo xóa thành công */}
       </div>
 
-      <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2">
+      <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2 text-gray-700">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">
-            {isEditing ? "Chỉnh sửa bài viết" : "Thêm bài viết mới"}
+          <h2 className="text-2xl font-bold text-gray-700">
+            {isEditing ? "Chỉnh sửa bài viết" : "Xóa bài viết"}
           </h2>
-          <button
-            onClick={() => {
-              setIsEditing(false);
-              setNewArticle({
-                title: "",
-                summary: "",
-                author: "",
-                date: "",
-                src: "",
-              });
-            }}
-            className="bg-blue-400 text-black px-4 py-2 rounded transition duration-200 ease-in-out hover:bg-blue-500"
-          >
-            Thêm bài viết
-          </button>
         </div>
         {error && <p className="text-red-500 mb-4">{error}</p>}
         <div className="mb-4">
@@ -173,7 +152,7 @@ export default function ManageApp() {
             name="title"
             value={newArticle.title}
             onChange={handleChange}
-            className="border border-gray-300 rounded px-2 py-2 w-full text-lg"
+            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500  bg-white rounded px-2 py-2 w-full text-base"
           />
         </div>
         <div className="mb-4">
@@ -182,7 +161,7 @@ export default function ManageApp() {
             name="summary"
             value={newArticle.summary}
             onChange={handleChange}
-            className="border border-gray-300 rounded px-2 py-2 w-full text-lg h-24"
+            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500  bg-white rounded px-2 py-2 w-full text-base"
           />
         </div>
         <div className="mb-4">
@@ -192,7 +171,7 @@ export default function ManageApp() {
             name="author"
             value={newArticle.author}
             onChange={handleChange}
-            className="border border-gray-300 rounded px-2 py-2 w-full text-lg"
+            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500  bg-white rounded px-2 py-2 w-full text-base"
           />
         </div>
         <div className="mb-4">
@@ -202,7 +181,7 @@ export default function ManageApp() {
             name="date"
             value={newArticle.date}
             onChange={handleChange}
-            className="border border-gray-300 rounded px-2 py-2 w-full text-lg"
+            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500  bg-white rounded px-2 py-2 w-full text-base"
           />
         </div>
         <div className="mb-4">
@@ -212,14 +191,14 @@ export default function ManageApp() {
             name="src"
             value={newArticle.src}
             onChange={handleChange}
-            className="border border-gray-300 rounded px-2 py-2 w-full text-lg"
+            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500  bg-white rounded px-2 py-2 w-full text-base"
           />
         </div>
         <button
           onClick={handleAddArticle}
-          className="bg-green-400 hover:bg-green-500 text-black px-4 py-2 rounded text-lg"
+          className="bg-green-400 hover:bg-green-500 text-black px-4 py-2 rounded text-base"
         >
-          {isEditing ? "Lưu thay đổi" : "Thêm bài viết"}
+          {isEditing ? "Lưu thay đổi" : "Xóa bài viết"}
         </button>
       </div>
     </div>

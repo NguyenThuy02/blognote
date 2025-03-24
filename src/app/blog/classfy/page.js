@@ -58,7 +58,7 @@ export default function ClassfyApp() {
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-blue-400 focus:ring focus:ring-blue-300 transition duration-200 bg-white"
+          className="text-gray-700 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-blue-400 focus:ring focus:ring-blue-300 transition duration-200 bg-white"
         >
           <option value="">Tất cả</option>
           {categories.map((category) => (
@@ -74,7 +74,7 @@ export default function ClassfyApp() {
         {filteredArticles.map((article) => (
           <div
             key={article.id}
-            className="bg-white p-4 rounded-lg shadow transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col h-full"
+            className="bg-white p-4 text-gray-700 rounded-lg shadow transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col h-full"
           >
             <Image
               src={article.src}

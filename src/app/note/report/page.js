@@ -44,7 +44,7 @@ export default function Report() {
     ];
     setTags(fetchedTags);
 
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.innerHTML = `
       @keyframes fall {
         0% {
@@ -107,9 +107,9 @@ export default function Report() {
   useEffect(() => {
     // Trigger the fall animation after the tags are set
     if (tags.length > 0) {
-      const tagElements = document.querySelectorAll('.tag');
+      const tagElements = document.querySelectorAll(".tag");
       tagElements.forEach((tag, index) => {
-        tag.classList.add('fall-animation');
+        tag.classList.add("fall-animation");
       });
     }
   }, [tags]);
@@ -129,15 +129,15 @@ export default function Report() {
     const droppedIndex = e.currentTarget.dataset.index;
 
     if (draggedIndex !== null) {
-      const tagElements = document.querySelectorAll('.tag');
+      const tagElements = document.querySelectorAll(".tag");
       const draggedTag = tagElements[draggedIndex];
 
       // Animate the tag falling back to its original position
-      draggedTag.classList.add('fall-animation');
+      draggedTag.classList.add("fall-animation");
 
       // Delay resetting the positions
       setTimeout(() => {
-        draggedTag.classList.remove('fall-animation');
+        draggedTag.classList.remove("fall-animation");
         setDraggedIndex(null);
       }, 500);
     }
@@ -148,11 +148,15 @@ export default function Report() {
   };
 
   return (
-    <div className="mt-[1px] p-5 mb-[-7px] mt-[96px] p-5 mb-[-7px] max-w-6xl mx-auto p-6">
+    <div className="text-gray-700 mt-[1px] p-5 mb-[-7px] mt-[96px] p-5 mb-[-7px] max-w-6xl mx-auto p-6">
       <div className="border rounded-lg shadow-lg p-6 bg-gray-50">
-        <h1 className="text-3xl font-bold mb-4 text-center">📈 Thống kê ghi chú</h1>
+        <h1 className="text-3xl font-bold mb-4 text-center">
+          📈 Thống kê ghi chú
+        </h1>
 
-        <h2 className="text-2xl font-semibold mb-4 text-center">Tổng số lượng bài viết và ghi chú</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-center">
+          Tổng số lượng bài viết và ghi chú
+        </h2>
 
         <div className="space-y-4">
           <div className="stat-card shadow-md p-4 flex items-center justify-between">
@@ -182,29 +186,41 @@ export default function Report() {
 
         <div className="flex justify-between mt-6">
           <div className="flex-1 mr-2">
-            <h2 className="text-2xl font-semibold mb-2 text-center">Biểu đồ bài viết đã đăng tải theo tháng</h2>
-            <div style={{ height: '200px' }}>
-              <Bar data={postData} options={{ responsive: true, maintainAspectRatio: false }} />
+            <h2 className="text-2xl font-semibold mb-2 text-center">
+              Biểu đồ bài viết đã đăng tải theo tháng
+            </h2>
+            <div style={{ height: "200px" }}>
+              <Bar
+                data={postData}
+                options={{ responsive: true, maintainAspectRatio: false }}
+              />
             </div>
           </div>
           <div className="flex-1 ml-2">
-            <h2 className="text-2xl font-semibold mb-2 text-center">Biểu đồ ghi chú theo tuần</h2>
-            <div style={{ height: '200px' }}>
-              <Bar data={noteData} options={{ responsive: true, maintainAspectRatio: false }} />
+            <h2 className="text-2xl font-semibold mb-2 text-center">
+              Biểu đồ ghi chú theo tuần
+            </h2>
+            <div style={{ height: "200px" }}>
+              <Bar
+                data={noteData}
+                options={{ responsive: true, maintainAspectRatio: false }}
+              />
             </div>
           </div>
         </div>
 
         <div className="mt-8 tag-container">
-          <h2 className="text-2xl font-semibold mb-4 text-center">Trending Tags</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-center">
+            Trending Tags
+          </h2>
           {tags.map((tag, index) => {
             // Predefined positions to avoid overlap
             const positions = [
-              { left: '10%', bottom: '0%' },
-              { left: '30%', bottom: '0%' },
-              { left: '50%', bottom: '0%' },
-              { left: '70%', bottom: '0%' },
-              { left: '40%', bottom: '0%' },
+              { left: "10%", bottom: "0%" },
+              { left: "30%", bottom: "0%" },
+              { left: "50%", bottom: "0%" },
+              { left: "70%", bottom: "0%" },
+              { left: "40%", bottom: "0%" },
             ];
             const position = positions[index % positions.length];
             const randomDelay = Math.random() * 0.5;
@@ -212,11 +228,13 @@ export default function Report() {
             return (
               <div
                 key={index}
-                className={`tag m-2 p-2 rounded-lg border transition-transform transform hover:scale-105 ${tag.type === 'post' ? 'border-purple-300' : 'border-blue-300'}`}
+                className={`tag m-2 p-2 rounded-lg border transition-transform transform hover:scale-105 ${
+                  tag.type === "post" ? "border-purple-300" : "border-blue-300"
+                }`}
                 style={{
                   left: position.left,
                   bottom: position.bottom,
-                  animationDelay: `${randomDelay + index * 0.1}s`
+                  animationDelay: `${randomDelay + index * 0.1}s`,
                 }}
                 draggable
                 onDragStart={(e) => handleDragStart(e, index)}

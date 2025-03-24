@@ -6,7 +6,7 @@ export default function ManageNotes() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [notes, setNotes] = useState([]);
   const [editingNoteId, setEditingNoteId] = useState(null);
-  
+
   const categories = ["personal", "study", "entertainment", "upload"];
   const categoryMap = {
     1: "personal",
@@ -78,7 +78,7 @@ export default function ManageNotes() {
   const handleEdit = async (note) => {
     const newTitle = prompt("Enter new title:", note.title);
     const newContent = prompt("Enter new content:", note.content);
-    
+
     if (newTitle && newContent) {
       try {
         const { error } = await supabase2
@@ -86,7 +86,7 @@ export default function ManageNotes() {
           .update({
             title: newTitle,
             content: newContent,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq("id", note.id);
 
@@ -123,15 +123,18 @@ export default function ManageNotes() {
   const handleShare = (note) => {
     const shareText = `${note.title}\n${note.content}\nCategory: ${note.category}`;
     if (navigator.share) {
-      navigator.share({
-        title: note.title,
-        text: shareText,
-        url: window.location.href,
-      }).catch(err => console.error("Error sharing:", err));
+      navigator
+        .share({
+          title: note.title,
+          text: shareText,
+          url: window.location.href,
+        })
+        .catch((err) => console.error("Error sharing:", err));
     } else {
-      navigator.clipboard.writeText(shareText)
+      navigator.clipboard
+        .writeText(shareText)
         .then(() => alert("Note content copied to clipboard!"))
-        .catch(err => {
+        .catch((err) => {
           console.error("Error copying to clipboard:", err);
           alert("Failed to copy note content");
         });
@@ -141,16 +144,19 @@ export default function ManageNotes() {
   // Download function
   const handleDownload = (note) => {
     let content = `${note.title}\n\n${note.content}\n\nCategory: ${note.category}`;
-    
+
     if (note.note_type === "whiteboard" && note.todos?.length) {
-      content += "\n\nTodos:\n" + note.todos.map(todo => 
-        `- [${todo.completed ? 'x' : ' '}] ${todo.text}`
-      ).join("\n");
+      content +=
+        "\n\nTodos:\n" +
+        note.todos
+          .map((todo) => `- [${todo.completed ? "x" : " "}] ${todo.text}`)
+          .join("\n");
     }
-    
+
     if (note.note_type === "spreadsheet" && note.spreadsheet_data?.length) {
-      content += "\n\nSpreadsheet Data:\n" + 
-        note.spreadsheet_data.map(row => row.join("\t")).join("\n");
+      content +=
+        "\n\nSpreadsheet Data:\n" +
+        note.spreadsheet_data.map((row) => row.join("\t")).join("\n");
     }
 
     const blob = new Blob([content], { type: "text/plain" });
@@ -171,7 +177,7 @@ export default function ManageNotes() {
     : [];
 
   return (
-    <div className="mt-[96px] p-5 max-w-8xl mx-auto border-2 border-gray-300 rounded-lg shadow-lg">
+    <div className="text-gray-700 mt-[96px] p-5 max-w-8xl mx-auto border-2 border-gray-300 rounded-lg shadow-lg">
       <h1 className="text-2xl font-bold mb-4">🛠️ Quản lý Ghi Chú</h1>
 
       <div className="grid grid-cols-4 gap-4">
@@ -211,9 +217,7 @@ export default function ManageNotes() {
             </h2>
             <div className="flex flex-col gap-4">
               {filteredNotes
-                .filter(
-                  (note) => !note.image_url && note.note_type === "plain"
-                )
+                .filter((note) => !note.image_url && note.note_type === "plain")
                 .map((note) => (
                   <div
                     key={note.id}
@@ -225,25 +229,25 @@ export default function ManageNotes() {
                       Xem chi tiết →
                     </a>
                     <div className="flex gap-2 mt-3 justify-end">
-                      <button 
+                      <button
                         onClick={() => handleEdit(note)}
                         className="px-3 py-1 text-sm bg-blue-300 text-white rounded transition-all duration-300 hover:bg-gray-300 hover:text-black hover:shadow-md"
                       >
                         Sửa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(note.id)}
                         className="px-3 py-1 text-sm bg-purple-300 text-white rounded transition-all duration-300 hover:bg-gray-300 hover:text-black hover:shadow-md"
                       >
                         Xóa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleShare(note)}
                         className="px-3 py-1 text-sm bg-green-300 text-white rounded transition-all duration-300 hover:bg-gray-300 hover:text-black hover:shadow-md"
                       >
                         Chia sẻ
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDownload(note)}
                         className="px-3 py-1 text-sm bg-yellow-300 text-white rounded transition-all duration-300 hover:bg-gray-300 hover:text-black hover:shadow-md"
                       >
@@ -279,25 +283,25 @@ export default function ManageNotes() {
                       Xem chi tiết →
                     </a>
                     <div className="flex gap-2 mt-2">
-                      <button 
+                      <button
                         onClick={() => handleEdit(note)}
                         className="flex-1 px-4 py-1 bg-blue-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Sửa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(note.id)}
                         className="flex-1 px-4 py-1 bg-purple-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Xóa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleShare(note)}
                         className="flex-1 px-4 py-1 bg-green-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Chia sẻ
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDownload(note)}
                         className="flex-1 px-4 py-1 bg-yellow-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
@@ -330,9 +334,7 @@ export default function ManageNotes() {
                           <li
                             key={index}
                             className={
-                              todo.completed
-                                ? "line-through text-gray-500"
-                                : ""
+                              todo.completed ? "line-through text-gray-500" : ""
                             }
                           >
                             {todo.text}
@@ -344,25 +346,25 @@ export default function ManageNotes() {
                       Xem chi tiết công việc →
                     </a>
                     <div className="flex gap-2 mt-2">
-                      <button 
+                      <button
                         onClick={() => handleEdit(note)}
                         className="flex-1 px-4 py-1 bg-blue-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Sửa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(note.id)}
                         className="flex-1 px-4 py-1 bg-purple-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Xóa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleShare(note)}
                         className="flex-1 px-4 py-1 bg-green-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Chia sẻ
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDownload(note)}
                         className="flex-1 px-4 py-1 bg-yellow-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
@@ -389,55 +391,56 @@ export default function ManageNotes() {
                   >
                     <h3 className="font-semibold">📊 {note.title}</h3>
                     <p>{note.content}</p>
-                    {note.spreadsheet_data && note.spreadsheet_data.length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="border-collapse border border-gray-300 text-sm">
-                          <tbody>
-                            {note.spreadsheet_data
-                              .slice(0, 3)
-                              .map((row, rowIndex) => (
-                                <tr key={rowIndex}>
-                                  {row.slice(0, 3).map((cell, colIndex) => (
-                                    <td
-                                      key={colIndex}
-                                      className="border border-gray-300 p-1"
-                                    >
-                                      {cell}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                        <small>
-                          (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
-                          {note.spreadsheet_data[0]?.length || 0})
-                        </small>
-                      </div>
-                    )}
+                    {note.spreadsheet_data &&
+                      note.spreadsheet_data.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="border-collapse border border-gray-300 text-sm">
+                            <tbody>
+                              {note.spreadsheet_data
+                                .slice(0, 3)
+                                .map((row, rowIndex) => (
+                                  <tr key={rowIndex}>
+                                    {row.slice(0, 3).map((cell, colIndex) => (
+                                      <td
+                                        key={colIndex}
+                                        className="border border-gray-300 p-1"
+                                      >
+                                        {cell}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                          <small>
+                            (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
+                            {note.spreadsheet_data[0]?.length || 0})
+                          </small>
+                        </div>
+                      )}
                     <a href="#" className="text-blue-500 hover:underline">
                       Đi đến bảng →
                     </a>
                     <div className="flex gap-2 mt-2">
-                      <button 
+                      <button
                         onClick={() => handleEdit(note)}
                         className="flex-1 px-4 py-1 bg-blue-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Sửa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(note.id)}
                         className="flex-1 px-4 py-1 bg-purple-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Xóa
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleShare(note)}
                         className="flex-1 px-4 py-1 bg-green-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
                         Chia sẻ
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDownload(note)}
                         className="flex-1 px-4 py-1 bg-yellow-300 text-white rounded transition-transform duration-300 hover:scale-105"
                       >
