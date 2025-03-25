@@ -150,8 +150,8 @@ export default function Report() {
   return (
     <div className="text-gray-700 mt-[1px] p-5 mb-[-7px] mt-[96px] p-5 mb-[-7px] max-w-6xl mx-auto p-6">
       <div className="border rounded-lg shadow-lg p-6 bg-gray-50">
-        <h1 className="text-3xl font-bold mb-4 text-center">
-          📈 Thống kê ghi chú
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          BlogNote - 📈 Thống kê ghi chú
         </h1>
 
         <h2 className="text-2xl font-semibold mb-4 text-center">

@@ -77,6 +77,9 @@ export default function NoteList() {
     <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 text-gray-700">
       {/* Khung 1: Ghi chú văn bản thuần */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
+      <h2 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+            📄 Ghi chú văn bản thuần
+        </h2>
         <h2 className="text-xl font-bold mb-4">📄 Ghi chú văn bản thuần</h2>
         <div className="grid grid-cols-1 gap-4">
           {paginate(textNotes, currentTextPage)
@@ -140,6 +143,9 @@ export default function NoteList() {
 
       {/* Khung 2: Ghi chú văn bản phong phú */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+           🖼️ Ghi chú văn bản phong phú
+        </h1>
         <h2 className="text-xl font-bold mb-4">🖼️ Ghi chú văn bản phong phú</h2>
         <div className="grid grid-cols-4 gap-4">
           {paginate(
@@ -235,6 +241,9 @@ export default function NoteList() {
 
       {/* Khung 3: Ghi chú danh sách công việc */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          📝 Ghi chú danh sách công việc
+        </h1>
         <h2 className="text-xl font-bold mb-4">
           📝 Ghi chú danh sách công việc
         </h2>
@@ -300,6 +309,9 @@ export default function NoteList() {
 
       {/* Khung 4: Ghi chú bảng tính */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          📊 Ghi chú bảng tính
+        </h1>
         <h2 className="text-xl font-bold mb-4">📊 Ghi chú bảng tính</h2>
         <div className="grid grid-cols-4 gap-4">
           {paginate(spreadsheetNotes, currentSpreadsheetPage)

@@ -803,10 +803,9 @@ const NoteApp = () => {
   return (
     <div className="text-gray-700">
       <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-700">
-          Ghi chú
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          BlogNote - Ghi chú
         </h1>
-
         <input
           type="text"
           placeholder="Tiêu đề ghi chú"

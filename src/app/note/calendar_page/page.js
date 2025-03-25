@@ -30,7 +30,9 @@ const CalendarPage = () => {
  
   return (
     <div className="mt-[97px] p-5 mb-[-7px] container mx-auto p-5 relative bg-white rounded-xl shadow-lg">
-      <h1 className="text-4xl font-bold mb-6 text-center bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">Trang Lịch</h1>
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          BlogNote - Trang lịch 
+        </h1>
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={handlePrevMonth}

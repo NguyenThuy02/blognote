@@ -178,6 +178,9 @@ export default function ManageNotes() {
 
   return (
     <div className="text-gray-700 mt-[96px] p-5 max-w-8xl mx-auto border-2 border-gray-300 rounded-lg shadow-lg">
+      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+            🛠️ Quản lý Ghi Chú
+        </h1>
       <h1 className="text-2xl font-bold mb-4">🛠️ Quản lý Ghi Chú</h1>
 
       <div className="grid grid-cols-4 gap-4">
