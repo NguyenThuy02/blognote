@@ -29,6 +29,9 @@ import {
   FaRedo,
   FaBell,
   FaBellSlash,
+  FaPlay,
+  FaPause,
+  FaLanguage,
 } from "react-icons/fa";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -47,12 +50,14 @@ const NoteApp = () => {
   const [uploadedImages, setUploadedImages] = useState([]);
   const [noteTypeMenu, setNoteTypeMenu] = useState(false);
   const [currentNoteType, setCurrentNoteType] = useState("rich");
-  const [category, setCategory] = useState("Personal"); // Thể loại mặc định là Personal
-  const [categoryMenu, setCategoryMenu] = useState(false); // Trạng thái menu thể loại
+  const [category, setCategory] = useState("Personal");
+  const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
+  const audioRef = useRef(null);
+  const importFileInputRef = useRef(null);
 
   const [fontFamily, setFontFamily] = useState("Verdana");
   const [fontSize, setFontSize] = useState("14pt");
@@ -72,9 +77,65 @@ const NoteApp = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [reminderTime, setReminderTime] = useState("");
 
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [selectedAudio, setSelectedAudio] = useState("");
+  const [audioMenuVisible, setAudioMenuVisible] = useState(false);
+  const [translateTo, setTranslateTo] = useState("");
+  const [translateMenuVisible, setTranslateMenuVisible] = useState(false);
+  const [extraMenuVisible, setExtraMenuVisible] = useState(false);
+
   useEffect(() => {
     fetchNotes();
   }, []);
+
+  // Tự động tắt các menu sau 3 giây
+  useEffect(() => {
+    let timer;
+    if (noteTypeMenu) {
+      timer = setTimeout(() => setNoteTypeMenu(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [noteTypeMenu]);
+
+  useEffect(() => {
+    let timer;
+    if (categoryMenu) {
+      timer = setTimeout(() => setCategoryMenu(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [categoryMenu]);
+
+  useEffect(() => {
+    let timer;
+    if (extraMenuVisible) {
+      timer = setTimeout(() => setExtraMenuVisible(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [extraMenuVisible]);
+
+  useEffect(() => {
+    let timer;
+    if (audioMenuVisible) {
+      timer = setTimeout(() => setAudioMenuVisible(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [audioMenuVisible]);
+
+  useEffect(() => {
+    let timer;
+    if (translateMenuVisible) {
+      timer = setTimeout(() => setTranslateMenuVisible(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [translateMenuVisible]);
+
+  useEffect(() => {
+    let timer;
+    if (showEmojiPicker) {
+      timer = setTimeout(() => setShowEmojiPicker(false), 3000);
+    }
+    return () => clearTimeout(timer);
+  }, [showEmojiPicker]);
 
   const fetchNotes = async () => {
     try {
@@ -129,11 +190,7 @@ const NoteApp = () => {
         }) || []
       );
     } catch (err) {
-      console.error("Error fetching notes:", err, {
-        message: err.message,
-        code: err.code,
-        details: err.details,
-      });
+      console.error("Error fetching notes:", err);
       setError(
         "Không thể tải ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -163,7 +220,6 @@ const NoteApp = () => {
           ? uploadedImages[uploadedImages.length - 1]
           : null;
 
-      // Xác định classification dựa trên note_type
       let classification;
       switch (currentNoteType) {
         case "plain":
@@ -179,12 +235,11 @@ const NoteApp = () => {
           classification = "spreadsheet";
           break;
         default:
-          classification = "Abundant"; // Mặc định nếu không khớp
+          classification = "Abundant";
       }
 
-      // Ánh xạ category sang category_id (giả sử có bảng categories trong Supabase)
       const categoryMap = {
-        Personal: 1, // Giả sử ID trong bảng categories
+        Personal: 1,
         Study: 2,
         Entertainment: 3,
         Upload: 4,
@@ -212,10 +267,8 @@ const NoteApp = () => {
             ? JSON.stringify(spreadsheetData)
             : null,
         classification: classification,
-        category_id: categoryMap[category] || 1, // Mặc định là Personal (ID = 1) nếu không khớp
+        category_id: categoryMap[category] || 1,
       };
-
-      console.log("Saving note with data:", noteData);
 
       if (editingId !== null) {
         const { data, error } = await supabase2
@@ -243,12 +296,7 @@ const NoteApp = () => {
       resetForm();
       await fetchNotes();
     } catch (err) {
-      console.error("Error saving note:", err, {
-        message: err.message,
-        code: err.code,
-        details: err.details,
-        hint: err.hint,
-      });
+      console.error("Error saving note:", err);
       setError(
         "Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -266,10 +314,7 @@ const NoteApp = () => {
       setNotes(notes.filter((note) => note.id !== noteId));
       setError("");
     } catch (err) {
-      console.error("Error deleting note:", err, {
-        message: err.message,
-        code: err.code,
-      });
+      console.error("Error deleting note:", err);
       setError(
         "Không thể xóa ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -309,7 +354,6 @@ const NoteApp = () => {
     setHistoryIndex(0);
     setImageUploadVisible(note.note_type !== "plain");
 
-    // Ánh xạ ngược category_id sang category name
     const reverseCategoryMap = {
       1: "Personal",
       2: "Study",
@@ -344,9 +388,13 @@ const NoteApp = () => {
     setSpreadsheetHistory([]);
     setHistoryIndex(-1);
     setReminderTime("");
-    setCategory("Personal"); // Reset về Personal
+    setCategory("Personal");
     setError("");
     setShowEmojiPicker(false);
+    setIsAudioPlaying(false);
+    setSelectedAudio("");
+    setTranslateTo("");
+    setExtraMenuVisible(false);
   };
 
   const handleExportNotes = () => {
@@ -382,6 +430,7 @@ const NoteApp = () => {
     a.href = link;
     a.download = "ghi-chu.txt";
     a.click();
+    setExtraMenuVisible(false);
   };
 
   const handleImageUpload = async (e) => {
@@ -437,7 +486,7 @@ const NoteApp = () => {
             }
             setTitle(file.name.replace(".pdf", ""));
             setContent(text.trim());
-            setCategory("Upload"); // Gán mặc định là Upload khi nhập file
+            setCategory("Upload");
             setError("");
           } catch (err) {
             throw new Error("Không thể đọc nội dung PDF: " + err.message);
@@ -456,11 +505,12 @@ const NoteApp = () => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         setTitle(file.name.replace(".docx", ""));
         setContent(result.value.trim());
-        setCategory("Upload"); // Gán mặc định là Upload khi nhập file
+        setCategory("Upload");
         setError("");
       } else {
         setError("Chỉ hỗ trợ tệp PDF hoặc Word (.docx)");
       }
+      setExtraMenuVisible(false);
     } catch (err) {
       console.error("Error importing file:", err);
       setError(err.message || "Không thể nhập tệp. Vui lòng thử lại.");
@@ -503,6 +553,7 @@ const NoteApp = () => {
         .then(() => alert("Đã sao chép ghi chú vào clipboard!"))
         .catch((err) => setError("Không thể sao chép ghi chú."));
     }
+    setExtraMenuVisible(false);
   };
 
   const addEmoji = (emoji) => {
@@ -512,6 +563,10 @@ const NoteApp = () => {
 
   const handleImageButtonClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleImportButtonClick = () => {
+    importFileInputRef.current?.click();
   };
 
   const handleNoteTypeChange = (type) => {
@@ -594,6 +649,76 @@ const NoteApp = () => {
     }
   };
 
+  const toggleAudio = () => {
+    if (isAudioPlaying) {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    } else {
+      if (selectedAudio) {
+        audioRef.current.src = selectedAudio;
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsAudioPlaying(true);
+            setError("");
+          })
+          .catch((err) => {
+            console.error("Error playing audio:", err);
+            setError(
+              "Không thể phát âm thanh từ Google Drive. URL có thể không hỗ trợ phát trực tiếp."
+            );
+          });
+      } else {
+        setError("Vui lòng chọn một âm thanh trước khi phát.");
+      }
+    }
+    setExtraMenuVisible(false);
+  };
+
+  const handleAudioSelect = (audioUrl) => {
+    setSelectedAudio(audioUrl);
+    setAudioMenuVisible(false);
+    if (isAudioPlaying) {
+      audioRef.current.src = audioUrl;
+      audioRef.current
+        .play()
+        .then(() => setError(""))
+        .catch((err) =>
+          setError(
+            "Không thể phát âm thanh từ Google Drive. URL có thể không hỗ trợ phát trực tiếp."
+          )
+        );
+    }
+    setExtraMenuVisible(false);
+  };
+
+  const handleTranslate = async () => {
+    if (!content.trim()) {
+      setError("Vui lòng nhập nội dung để dịch.");
+      return;
+    }
+    if (!translateTo) {
+      setError("Vui lòng chọn ngôn ngữ để dịch.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${translateTo}&dt=t&q=${encodeURIComponent(
+          content
+        )}`
+      );
+      const data = await response.json();
+      const translatedText = data[0][0][0];
+      setContent(translatedText);
+      setError("");
+      setExtraMenuVisible(false);
+    } catch (err) {
+      console.error("Error translating text:", err);
+      setError("Không thể dịch nội dung. Vui lòng thử lại.");
+    }
+  };
+
   const sortedNotes = [...notes]
     .filter(
       (note) =>
@@ -608,115 +733,34 @@ const NoteApp = () => {
     );
 
   const emojiList = [
-    ...new Set([
-      "😀",
-      "😃",
-      "😄",
-      "😊",
-      "😍",
-      "🥰",
-      "😘",
-      "😜",
-      "😎",
-      "🤓",
-      "😇",
-      "🥳",
-      "😂",
-      "🤗",
-      "😢",
-      "😭",
-      "😡",
-      "😤",
-      "😱",
-      "😳",
-      "🤔",
-      "🙄",
-      "😴",
-      "🤤",
-      "👍",
-      "👎",
-      "👏",
-      "🙌",
-      "✋",
-      "👊",
-      "✌️",
-      "🤝",
-      "🙏",
-      "💪",
-      "👀",
-      "👉",
-      "❤️",
-      "💕",
-      "💖",
-      "💙",
-      "💚",
-      "💛",
-      "💜",
-      "🖤",
-      "💔",
-      "💘",
-      "✨",
-      "⭐",
-      "🌟",
-      "🔥",
-      "💡",
-      "🎉",
-      "🎈",
-      "🎁",
-      "🎂",
-      "🍰",
-      "🍕",
-      "🍔",
-      "🍟",
-      "🍦",
-      "☕",
-      "🍵",
-      "🍺",
-      "🍷",
-      "🥂",
-      "🍹",
-      "🌈",
-      "☀️",
-      "🌙",
-      "☁️",
-      "⛄",
-      "⚡",
-      "🌊",
-      "🌸",
-      "🌺",
-      "🌼",
-      "🍁",
-      "🍂",
-      "🍃",
-      "📌",
-      "✅",
-      "❌",
-      "❓",
-      "❗",
-      "🚀",
-      "✈️",
-      "🚗",
-      "🚢",
-      "🏠",
-      "🏡",
-      "🏝️",
-      "⛰️",
-      "🎵",
-      "🎶",
-      "🎤",
-      "🎧",
-      "📱",
-      "💻",
-      "📷",
-      "📸",
-      "🎥",
-      "📺",
-      "⏰",
-      "⌚",
-      "🔧",
-      "⚙️",
-      "💰",
-    ]),
+    "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓",
+    "😇", "🥳", "😂", "🤗", "😢", "😭", "😡", "😤", "😱", "😳",
+    "🤔", "🙄", "😴", "🤤", "👍", "👎", "👏", "🙌", "✋", "👊",
+    "✌️", "🤝", "🙏", "💪", "👀", "👉", "❤️", "💕", "💖", "💙",
+    "💚", "💛", "💜", "🖤", "💔", "💘", "✨", "⭐", "🌟", "🔥",
+    "💡", "🎉", "🎈", "🎁", "🎂", "🍰", "🍕", "🍔", "🍟", "🍦",
+    "☕", "🍵", "🍺", "🍷", "🥂", "🍹", "🌈", "☀️", "🌙", "☁️",
+    "⛄", "⚡", "🌊", "🌸", "🌺", "🌼", "🍁", "🍂", "🍃", "📌",
+    "✅", "❌", "❓", "❗", "🚀", "✈️", "🚗", "🚢", "🏠", "🏡",
+    "🏝️", "⛰️", "🎵", "🎶", "🎤", "🎧", "📱", "💻", "📷", "📸",
+    "🎥", "📺", "⏰", "⌚", "🔧", "⚙️", "💰",
+  ];
+
+  const audioOptions = [
+    { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+    { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-17.mp3" },
+    { name: "Câu Chuyện Nếu Như", url: "https://drive.google.com/file/d/1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB/view?usp=sharing" }, // Thay YOUR_FILE_ID nếu có
+    { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
+    { name: "Âm thanh của nỗi nhớ anh", url: "https://drive.google.com/uc?export=download&id=1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB" },
+  ];
+
+  const languageOptions = [
+    { code: "en", name: "English" },
+    { code: "es", name: "Spanish" },
+    { code: "fr", name: "French" },
+    { code: "de", name: "German" },
+    { code: "vi", name: "Vietnamese" },
   ];
 
   const getSelectionInfo = () => {
@@ -803,7 +847,7 @@ const NoteApp = () => {
   return (
     <div className="text-gray-700">
       <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           BlogNote - Ghi chú
         </h1>
         <input
@@ -818,32 +862,32 @@ const NoteApp = () => {
           <div className="relative">
             <button
               onClick={() => setNoteTypeMenu(!noteTypeMenu)}
-              className="btn-gradient"
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
             >
               <FaBars /> <span>Tạo Ghi Chú</span>
             </button>
             {noteTypeMenu && (
-              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("plain")}
                 >
                   📝 Ghi chú văn bản thuần
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("rich")}
                 >
                   🖋 Ghi chú văn bản phong phú
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("whiteboard")}
                 >
                   🎨 Ghi chú danh sách công việc
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("spreadsheet")}
                 >
                   📊 Ghi chú bảng tính
@@ -859,7 +903,7 @@ const NoteApp = () => {
                 <div className="relative">
                   <button
                     onClick={handleImageButtonClick}
-                    className="btn-gradient"
+                    className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
                   >
                     <FaPlus /> <span>Chèn ảnh</span>
                   </button>
@@ -875,17 +919,17 @@ const NoteApp = () => {
                 <div className="relative">
                   <button
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="btn-gradient"
+                    className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
                   >
-                    <FaSmile /> <span>icon</span>
+                    <FaSmile /> <span>Icon</span>
                   </button>
                   {showEmojiPicker && (
-                    <div className="emoji-picker absolute z-10 bg-white border rounded-lg p-2 shadow-lg w-64 max-h-48 overflow-y-auto">
+                    <div className="absolute z-10 bg-white border rounded-lg p-2 shadow-xl w-64 max-h-48 overflow-y-auto mt-2 transition-all duration-200 ease-in-out">
                       {emojiList.map((emoji) => (
                         <button
                           key={emoji}
                           onClick={() => addEmoji(emoji)}
-                          className="p-2 hover:bg-gray-100 text-2xl"
+                          className="p-2 hover:bg-gray-100 text-2xl transition-all duration-200"
                         >
                           {emoji}
                         </button>
@@ -896,62 +940,143 @@ const NoteApp = () => {
               </>
             )}
 
-          <label className="btn-gradient cursor-pointer">
-            <FaFileImport /> <span>Nhập Word/PDF</span>
-            <input
-              type="file"
-              accept=".docx,application/pdf"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-          </label>
-
-          <button onClick={handleShareNote} className="btn-gradient">
-            <FaShareAlt /> <span>Chia sẻ</span>
-          </button>
-
-          <button
-            onClick={handleExportNotes}
-            className="btn-gradient text-green-600"
-          >
-            <FaFileExport /> <span>Xuất File</span>
-          </button>
-
           <div className="relative">
             <button
               onClick={() => setCategoryMenu(!categoryMenu)}
-              className="btn-gradient"
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
             >
               <FaBars /> <span>Thể loại: {category}</span>
             </button>
             {categoryMenu && (
-              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Personal")}
                 >
                   👤 Personal
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Study")}
                 >
                   📚 Study
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Entertainment")}
                 >
                   🎬 Entertainment
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Upload")}
                 >
                   📤 Upload
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setExtraMenuVisible(!extraMenuVisible)}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              <FaBars /> <span>Thêm</span>
+            </button>
+            {extraMenuVisible && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                <button
+                  onClick={handleShareNote}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaShareAlt /> Chia sẻ
+                </button>
+                <button
+                  onClick={toggleAudio}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  {isAudioPlaying ? <FaPause /> : <FaPlay />}
+                  {isAudioPlaying ? "Tạm dừng" : "Phát âm thanh"}
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setAudioMenuVisible(!audioMenuVisible)}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  >
+                    <FaBars /> Chọn âm thanh
+                  </button>
+                  {audioMenuVisible && (
+                    <div className="absolute left-full top-0 mt-0 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                      {audioOptions.map((audio) => (
+                        <button
+                          key={audio.name}
+                          className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                          onClick={() => handleAudioSelect(audio.url)}
+                        >
+                          {audio.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleImportButtonClick}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaFileImport /> Nhập Word/PDF
+                </button>
+                <input
+                  type="file"
+                  accept=".docx,application/pdf"
+                  ref={importFileInputRef}
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={handleExportNotes}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaFileExport /> Xuất File
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={handleTranslate}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  >
+                    <FaLanguage /> Dịch
+                  </button>
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setTranslateMenuVisible(!translateMenuVisible)}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  >
+                    <FaBars />{" "}
+                    {translateTo
+                      ? languageOptions.find((l) => l.code === translateTo)?.name
+                      : "Chọn ngôn ngữ"}
+                  </button>
+                  {translateMenuVisible && (
+                    <div className="absolute left-full top-0 mt-0 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                      {languageOptions.map((lang) => (
+                        <button
+                          key={lang.code}
+                          className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                          onClick={() => {
+                            setTranslateTo(lang.code);
+                            setTranslateMenuVisible(false);
+                          }}
+                        >
+                          {lang.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <audio ref={audioRef} loop />
           </div>
         </div>
 
@@ -1135,7 +1260,7 @@ const NoteApp = () => {
                 onChange={(e) => setReminderTime(e.target.value)}
                 className="border-2 border-gray-300 p-2 rounded-lg"
               />
-              <button onClick={addTodo} className="btn-gradient">
+              <button onClick={addTodo} className="menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg">
                 <FaPlus /> Thêm
               </button>
             </div>
@@ -1171,7 +1296,7 @@ const NoteApp = () => {
               <button
                 onClick={undoSpreadsheet}
                 disabled={historyIndex <= 0}
-                className={`btn-gradient ${
+                className={`menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg ${
                   historyIndex <= 0 ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
@@ -1180,7 +1305,7 @@ const NoteApp = () => {
               <button
                 onClick={redoSpreadsheet}
                 disabled={historyIndex >= spreadsheetHistory.length - 1}
-                className={`btn-gradient ${
+                className={`menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg ${
                   historyIndex >= spreadsheetHistory.length - 1
                     ? "opacity-50 cursor-not-allowed"
                     : ""
@@ -1221,7 +1346,7 @@ const NoteApp = () => {
         <div className="flex justify-center mt-4">
           <button
             onClick={handleSaveNote}
-            className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center"
+            className="menu-btn w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
           >
             {editingId !== null ? "Cập nhật" : "Lưu"}
           </button>
@@ -1410,48 +1535,33 @@ const NoteApp = () => {
         </div>
 
         <style jsx>{`
-          .btn-gradient {
+          .menu-btn {
             background: linear-gradient(135deg, #6aa8ff, #b57edc);
             color: white;
-            padding: 12px 20px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
             font-size: 16px;
-            transition: all 0.3s ease-in-out;
-            border: 1px solid lightgray;
+            font-weight: 500;
+            border: none;
+            outline: none;
+            cursor: pointer;
           }
-          .btn-gradient:hover {
+          .menu-btn:hover {
             background: linear-gradient(135deg, #b57edc, #6aa8ff);
-            transform: scale(1.08);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transform: scale(1.05);
           }
-          .btn-gradient:disabled {
-            background: gray;
-            transform: none;
-            box-shadow: none;
+          .menu-dropdown {
+            opacity: 1;
+            transform: translateY(0);
           }
           .dropdown-item {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            text-align: left;
-            border: none;
             background: none;
+            border: none;
+            color: #333;
+            font-size: 14px;
             cursor: pointer;
-            transition: background 0.3s ease;
           }
           .dropdown-item:hover {
-            background-color: rgba(173, 216, 230, 0.5);
-          }
-          .border-light-blue-300 {
-            border-color: #6aa8ff;
-          }
-          .emoji-picker {
-            top: 100%;
-            left: 0;
-            transform: translateY(10px);
+            background: #e6f0ff;
+            color: #6aa8ff;
           }
         `}</style>
       </div>

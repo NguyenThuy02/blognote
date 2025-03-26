@@ -2,12 +2,19 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
+import { FaThumbtack } from "react-icons/fa";
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
   const [richNotes, setRichNotes] = useState([]);
   const [sketchNotes, setSketchNotes] = useState([]);
   const [spreadsheetNotes, setSpreadsheetNotes] = useState([]);
+  const [pinnedNotes, setPinnedNotes] = useState(new Set()); // Track pinned note IDs
+  const [hiddenNotes, setHiddenNotes] = useState(new Set()); // Track hidden note IDs
+  const [pinInput, setPinInput] = useState(""); // PIN input for hidden notes
+  const [showPinModal, setShowPinModal] = useState(false); // Show/hide PIN modal
+  const [selectedNoteId, setSelectedNoteId] = useState(null); // Note requiring PIN
+  const [contextMenu, setContextMenu] = useState(null); // Context menu position and note ID
 
   // State for pagination
   const [currentTextPage, setCurrentTextPage] = useState(1);
@@ -21,6 +28,7 @@ export default function NoteList() {
   const [showMoreSpreadsheet, setShowMoreSpreadsheet] = useState(false);
 
   const notesPerPage = 5;
+  const PIN = "1234"; // Hardcoded PIN for simplicity (replace with secure storage in production)
 
   // Fetch notes from Supabase
   const fetchNotes = async () => {
@@ -37,7 +45,7 @@ export default function NoteList() {
       const mappedNotes = data.map((note) => ({
         id: note.id,
         title: note.title,
-        description: note.content.slice(0, 50) + "...", // Short description from content
+        description: note.content ? note.content.slice(0, 50) + "..." : "Không có nội dung",
         image: note.image_url,
         note_type: note.note_type,
       }));
@@ -60,10 +68,76 @@ export default function NoteList() {
     fetchNotes();
   }, []);
 
+  // Pin/Unpin a note
+  const togglePin = (noteId) => {
+    setPinnedNotes((prev) => {
+      const newPinned = new Set(prev);
+      if (newPinned.has(noteId)) {
+        newPinned.delete(noteId);
+      } else {
+        newPinned.add(noteId);
+      }
+      return newPinned;
+    });
+  };
+
+  // Hide a note
+  const hideNote = (noteId) => {
+    setHiddenNotes((prev) => new Set(prev).add(noteId));
+    setContextMenu(null);
+  };
+
+  // Show context menu on right-click
+  const handleContextMenu = (e, noteId) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.pageX,
+      y: e.pageY,
+      noteId,
+    });
+  };
+
+  // Close context menu
+  const closeContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Verify PIN and reveal note
+  const verifyPin = () => {
+    if (pinInput === PIN) {
+      setHiddenNotes((prev) => {
+        const newHidden = new Set(prev);
+        newHidden.delete(selectedNoteId);
+        return newHidden;
+      });
+      setShowPinModal(false);
+      setPinInput("");
+      setSelectedNoteId(null);
+    } else {
+      alert("Mã PIN không đúng!");
+      setPinInput("");
+    }
+  };
+
+  // Check PIN to view hidden note
+  const checkHiddenNote = (noteId) => {
+    if (hiddenNotes.has(noteId)) {
+      setSelectedNoteId(noteId);
+      setShowPinModal(true);
+      return true;
+    }
+    return false;
+  };
+
   const paginate = (notes, currentPage) => {
     const indexOfLastNote = currentPage * notesPerPage;
     const indexOfFirstNote = indexOfLastNote - notesPerPage;
-    return notes.slice(indexOfFirstNote, indexOfLastNote);
+    const sortedNotes = [...notes].sort((a, b) => {
+      if (pinnedNotes.has(a.id) && !pinnedNotes.has(b.id)) return -1;
+      if (!pinnedNotes.has(a.id) && pinnedNotes.has(b.id)) return 1;
+      return 0;
+    });
+    return sortedNotes.slice(indexOfFirstNote, indexOfLastNote);
   };
 
   const totalTextPages = Math.ceil(textNotes.length / notesPerPage);
@@ -74,12 +148,15 @@ export default function NoteList() {
   );
 
   return (
-    <div className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 text-gray-700">
+    <div
+      className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 text-gray-700"
+      onClick={closeContextMenu}
+    >
       {/* Khung 1: Ghi chú văn bản thuần */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-      <h2 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
-            📄 Ghi chú văn bản thuần
-        </h2>
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          📄 Ghi chú văn bản thuần
+        </h1>
         <h2 className="text-xl font-bold mb-4">📄 Ghi chú văn bản thuần</h2>
         <div className="grid grid-cols-1 gap-4">
           {paginate(textNotes, currentTextPage)
@@ -87,16 +164,43 @@ export default function NoteList() {
             .map((note) => (
               <div
                 key={note.id}
-                className="p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out"
+                className={`p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
-                <h3 className="font-semibold">{note.title}</h3>
-                <p className="text-gray-600">{note.description}</p>
-                <Link
-                  href={`/note/${note.id}`}
-                  className="text-blue-500 mt-2 block"
-                >
-                  Xem chi tiết →
-                </Link>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{note.title}</h3>
+                    <p className="text-gray-600">
+                      {hiddenNotes.has(note.id)
+                        ? "Ghi chú này đã bị ẩn"
+                        : note.description}
+                    </p>
+                    {!hiddenNotes.has(note.id) && (
+                      <Link
+                        href={`/note/${note.id}`}
+                        className="text-blue-500 mt-2 block"
+                        onClick={(e) =>
+                          checkHiddenNote(note.id) && e.preventDefault()
+                        }
+                      >
+                        Xem chi tiết →
+                      </Link>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`text-xl ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    <FaThumbtack />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -115,7 +219,7 @@ export default function NoteList() {
               disabled={currentTextPage === 1}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &lt;
+              {"<"}
             </button>
             {Array.from({ length: totalTextPages }, (_, index) => (
               <button
@@ -135,7 +239,7 @@ export default function NoteList() {
               disabled={currentTextPage === totalTextPages}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &gt;
+              {">"}
             </button>
           </div>
         )}
@@ -143,8 +247,8 @@ export default function NoteList() {
 
       {/* Khung 2: Ghi chú văn bản phong phú */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
-           🖼️ Ghi chú văn bản phong phú
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+          🖼️ Ghi chú văn bản phong phú
         </h1>
         <h2 className="text-xl font-bold mb-4">🖼️ Ghi chú văn bản phong phú</h2>
         <div className="grid grid-cols-4 gap-4">
@@ -156,16 +260,43 @@ export default function NoteList() {
             .map((note) => (
               <div
                 key={note.id}
-                className="p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out"
+                className={`p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
-                <h3 className="font-semibold">{note.title}</h3>
-                <p className="text-gray-600">{note.description}</p>
-                <Link
-                  href={`/note/${note.id}`}
-                  className="text-blue-500 mt-2 block"
-                >
-                  Xem chi tiết →
-                </Link>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{note.title}</h3>
+                    <p className="text-gray-600">
+                      {hiddenNotes.has(note.id)
+                        ? "Ghi chú này đã bị ẩn"
+                        : note.description}
+                    </p>
+                    {!hiddenNotes.has(note.id) && (
+                      <Link
+                        href={`/note/${note.id}`}
+                        className="text-blue-500 mt-2 block"
+                        onClick={(e) =>
+                          checkHiddenNote(note.id) && e.preventDefault()
+                        }
+                      >
+                        Xem chi tiết →
+                      </Link>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`text-xl ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    <FaThumbtack />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -178,23 +309,50 @@ export default function NoteList() {
             .map((note) => (
               <div
                 key={note.id}
-                className="p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out"
+                className={`p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
-                {note.image && (
-                  <img
-                    src={note.image}
-                    alt={note.title}
-                    className="mb-2 w-full h-32 object-cover rounded"
-                  />
-                )}
-                <h3 className="font-semibold">{note.title}</h3>
-                <p className="text-gray-600">{note.description}</p>
-                <Link
-                  href={`/note/${note.id}`}
-                  className="text-blue-500 mt-2 block"
-                >
-                  Xem chi tiết →
-                </Link>
+                <div className="flex justify-between items-start">
+                  <div>
+                    {note.image && !hiddenNotes.has(note.id) && (
+                      <img
+                        src={note.image}
+                        alt={note.title}
+                        className="mb-2 w-full h-32 object-cover rounded"
+                      />
+                    )}
+                    <h3 className="font-semibold">{note.title}</h3>
+                    <p className="text-gray-600">
+                      {hiddenNotes.has(note.id)
+                        ? "Ghi chú này đã bị ẩn"
+                        : note.description}
+                    </p>
+                    {!hiddenNotes.has(note.id) && (
+                      <Link
+                        href={`/note/${note.id}`}
+                        className="text-blue-500 mt-2 block"
+                        onClick={(e) =>
+                          checkHiddenNote(note.id) && e.preventDefault()
+                        }
+                      >
+                        Xem chi tiết →
+                      </Link>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`text-xl ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    <FaThumbtack />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -213,7 +371,7 @@ export default function NoteList() {
               disabled={currentRichPage === 1}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &lt;
+              {"<"}
             </button>
             {Array.from({ length: totalRichPages }, (_, index) => (
               <button
@@ -233,7 +391,7 @@ export default function NoteList() {
               disabled={currentRichPage === totalRichPages}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &gt;
+              {">"}
             </button>
           </div>
         )}
@@ -241,7 +399,7 @@ export default function NoteList() {
 
       {/* Khung 3: Ghi chú danh sách công việc */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           📝 Ghi chú danh sách công việc
         </h1>
         <h2 className="text-xl font-bold mb-4">
@@ -253,16 +411,43 @@ export default function NoteList() {
             .map((note) => (
               <div
                 key={note.id}
-                className="p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out"
+                className={`p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
-                <h3 className="font-semibold">{note.title}</h3>
-                <p className="text-gray-600">{note.description}</p>
-                <Link
-                  href={`/note/${note.id}`}
-                  className="text-blue-500 mt-2 block"
-                >
-                  Xem chi tiết công việc →
-                </Link>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{note.title}</h3>
+                    <p className="text-gray-600">
+                      {hiddenNotes.has(note.id)
+                        ? "Ghi chú này đã bị ẩn"
+                        : note.description}
+                    </p>
+                    {!hiddenNotes.has(note.id) && (
+                      <Link
+                        href={`/note/${note.id}`}
+                        className="text-blue-500 mt-2 block"
+                        onClick={(e) =>
+                          checkHiddenNote(note.id) && e.preventDefault()
+                        }
+                      >
+                        Xem chi tiết công việc →
+                      </Link>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`text-xl ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    <FaThumbtack />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -281,7 +466,7 @@ export default function NoteList() {
               disabled={currentSketchPage === 1}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &lt;
+              {"<"}
             </button>
             {Array.from({ length: totalSketchPages }, (_, index) => (
               <button
@@ -301,7 +486,7 @@ export default function NoteList() {
               disabled={currentSketchPage === totalSketchPages}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &gt;
+              {">"}
             </button>
           </div>
         )}
@@ -309,7 +494,7 @@ export default function NoteList() {
 
       {/* Khung 4: Ghi chú bảng tính */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           📊 Ghi chú bảng tính
         </h1>
         <h2 className="text-xl font-bold mb-4">📊 Ghi chú bảng tính</h2>
@@ -319,16 +504,43 @@ export default function NoteList() {
             .map((note) => (
               <div
                 key={note.id}
-                className="p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out"
+                className={`p-4 shadow-md rounded-lg border hover:shadow-lg transform hover:scale-105 transition duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
-                <h3 className="font-semibold">{note.title}</h3>
-                <p className="text-gray-600">{note.description}</p>
-                <Link
-                  href={`/note/${note.id}`}
-                  className="text-blue-500 mt-2 block"
-                >
-                  Đi đến bảng →
-                </Link>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold">{note.title}</h3>
+                    <p className="text-gray-600">
+                      {hiddenNotes.has(note.id)
+                        ? "Ghi chú này đã bị ẩn"
+                        : note.description}
+                    </p>
+                    {!hiddenNotes.has(note.id) && (
+                      <Link
+                        href={`/note/${note.id}`}
+                        className="text-blue-500 mt-2 block"
+                        onClick={(e) =>
+                          checkHiddenNote(note.id) && e.preventDefault()
+                        }
+                      >
+                        Đi đến bảng →
+                      </Link>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`text-xl ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    <FaThumbtack />
+                  </button>
+                </div>
               </div>
             ))}
         </div>
@@ -349,7 +561,7 @@ export default function NoteList() {
               disabled={currentSpreadsheetPage === 1}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &lt;
+              {"<"}
             </button>
             {Array.from({ length: totalSpreadsheetPages }, (_, index) => (
               <button
@@ -371,11 +583,61 @@ export default function NoteList() {
               disabled={currentSpreadsheetPage === totalSpreadsheetPages}
               className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1"
             >
-              &gt;
+              {">"}
             </button>
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white border border-gray-300 rounded-lg shadow-lg p-2 z-50"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <button
+            onClick={() => hideNote(contextMenu.noteId)}
+            className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+          >
+            Ẩn ghi chú
+          </button>
+        </div>
+      )}
+
+      {/* PIN Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold mb-4">
+              Nhập mã PIN để xem ghi chú
+            </h3>
+            <input
+              type="password"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              className="w-full border border-gray-300 p-2 rounded mb-4"
+              placeholder="Mã PIN"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput("");
+                }}
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={verifyPin}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
