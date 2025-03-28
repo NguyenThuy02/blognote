@@ -32,6 +32,7 @@ import {
   FaPlay,
   FaPause,
   FaLanguage,
+  FaThumbtack,
 } from "react-icons/fa";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -84,58 +85,89 @@ const NoteApp = () => {
   const [translateMenuVisible, setTranslateMenuVisible] = useState(false);
   const [extraMenuVisible, setExtraMenuVisible] = useState(false);
 
+  const [filterType, setFilterType] = useState("all");
+  const [filterMenuVisible, setFilterMenuVisible] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+
+  // Trạng thái để quản lý các loại ghi chú hiển thị trong "Chọn lọc"
+  const [visibleNoteTypes, setVisibleNoteTypes] = useState({
+    plain: true,
+    rich: true,
+    whiteboard: true,
+    spreadsheet: true,
+  });
+
+  const noteTypeMenuRef = useRef(null);
+  const categoryMenuRef = useRef(null);
+  const extraMenuRef = useRef(null);
+  const audioMenuRef = useRef(null);
+  const translateMenuRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const filterMenuRef = useRef(null);
+  const sortMenuRef = useRef(null);
+
   useEffect(() => {
     fetchNotes();
   }, []);
 
-  // Tự động tắt các menu sau 3 giây
   useEffect(() => {
-    let timer;
-    if (noteTypeMenu) {
-      timer = setTimeout(() => setNoteTypeMenu(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [noteTypeMenu]);
+    const handleClickOutside = (event) => {
+      if (
+        noteTypeMenuRef.current &&
+        !noteTypeMenuRef.current.contains(event.target)
+      ) {
+        setNoteTypeMenu(false);
+      }
+      if (
+        categoryMenuRef.current &&
+        !categoryMenuRef.current.contains(event.target)
+      ) {
+        setCategoryMenu(false);
+      }
+      if (
+        extraMenuRef.current &&
+        !extraMenuRef.current.contains(event.target)
+      ) {
+        setExtraMenuVisible(false);
+      }
+      if (
+        audioMenuRef.current &&
+        !audioMenuRef.current.contains(event.target)
+      ) {
+        setAudioMenuVisible(false);
+      }
+      if (
+        translateMenuRef.current &&
+        !translateMenuRef.current.contains(event.target)
+      ) {
+        setTranslateMenuVisible(false);
+      }
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+      if (
+        filterMenuRef.current &&
+        !filterMenuRef.current.contains(event.target)
+      ) {
+        setFilterMenuVisible(false);
+      }
+      if (
+        sortMenuRef.current &&
+        !sortMenuRef.current.contains(event.target)
+      ) {
+        setSortMenuVisible(false);
+      }
+    };
 
-  useEffect(() => {
-    let timer;
-    if (categoryMenu) {
-      timer = setTimeout(() => setCategoryMenu(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [categoryMenu]);
-
-  useEffect(() => {
-    let timer;
-    if (extraMenuVisible) {
-      timer = setTimeout(() => setExtraMenuVisible(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [extraMenuVisible]);
-
-  useEffect(() => {
-    let timer;
-    if (audioMenuVisible) {
-      timer = setTimeout(() => setAudioMenuVisible(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [audioMenuVisible]);
-
-  useEffect(() => {
-    let timer;
-    if (translateMenuVisible) {
-      timer = setTimeout(() => setTranslateMenuVisible(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [translateMenuVisible]);
-
-  useEffect(() => {
-    let timer;
-    if (showEmojiPicker) {
-      timer = setTimeout(() => setShowEmojiPicker(false), 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [showEmojiPicker]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const fetchNotes = async () => {
     try {
@@ -186,6 +218,7 @@ const NoteApp = () => {
             ...note,
             todos: parsedTodos,
             spreadsheet_data: parsedSpreadsheetData,
+            isPinned: false,
           };
         }) || []
       );
@@ -290,7 +323,7 @@ const NoteApp = () => {
           .select()
           .single();
         if (error) throw error;
-        setNotes([data, ...notes]);
+        setNotes([{ ...data, isPinned: false }, ...notes]);
       }
 
       resetForm();
@@ -672,7 +705,6 @@ const NoteApp = () => {
         setError("Vui lòng chọn một âm thanh trước khi phát.");
       }
     }
-    setExtraMenuVisible(false);
   };
 
   const handleAudioSelect = (audioUrl) => {
@@ -689,7 +721,6 @@ const NoteApp = () => {
           )
         );
     }
-    setExtraMenuVisible(false);
   };
 
   const handleTranslate = async () => {
@@ -719,18 +750,44 @@ const NoteApp = () => {
     }
   };
 
+  const handlePinNote = (noteId) => {
+    setNotes(
+      notes.map((note) =>
+        note.id === noteId ? { ...note, isPinned: !note.isPinned } : note
+      )
+    );
+  };
+
+  // Hàm xử lý khi nhấn "x" trên tab
+  const toggleNoteTypeVisibility = (type) => {
+    setVisibleNoteTypes((prev) => ({
+      ...prev,
+      [type]: !prev[type],
+    }));
+  };
+
   const sortedNotes = [...notes]
     .filter(
       (note) =>
-        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (note.content &&
-          note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        (filterType === "all" || note.note_type === filterType || filterType === "selective") &&
+        (filterType !== "selective" || visibleNoteTypes[note.note_type]) &&
+        (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (note.content &&
+            note.content.toLowerCase().includes(searchQuery.toLowerCase())))
     )
-    .sort((a, b) =>
-      sortBy === "title"
+    .sort((a, b) => {
+      if (filterType === "selective") {
+        const order = ["plain", "rich", "whiteboard", "spreadsheet"];
+        const aIndex = order.indexOf(a.note_type);
+        const bIndex = order.indexOf(b.note_type);
+        if (aIndex !== bIndex) return aIndex - bIndex;
+      }
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return sortBy === "title"
         ? a.title.localeCompare(b.title)
-        : new Date(b.updated_at) - new Date(a.updated_at)
-    );
+        : new Date(b.updated_at) - new Date(a.updated_at);
+    });
 
   const emojiList = [
     "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓",
@@ -749,8 +806,8 @@ const NoteApp = () => {
   const audioOptions = [
     { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
     { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-    { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-17.mp3" },
-    { name: "Câu Chuyện Nếu Như", url: "https://drive.google.com/file/d/1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB/view?usp=sharing" }, // Thay YOUR_FILE_ID nếu có
+    { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+    { name: "Câu Chuyện Nếu Như", url: "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID" },
     { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
     { name: "Âm thanh của nỗi nhớ anh", url: "https://drive.google.com/uc?export=download&id=1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB" },
   ];
@@ -859,7 +916,7 @@ const NoteApp = () => {
         />
 
         <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
-          <div className="relative">
+          <div className="relative" ref={noteTypeMenuRef}>
             <button
               onClick={() => setNoteTypeMenu(!noteTypeMenu)}
               className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
@@ -916,7 +973,7 @@ const NoteApp = () => {
                     className="hidden"
                   />
                 </div>
-                <div className="relative">
+                <div className="relative" ref={emojiPickerRef}>
                   <button
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                     className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
@@ -940,7 +997,7 @@ const NoteApp = () => {
               </>
             )}
 
-          <div className="relative">
+          <div className="relative" ref={categoryMenuRef}>
             <button
               onClick={() => setCategoryMenu(!categoryMenu)}
               className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
@@ -977,7 +1034,39 @@ const NoteApp = () => {
             )}
           </div>
 
+          <div className="relative" ref={audioMenuRef}>
+            <button
+              onClick={() => setAudioMenuVisible(!audioMenuVisible)}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              <FaBars /> <span>Chọn âm thanh</span>
+            </button>
+            {audioMenuVisible && (
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                {audioOptions.map((audio) => (
+                  <button
+                    key={audio.name}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => handleAudioSelect(audio.url)}
+                  >
+                    {audio.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="relative">
+            <button
+              onClick={toggleAudio}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              {isAudioPlaying ? <FaPause /> : <FaPlay />}
+              <span>{isAudioPlaying ? "Tạm dừng" : "Phát âm thanh"}</span>
+            </button>
+          </div>
+
+          <div className="relative" ref={extraMenuRef}>
             <button
               onClick={() => setExtraMenuVisible(!extraMenuVisible)}
               className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
@@ -992,34 +1081,6 @@ const NoteApp = () => {
                 >
                   <FaShareAlt /> Chia sẻ
                 </button>
-                <button
-                  onClick={toggleAudio}
-                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
-                >
-                  {isAudioPlaying ? <FaPause /> : <FaPlay />}
-                  {isAudioPlaying ? "Tạm dừng" : "Phát âm thanh"}
-                </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setAudioMenuVisible(!audioMenuVisible)}
-                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
-                  >
-                    <FaBars /> Chọn âm thanh
-                  </button>
-                  {audioMenuVisible && (
-                    <div className="absolute left-full top-0 mt-0 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
-                      {audioOptions.map((audio) => (
-                        <button
-                          key={audio.name}
-                          className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
-                          onClick={() => handleAudioSelect(audio.url)}
-                        >
-                          {audio.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
                 <button
                   onClick={handleImportButtonClick}
                   className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
@@ -1047,7 +1108,7 @@ const NoteApp = () => {
                     <FaLanguage /> Dịch
                   </button>
                 </div>
-                <div className="relative">
+                <div className="relative" ref={translateMenuRef}>
                   <button
                     onClick={() => setTranslateMenuVisible(!translateMenuVisible)}
                     className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
@@ -1260,7 +1321,10 @@ const NoteApp = () => {
                 onChange={(e) => setReminderTime(e.target.value)}
                 className="border-2 border-gray-300 p-2 rounded-lg"
               />
-              <button onClick={addTodo} className="menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg">
+              <button
+                onClick={addTodo}
+                className="menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
                 <FaPlus /> Thêm
               </button>
             </div>
@@ -1353,24 +1417,191 @@ const NoteApp = () => {
         </div>
 
         <div className="mt-6 p-4 border border-gray-300 rounded-lg">
-          <div className="relative">
-            <FaSearch className="absolute left-4 top-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm ghi chú..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border-2 border-gray-300 p-4 pl-12 rounded-xl transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-            />
-          </div>
+          <div className="flex justify-between mt-6 text-blue-600 items-center">
+            <div className="relative" ref={filterMenuRef}>
+              <button
+                onClick={() => setFilterMenuVisible(!filterMenuVisible)}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaBars />{" "}
+                <span>
+                  Phân loại:{" "}
+                  {filterType === "all"
+                    ? "Tất cả"
+                    : filterType === "plain"
+                    ? "Văn bản thuần"
+                    : filterType === "rich"
+                    ? "Văn bản phong phú"
+                    : filterType === "whiteboard"
+                    ? "Danh sách công việc"
+                    : filterType === "spreadsheet"
+                    ? "Bảng tính"
+                    : "Chọn lọc"}
+                </span>
+              </button>
+              {filterMenuVisible && (
+                <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("all");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📑 Tất cả
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("selective");
+                      setVisibleNoteTypes({
+                        plain: true,
+                        rich: true,
+                        whiteboard: true,
+                        spreadsheet: true,
+                      });
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🔍 Chọn lọc
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("plain");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📝 Ghi chú văn bản thuần
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("rich");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🖋 Ghi chú văn bản phong phú
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("whiteboard");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🎨 Ghi chú danh sách công việc
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("spreadsheet");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📊 Ghi chú bảng tính
+                  </button>
+                </div>
+              )}
+            </div>
 
-          <div className="flex justify-between mt-6 text-blue-600">
-            <button onClick={() => setSortBy("title")}>
-              ↕ Sắp xếp theo tiêu đề
-            </button>
-            <button onClick={() => setSortBy("updated_at")}>
-              ↕ Sắp xếp theo ngày cập nhật
-            </button>
+            <div className="flex items-center space-x-4">
+              {filterType === "selective" && (
+                <div className="flex gap-2">
+                  {visibleNoteTypes.plain && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Văn bản thuần
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("plain")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.rich && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Văn bản phong phú
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("rich")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.whiteboard && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Danh sách công việc
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("whiteboard")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.spreadsheet && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Bảng tính
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("spreadsheet")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {searchVisible && (
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm ghi chú..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-80 border-2 border-gray-300 p-2 pl-4 rounded-xl transition-all duration-300 ease-in-out transform focus:border-blue-400 focus:ring-2 focus:ring-blue-300 shadow-md hover:shadow-lg animate-slide-in"
+                />
+              )}
+              <button
+                onClick={() => setSearchVisible(!searchVisible)}
+                className="text-blue-600 text-xl hover:text-blue-800 transition duration-200"
+                title="Tìm kiếm ghi chú"
+              >
+                <FaSearch />
+              </button>
+              <div className="relative" ref={sortMenuRef}>
+                <button
+                  onClick={() => setSortMenuVisible(!sortMenuVisible)}
+                  className="text-blue-600 text-xl hover:text-blue-800 transition duration-200"
+                  title="Sắp xếp ghi chú"
+                >
+                  <FaBars />
+                </button>
+                {sortMenuVisible && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                    <button
+                      className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                      onClick={() => {
+                        setSortBy("title");
+                        setSortMenuVisible(false);
+                      }}
+                    >
+                      ↕ Sắp xếp theo tiêu đề
+                    </button>
+                    <button
+                      className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                      onClick={() => {
+                        setSortBy("updated_at");
+                        setSortMenuVisible(false);
+                      }}
+                    >
+                      ↕ Sắp xếp theo ngày cập nhật
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="mt-8">
@@ -1509,6 +1740,17 @@ const NoteApp = () => {
                     </div>
                     <div className="flex space-x-3 ml-4">
                       <button
+                        onClick={() => handlePinNote(note.id)}
+                        className={`text-xl transition duration-200 ${
+                          note.isPinned
+                            ? "text-yellow-500 hover:text-yellow-700"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                        title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
+                      >
+                        <FaThumbtack />
+                      </button>
+                      <button
                         onClick={() => handleEditNote(note)}
                         className="text-green-600 text-xl hover:text-green-800 transition duration-200"
                         title="Sửa ghi chú"
@@ -1563,6 +1805,19 @@ const NoteApp = () => {
             background: #e6f0ff;
             color: #6aa8ff;
           }
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: translateX(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+          .animate-slide-in {
+            animation: slideIn 0.3s ease-in-out forwards;
+          }
         `}</style>
       </div>
     </div>
@@ -1570,3 +1825,4 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
