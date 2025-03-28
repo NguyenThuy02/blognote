@@ -90,7 +90,6 @@ const NoteApp = () => {
   const [searchVisible, setSearchVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
-  // Trạng thái để quản lý các loại ghi chú hiển thị trong "Chọn lọc"
   const [visibleNoteTypes, setVisibleNoteTypes] = useState({
     plain: true,
     rich: true,
@@ -287,13 +286,13 @@ const NoteApp = () => {
         image_url: imageUrl,
         updated_at: new Date().toISOString(),
         note_type: currentNoteType,
-        font_style: currentNoteType === "rich" ? fontStyle : null,
-        font_size: currentNoteType === "rich" ? fontSize : null,
-        font_weight: currentNoteType === "rich" ? fontWeight : null,
-        font_family: currentNoteType === "rich" ? fontFamily : null,
-        text_align: currentNoteType === "rich" ? textAlign : null,
-        text_color: currentNoteType === "rich" ? textColor : null,
-        background_color: currentNoteType === "rich" ? backgroundColor : null,
+        font_style: fontStyle,
+        font_size: fontSize,
+        font_weight: fontWeight,
+        font_family: fontFamily,
+        text_align: textAlign,
+        text_color: textColor,
+        background_color: backgroundColor,
         todos: currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
         spreadsheet_data:
           currentNoteType === "spreadsheet"
@@ -758,7 +757,6 @@ const NoteApp = () => {
     );
   };
 
-  // Hàm xử lý khi nhấn "x" trên tab
   const toggleNoteTypeVisibility = (type) => {
     setVisibleNoteTypes((prev) => ({
       ...prev,
@@ -1355,46 +1353,195 @@ const NoteApp = () => {
             </ul>
           </div>
         ) : currentNoteType === "spreadsheet" ? (
-          <div className="mb-4 overflow-x-auto">
-            <div className="flex gap-2 mb-2">
+          <div className="mb-4 overflow-x-auto bg-white p-4 rounded-lg shadow-md border border-gray-200">
+            {/* Toolbar for Spreadsheet Formatting */}
+            <div className="flex flex-wrap gap-2 mb-4 bg-gray-100 p-3 rounded-lg border border-gray-300">
+              {/* Undo and Redo Buttons */}
               <button
                 onClick={undoSpreadsheet}
                 disabled={historyIndex <= 0}
-                className={`menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg ${
-                  historyIndex <= 0 ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  historyIndex <= 0
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed rounded-xl shadow-md"
+                  : "menu-btn" 
+              }`}
+                title="Quay lại (Ctrl+Z)"
               >
                 <FaUndo /> Quay lại
               </button>
               <button
                 onClick={redoSpreadsheet}
                 disabled={historyIndex >= spreadsheetHistory.length - 1}
-                className={`menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm transition-all duration-200 ${
                   historyIndex >= spreadsheetHistory.length - 1
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed rounded-xl shadow-md"
+                  : "menu-btn" 
+              }`}
+                title="Tiến tới (Ctrl+Y)"
               >
                 <FaRedo /> Tiến tới
               </button>
+
+              {/* Font Family */}
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="border p-2 rounded-lg bg-white shadow-sm hover:bg-gray-50"
+              >
+                <option value="Verdana">Verdana</option>
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+
+              {/* Font Size */}
+              <select
+                value={fontSize}
+                onChange={(e) => setFontSize(e.target.value)}
+                className="border p-2 rounded-lg bg-white shadow-sm hover:bg-gray-50"
+              >
+                <option value="10pt">10pt</option>
+                <option value="12pt">12pt</option>
+                <option value="14pt">14pt</option>
+                <option value="16pt">16pt</option>
+                <option value="18pt">18pt</option>
+              </select>
+
+              {/* Bold and Italic */}
+              <button
+                onClick={() =>
+                  setFontWeight(fontWeight === "bold" ? "normal" : "bold")
+                }
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${ 
+                  fontWeight === "bold"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Đậm"
+              >
+                <FaBold />
+              </button>
+              <button
+                onClick={() =>
+                  setFontStyle(fontStyle === "italic" ? "normal" : "italic")
+                }
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  fontStyle === "italic"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Nghiêng"
+              >
+                <FaItalic />
+              </button>
+
+              {/* Text Alignment */}
+              <button
+                onClick={() => setTextAlign("left")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "left"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn trái"
+              >
+                <FaAlignLeft />
+              </button>
+              <button
+                onClick={() => setTextAlign("center")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "center"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn giữa"
+              >
+                <FaAlignCenter />
+              </button>
+              <button
+                onClick={() => setTextAlign("right")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "right"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn phải"
+              >
+                <FaAlignRight />
+              </button>
+
+              {/* Text and Background Color */}
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1">
+                  <FaFont className="text-gray-600" />
+                  <input
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => setTextColor(e.target.value)}
+                    className="w-8 h-8 border rounded-lg cursor-pointer"
+                    title="Màu chữ"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <FaFill className="text-gray-600" />
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="w-8 h-8 border rounded-lg cursor-pointer"
+                    title="Màu nền"
+                  />
+                </label>
+              </div>
             </div>
-            <table className="border-collapse border border-gray-300">
+
+            {/* Spreadsheet Table */}
+            <table className="border-collapse border border-gray-300 w-full">
+              <thead>
+                <tr>
+                  <th className="border border-gray-300 p-2 bg-gray-100 font-semibold w-12">
+                    #
+                  </th>
+                  {spreadsheetData[0].map((_, colIndex) => (
+                    <th
+                      key={colIndex}
+                      className="border border-gray-300 p-2 bg-gray-100 font-semibold w-24"
+                    >
+                      {String.fromCharCode(65 + colIndex)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {spreadsheetData.map((row, rowIndex) => (
                   <tr key={rowIndex}>
+                    <td className="border border-gray-300 p-2 bg-gray-100 font-semibold text-center">
+                      {rowIndex + 1}
+                    </td>
                     {row.map((cell, colIndex) => (
-                      <td key={colIndex} className="border border-gray-300 p-1">
+                      <td
+                        key={colIndex}
+                        className="border border-gray-300 p-1"
+                        style={{
+                          backgroundColor: backgroundColor,
+                        }}
+                      >
                         <input
                           type="text"
                           value={cell}
                           onChange={(e) =>
-                            updateSpreadsheetCell(
-                              rowIndex,
-                              colIndex,
-                              e.target.value
-                            )
+                            updateSpreadsheetCell(rowIndex, colIndex, e.target.value)
                           }
-                          className="w-full h-full border-none p-1 focus:outline-none"
+                          className="w-full h-full border-none p-2 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded"
+                          style={{
+                            fontFamily: fontFamily,
+                            fontSize: fontSize,
+                            fontWeight: fontWeight,
+                            fontStyle: fontStyle,
+                            textAlign: textAlign,
+                            color: textColor,
+                            backgroundColor: "transparent",
+                          }}
                         />
                       </td>
                     ))}
@@ -1402,6 +1549,39 @@ const NoteApp = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* Add Row/Column Buttons */}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  const newData = [
+                    ...spreadsheetData,
+                    Array(spreadsheetData[0].length).fill(""),
+                  ];
+                  setSpreadsheetData(newData);
+                  const newHistory = spreadsheetHistory.slice(0, historyIndex + 1);
+                  newHistory.push(JSON.parse(JSON.stringify(newData)));
+                  setSpreadsheetHistory(newHistory);
+                  setHistoryIndex(newHistory.length - 1);
+                }}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaPlus /> Thêm hàng
+              </button>
+              <button
+                onClick={() => {
+                  const newData = spreadsheetData.map((row) => [...row, ""]);
+                  setSpreadsheetData(newData);
+                  const newHistory = spreadsheetHistory.slice(0, historyIndex + 1);
+                  newHistory.push(JSON.parse(JSON.stringify(newData)));
+                  setSpreadsheetHistory(newHistory);
+                  setHistoryIndex(newHistory.length - 1);
+                }}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaPlus /> Thêm cột
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -1794,16 +1974,52 @@ const NoteApp = () => {
             opacity: 1;
             transform: translateY(0);
           }
-          .dropdown-item {
-            background: none;
-            border: none;
-            color: #333;
-            font-size: 14px;
-            cursor: pointer;
+        .dropdown-item {
+          background: none;
+          border: none;
+          color: #333;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s ease-in-out;
+          position: relative;
+        }
+
+        .dropdown-item:hover {
+          background: linear-gradient(
+            to right,
+            #e8e1ff,
+            #d6eaff
+          ); /* Gradient từ tím nhạt sang xanh nhạt */
+          color: #6aa8ff; /* Màu chữ khi hover */
+          box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3); /* Bóng đổ với màu xanh nhạt */
+          transform: translateY(-3px) scale(1.02); /* Nâng lên và phóng to nhẹ */
+          animation: bounce 0.4s ease infinite alternate; /* Hiệu ứng nảy nhẹ */
+        }
+
+        /* Hiệu ứng nảy sinh động */
+        @keyframes bounce {
+          0% {
+            transform: translateY(-3px) scale(1.02);
+          }
+          100% {
+            transform: translateY(-5px) scale(1.02);
+          }
+        }
+          @keyframes slideDown {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
           }
           .dropdown-item:hover {
-            background: #e6f0ff;
-            color: #6aa8ff;
+            color: #2563eb;
+          }
+          .animate-slide-in {
+            animation: slideIn 0.3s ease-in-out;
           }
           @keyframes slideIn {
             from {
@@ -1814,9 +2030,6 @@ const NoteApp = () => {
               opacity: 1;
               transform: translateX(0);
             }
-          }
-          .animate-slide-in {
-            animation: slideIn 0.3s ease-in-out forwards;
           }
         `}</style>
       </div>
