@@ -32,18 +32,20 @@ export default function PostApp() {
   const [notification, setNotification] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteTable, setConfirmDeleteTable] = useState(null);
   const [imageError, setImageError] = useState("");
   const [titleError, setTitleError] = useState("");
   const [contentError, setContentError] = useState("");
   const [topicError, setTopicError] = useState("");
   const [tagError, setTagError] = useState("");
-  const [posts, setPosts] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [editingTable, setEditingTable] = useState(null);
   const MAX_IMAGES = 5;
   const router = useRouter();
 
   useEffect(() => {
-    fetchPosts();
+    fetchEntries();
     fetchTopics();
     fetchTags();
   }, []);
@@ -139,46 +141,65 @@ export default function PostApp() {
     }
   };
 
-  const fetchPosts = async () => {
+  const fetchEntries = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: demosData, error: demosError } = await supabase
         .from("demos")
         .select(
           "id, title, content, topics, tags, images, files, videos, created_at"
         )
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (demosError) throw demosError;
 
-      setPosts(
-        data.map((post) => ({
-          ...post,
-          topics: capitalizeFirstLetter(post.topics || ""),
-          tags: post.tags
-            ? typeof post.tags === "string"
-              ? post.tags
-                  .split(",")
-                  .map((tag) => capitalizeFirstLetter(tag.trim()))
-              : Array.isArray(post.tags)
-              ? post.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
-              : []
-            : [],
-          images:
-            post.images && typeof post.images === "string"
-              ? post.images.split(",")
-              : [],
-          files:
-            post.files && typeof post.files === "string"
-              ? post.files.split(",")
-              : [],
-          videos:
-            post.videos && typeof post.videos === "string"
-              ? post.videos.split(",")
-              : [],
-        }))
-      );
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select(
+          "id, title, content, topics, tags, images, files, videos, created_at"
+        )
+        .order("created_at", { ascending: false });
+      if (postsError) throw postsError;
+
+      const demosFormatted = demosData.map((entry) => ({
+        ...entry,
+        table: "demos",
+        topics: capitalizeFirstLetter(entry.topics || ""),
+        tags: entry.tags
+          ? typeof entry.tags === "string"
+            ? entry.tags
+                .split(",")
+                .map((tag) => capitalizeFirstLetter(tag.trim()))
+            : Array.isArray(entry.tags)
+            ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
+            : []
+          : [],
+        images: Array.isArray(entry.images) ? entry.images : [],
+        files: Array.isArray(entry.files) ? entry.files : [],
+        videos: Array.isArray(entry.videos) ? entry.videos : [],
+      }));
+
+      const postsFormatted = postsData.map((entry) => ({
+        ...entry,
+        table: "posts",
+        topics: capitalizeFirstLetter(entry.topics || ""),
+        tags: entry.tags
+          ? typeof entry.tags === "string"
+            ? entry.tags
+                .split(",")
+                .map((tag) => capitalizeFirstLetter(tag.trim()))
+            : Array.isArray(entry.tags)
+            ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
+            : []
+          : [],
+        images: Array.isArray(entry.images) ? entry.images : [],
+        files: Array.isArray(entry.files) ? entry.files : [],
+        videos: Array.isArray(entry.videos) ? entry.videos : [],
+      }));
+
+      setEntries([...demosFormatted, ...postsFormatted]);
     } catch (err) {
+      console.log("Error in fetchEntries:", err);
       setNotification({
-        message: `Không thể tải bản nháp: ${err.message}`,
+        message: `Không thể tải dữ liệu: ${err.message}`,
         type: "error",
       });
     }
@@ -234,12 +255,12 @@ export default function PostApp() {
         content,
         topics: finalTopic,
         tags: Array.isArray(tags) ? tags.join(",") : "",
-        images: uploadedImages.map((image) => image.url).join(","),
-        files: uploadedFiles.map((file) => file.url).join(","),
-        videos: uploadedVideos.map((video) => video.url).join(","),
+        images: uploadedImages,
+        files: uploadedFiles,
+        videos: uploadedVideos,
       };
 
-      if (editingId !== null) {
+      if (editingId !== null && editingTable === "demos") {
         const { data, error } = await supabase
           .from("demos")
           .update(draftData)
@@ -247,7 +268,13 @@ export default function PostApp() {
           .select()
           .single();
         if (error) throw error;
-        setPosts(posts.map((post) => (post.id === editingId ? data : post)));
+        setEntries(
+          entries.map((entry) =>
+            entry.id === editingId && entry.table === "demos"
+              ? { ...data, table: "demos" }
+              : entry
+          )
+        );
         setNotification({
           message: "Bản nháp đã được cập nhật thành công!",
           type: "success",
@@ -259,7 +286,7 @@ export default function PostApp() {
           .select()
           .single();
         if (error) throw error;
-        setPosts([data, ...posts]);
+        setEntries([{ ...data, table: "demos" }, ...entries]);
         setNotification({
           message: "Bản nháp đã được lưu thành công!",
           type: "success",
@@ -267,10 +294,11 @@ export default function PostApp() {
       }
 
       resetForm();
-      await fetchPosts();
+      await fetchEntries();
       await fetchTopics();
       await fetchTags();
     } catch (error) {
+      console.log("Error in handleSaveDraft:", error);
       setNotification({
         message: `Không thể lưu bản nháp. Lỗi: ${error.message}`,
         type: "error",
@@ -290,9 +318,9 @@ export default function PostApp() {
         content,
         topics: finalTopic,
         tags: Array.isArray(tags) ? tags.join(",") : "",
-        images: uploadedImages.map((image) => image.url).join(","),
-        files: uploadedFiles.map((file) => file.url).join(","),
-        videos: uploadedVideos.map((video) => video.url).join(","),
+        images: uploadedImages,
+        files: uploadedFiles,
+        videos: uploadedVideos,
       };
 
       const { data, error } = await supabase
@@ -303,7 +331,7 @@ export default function PostApp() {
 
       if (error) throw error;
 
-      if (editingId !== null) {
+      if (editingId !== null && editingTable === "demos") {
         await supabase.from("demos").delete().eq("id", editingId);
       }
 
@@ -313,11 +341,12 @@ export default function PostApp() {
       });
 
       resetForm();
-      await fetchPosts();
+      await fetchEntries();
       await fetchTopics();
       await fetchTags();
-      router.push("/posts");
+      router.push("/blog/post");
     } catch (error) {
+      console.log("Error in handlePublish:", error);
       setNotification({
         message: `Không thể đăng bài viết. Lỗi: ${error.message}`,
         type: "error",
@@ -325,32 +354,56 @@ export default function PostApp() {
     }
   };
 
-  const handleEditDraft = (post) => {
-    setTitle(post.title || "");
-    setContent(post.content || "");
+  const handleEditDraft = (entry) => {
+    setTitle(entry.title || "");
+    setContent(entry.content || "");
     setTopic(
-      post.topics && topicsList.some((t) => t.value === post.topics)
-        ? post.topics
+      entry.topics && topicsList.some((t) => t.value === entry.topics)
+        ? entry.topics
         : "Khác"
     );
     setCustomTopic(
-      post.topics && !topicsList.some((t) => t.value === post.topics)
-        ? post.topics
+      entry.topics && !topicsList.some((t) => t.value === entry.topics)
+        ? entry.topics
         : ""
     );
     setTags(
-      post.tags
-        ? typeof post.tags === "string"
-          ? post.tags.split(",").map((tag) => capitalizeFirstLetter(tag.trim()))
-          : Array.isArray(post.tags)
-          ? post.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
+      entry.tags
+        ? typeof entry.tags === "string"
+          ? entry.tags
+              .split(",")
+              .map((tag) => capitalizeFirstLetter(tag.trim()))
+          : Array.isArray(entry.tags)
+          ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
           : []
         : []
     );
-    setUploadedImages(post.images.map((url) => ({ url, name: "Image" })) || []);
-    setUploadedFiles(post.files.map((url) => ({ url, name: "File" })) || []);
-    setUploadedVideos(post.videos.map((url) => ({ url, name: "Video" })) || []);
-    setEditingId(post.id);
+    setUploadedImages(
+      Array.isArray(entry.images)
+        ? entry.images.map((img) => ({
+            name: img.name || "Image",
+            url: img.url,
+          }))
+        : []
+    );
+    setUploadedFiles(
+      Array.isArray(entry.files)
+        ? entry.files.map((file) => ({
+            name: file.name || "File",
+            url: file.url,
+          }))
+        : []
+    );
+    setUploadedVideos(
+      Array.isArray(entry.videos)
+        ? entry.videos.map((video) => ({
+            name: video.name || "Video",
+            url: video.url,
+          }))
+        : []
+    );
+    setEditingId(entry.id);
+    setEditingTable(entry.table);
     setImageError("");
     setTitleError("");
     setContentError("");
@@ -378,6 +431,7 @@ export default function PostApp() {
     setTopicError("");
     setTagError("");
     setEditingId(null);
+    setEditingTable(null);
   };
 
   const isValidUrl = (url) => {
@@ -413,12 +467,13 @@ export default function PostApp() {
           );
           if (!response.ok) throw new Error("Upload failed");
           const data = await response.json();
-          return { url: data.secure_url, name: file.name };
+          return { name: file.name, url: data.secure_url };
         })
       );
       setUploadedImages((prev) => [...prev, ...uploadedUrls]);
       setImageError("");
     } catch (err) {
+      console.log("Error in handleImageUpload:", err);
       setImageError(err.message || "Không thể tải lên hình ảnh.");
     } finally {
       setIsUploadingImage(false);
@@ -457,11 +512,12 @@ export default function PostApp() {
           );
           if (!response.ok) throw new Error("Upload failed");
           const data = await response.json();
-          return { url: data.secure_url, name: file.name };
+          return { name: file.name, url: data.secure_url };
         })
       );
       setUploadedFiles((prevFiles) => [...prevFiles, ...uploadedFileUrls]);
     } catch (err) {
+      console.log("Error in handleFileUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên tệp.",
         type: "error",
@@ -497,11 +553,12 @@ export default function PostApp() {
           );
           if (!response.ok) throw new Error("Upload video failed");
           const data = await response.json();
-          return { url: data.secure_url, name: file.name };
+          return { name: file.name, url: data.secure_url };
         })
       );
       setUploadedVideos((prevVideos) => [...prevVideos, ...uploadedVideoUrls]);
     } catch (err) {
+      console.log("Error in handleVideoUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên video.",
         type: "error",
@@ -534,7 +591,7 @@ export default function PostApp() {
               onClose={() => setNotification(null)}
             />
           )}
-          {showConfirm && (
+          {showConfirm && !confirmDeleteId && (
             <Confirm
               message="Bạn có chắc chắn muốn hủy không?"
               onConfirm={() => {
@@ -550,32 +607,44 @@ export default function PostApp() {
           )}
           {confirmDeleteId && showConfirm && (
             <Confirm
-              message="Bạn có chắc chắn muốn xóa bản nháp này không?"
+              message={`Bạn có chắc chắn muốn xóa ${
+                confirmDeleteTable === "demos" ? "bản nháp" : "bài đăng"
+              } "${
+                entries.find((e) => e.id === confirmDeleteId)?.title ||
+                "Không có tiêu đề"
+              }" không?`}
               onConfirm={async () => {
                 try {
                   const { error } = await supabase
-                    .from("demos")
+                    .from(confirmDeleteTable)
                     .delete()
                     .eq("id", confirmDeleteId);
                   if (error) throw error;
-                  setPosts(posts.filter((post) => post.id !== confirmDeleteId));
+                  setEntries(
+                    entries.filter((entry) => entry.id !== confirmDeleteId)
+                  );
                   setNotification({
-                    message: "Bản nháp đã được xóa thành công!",
+                    message: `${
+                      confirmDeleteTable === "demos" ? "Bản nháp" : "Bài đăng"
+                    } đã được xóa thành công!`,
                     type: "success",
                   });
                 } catch (err) {
+                  console.log("Error in delete:", err);
                   setNotification({
-                    message: `Không thể xóa bản nháp: ${err.message}`,
+                    message: `Không thể xóa: ${err.message}`,
                     type: "error",
                   });
                 } finally {
                   setConfirmDeleteId(null);
+                  setConfirmDeleteTable(null);
                   setShowConfirm(false);
                 }
               }}
               onCancel={() => {
                 setShowConfirm(false);
                 setConfirmDeleteId(null);
+                setConfirmDeleteTable(null);
               }}
             />
           )}
@@ -593,8 +662,8 @@ export default function PostApp() {
                   placeholder="Nhập tiêu đề bài viết"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full border-2 border-transparent p-4 rounded-xl mb-1 text-gray-700 transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-                  style={{ outline: "none" }}
+                  className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
+                  style={{ outline: "none", border: "none" }}
                 />
                 {titleError && (
                   <p className="text-red-600 text-sm mb-2">{titleError}</p>
@@ -606,8 +675,8 @@ export default function PostApp() {
                   <select
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
-                    className="w-full border-2 border-transparent p-4 rounded-xl mb-1 text-gray-700 transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-                    style={{ outline: "none" }}
+                    className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
+                    style={{ outline: "none", border: "none" }}
                   >
                     <option value="" disabled>
                       Chọn chủ đề
@@ -626,8 +695,8 @@ export default function PostApp() {
                       onChange={(e) =>
                         setCustomTopic(capitalizeFirstLetter(e.target.value))
                       }
-                      className="w-full border-2 border-transparent p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-                      style={{ outline: "none" }}
+                      className="w-full p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
+                      style={{ outline: "none", border: "none" }}
                     />
                   )}
                   {topicError && (
@@ -644,8 +713,8 @@ export default function PostApp() {
                   placeholder="Nhập nội dung bài viết"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  className="w-full h-56 border-2 border-transparent p-4 rounded-xl text-gray-700 transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
-                  style={{ outline: "none" }}
+                  className="w-full h-56 p-4 rounded-xl text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(192,132,252,1)] focus:ring-2 focus:ring-purple-300"
+                  style={{ outline: "none", border: "none" }}
                 />
                 {contentError && (
                   <p className="text-red-600 text-sm mb-2">{contentError}</p>
@@ -660,8 +729,8 @@ export default function PostApp() {
                     setSelectedTag(value);
                     if (value !== "Khác") handleAddTag(value);
                   }}
-                  className="w-full border-2 border-transparent p-4 rounded-xl mb-1 text-gray-700 transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-                  style={{ outline: "none" }}
+                  className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-purple-300"
+                  style={{ outline: "none", border: "none" }}
                 >
                   <option value="" disabled>
                     Chọn tag
@@ -685,8 +754,8 @@ export default function PostApp() {
                         handleAddTag("Khác");
                       }
                     }}
-                    className="w-full border-2 border-transparent p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-                    style={{ outline: "none" }}
+                    className="w-full p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-purple-300"
+                    style={{ outline: "none", border: "none" }}
                   />
                 )}
                 {tags.length > 0 && (
@@ -699,7 +768,7 @@ export default function PostApp() {
                         {tag}
                         <button
                           onClick={() => handleRemoveTag(tag)}
-                          className="ml-2 text-red-500 hover:text-red-700"
+                          className="ml-2 text-red-400 hover:text-red-500"
                         >
                           <FaTimes size={12} />
                         </button>
@@ -761,50 +830,54 @@ export default function PostApp() {
             </div>
           )}
 
-          {uploadedImages.length > 0 && !isUploadingImage && (
-            <div className="mt-4">
-              <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
-              <ul className="flex flex-wrap">
-                {uploadedImages.map((image, index) =>
-                  isValidUrl(image.url) ? (
-                    <li
-                      key={index}
-                      className="flex flex-col items-center mb-4 mr-4"
-                    >
-                      <div className="relative">
-                        <Image
-                          src={image.url}
-                          alt={`Uploaded preview ${index}`}
-                          className="w-20 h-20 object-cover rounded-md mb-2"
-                          width={80}
-                          height={80}
-                        />
-                        <button
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
-                          title="Xóa hình ảnh"
-                        >
-                          <FaTimes />
-                        </button>
-                      </div>
-                      <span className="text-blue-500 underline">
-                        {image.name}
-                      </span>
-                    </li>
-                  ) : (
-                    <li
-                      key={index}
-                      className="flex flex-col items-center mb-4 mr-4"
-                    >
-                      <span className="text-red-500">
-                        URL hình ảnh không hợp lệ
-                      </span>
-                    </li>
-                  )
-                )}
-              </ul>
-            </div>
-          )}
+          {Array.isArray(uploadedImages) &&
+            uploadedImages.length > 0 &&
+            !isUploadingImage && (
+              <div className="mt-4">
+                <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
+                <ul className="flex flex-wrap">
+                  {uploadedImages.map((image) =>
+                    isValidUrl(image.url) ? (
+                      <li
+                        key={image.url} // Sử dụng url làm key duy nhất
+                        className="flex flex-col items-center mb-4 mr-4"
+                      >
+                        <div className="relative">
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded preview ${image.name}`}
+                            className="w-20 h-20 object-cover rounded-md mb-2"
+                            width={80}
+                            height={80}
+                          />
+                          <button
+                            onClick={() =>
+                              handleRemoveImage(uploadedImages.indexOf(image))
+                            }
+                            className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
+                            title="Xóa hình ảnh"
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
+                        <span className="text-blue-500 underline">
+                          {image.name}
+                        </span>
+                      </li>
+                    ) : (
+                      <li
+                        key={image.url} // Sử dụng url làm key duy nhất
+                        className="flex flex-col items-center mb-4 mr-4"
+                      >
+                        <span className="text-red-500">
+                          URL hình ảnh không hợp lệ
+                        </span>
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            )}
 
           {isUploadingFile && (
             <div className="mt-4">
@@ -816,27 +889,38 @@ export default function PostApp() {
             </div>
           )}
 
-          {uploadedFiles.length > 0 && !isUploadingFile && (
-            <div className="mt-4">
-              <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
-              <ul className="mr-5">
-                {uploadedFiles.map((file, index) => (
-                  <li key={index} className="mb-1">
-                    <div className="flex items-center">
-                      <span className="text-blue-500">{file.name}</span>
-                      <button
-                        onClick={() => handleRemoveFile(index)}
-                        className="p-1 text-red-400 hover:text-red-500"
-                        title="Xóa tệp"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {Array.isArray(uploadedFiles) &&
+            uploadedFiles.length > 0 &&
+            !isUploadingFile && (
+              <div className="mt-4">
+                <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
+                <ul className="mr-5">
+                  {uploadedFiles.map((file) => (
+                    <li key={file.url} className="mb-1">
+                      <div className="flex items-center">
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 underline"
+                        >
+                          {file.name}
+                        </a>
+                        <button
+                          onClick={() =>
+                            handleRemoveFile(uploadedFiles.indexOf(file))
+                          }
+                          className="p-1 text-red-400 hover:text-red-500"
+                          title="Xóa tệp"
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
           {isUploadingVideo && (
             <div className="mt-4">
@@ -848,34 +932,38 @@ export default function PostApp() {
             </div>
           )}
 
-          {uploadedVideos.length > 0 && !isUploadingVideo && (
-            <div className="mt-4">
-              <h3 className="font-bold mb-3">Video đã tải lên:</h3>
-              <ul className="mr-5">
-                {uploadedVideos.map((video, index) => (
-                  <li key={index} className="mb-4">
-                    <div className="flex items-center">
-                      <video
-                        src={video.url}
-                        controls
-                        className="w-40 h-24 object-cover rounded-md mr-2"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-blue-500">{video.name}</span>
-                        <button
-                          onClick={() => handleRemoveVideo(index)}
-                          className="p-1 text-red-400 hover:text-red-500"
-                          title="Xóa video"
-                        >
-                          <FaTimes />
-                        </button>
+          {Array.isArray(uploadedVideos) &&
+            uploadedVideos.length > 0 &&
+            !isUploadingVideo && (
+              <div className="mt-4">
+                <h3 className="font-bold mb-3">Video đã tải lên:</h3>
+                <ul className="mr-5">
+                  {uploadedVideos.map((video) => (
+                    <li key={video.url} className="mb-4">
+                      <div className="flex items-center">
+                        <video
+                          src={video.url}
+                          controls
+                          className="w-40 h-24 object-cover rounded-md mr-2"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-blue-500">{video.name}</span>
+                          <button
+                            onClick={() =>
+                              handleRemoveVideo(uploadedVideos.indexOf(video))
+                            }
+                            className="p-1 text-red-400 hover:text-red-500"
+                            title="Xóa video"
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
           <div className="flex justify-center mt-4 space-x-4">
             <button
@@ -888,7 +976,9 @@ export default function PostApp() {
               onClick={handlePublish}
               className="bg-green-400 hover:bg-green-500 text-black py-2 px-4 rounded-md transition duration-200 w-full max-w-md"
             >
-              {editingId !== null ? "Đăng từ bản nháp" : "Đăng ngay"}
+              {editingId !== null && editingTable === "demos"
+                ? "Đăng từ bản nháp"
+                : "Đăng ngay"}
             </button>
             <button
               onClick={() => setShowConfirm(true)}
@@ -904,68 +994,100 @@ export default function PostApp() {
         <div className="p-4 border border-gray-300 rounded-lg bg-white h-[calc(0.75*(100vh-5px))] flex flex-col">
           <div className="sticky top-0 bg-white z-0 pb-2 border-b border-gray-200">
             <h2 className="font-bold text-2xl text-gray-700">
-              <DiffOutlined className="inline mr-2" /> Bản nháp đã lưu
+              <DiffOutlined className="inline mr-2" /> Bản nháp & Bài đăng
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto mt-1 scrollbar-hidden">
             <ul>
-              {posts.length > 0 ? (
-                posts.map((post) => (
+              {entries.length > 0 ? (
+                entries.map((entry) => (
                   <li
-                    key={post.id}
+                    key={`${entry.table}-${entry.id}`} // Key duy nhất bằng table và id
                     className="border-2 border-gray-200 p-4 rounded-xl mb-2 flex flex-col transition duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-start">
                       <div className="flex-shrink-0 mr-1">
-                        {post.images &&
-                          post.images.length > 0 &&
-                          isValidUrl(post.images[0]) && (
-                            <Image
-                              src={post.images[0]}
-                              alt={`Draft ${post.id} image`}
-                              width={60}
-                              height={60}
-                              className="w-16 h-16 object-cover rounded-md"
-                            />
-                          )}
+                        {Array.isArray(entry.images) &&
+                        entry.images.length > 0 &&
+                        isValidUrl(entry.images[0].url) ? (
+                          <Image
+                            src={entry.images[0].url}
+                            alt={`Entry ${entry.id} image`}
+                            width={60}
+                            height={60}
+                            className="w-16 h-16 object-cover rounded-md"
+                          />
+                        ) : (
+                          <span className="text-gray-500">
+                            Không có hình ảnh
+                          </span>
+                        )}
                       </div>
                       <div className="flex-grow ml-3">
                         <strong className="text-yellow-600 text-lg">
-                          {post.title || "Không có tiêu đề"}
+                          {entry.title || "Không có tiêu đề"}
                         </strong>
                         <p className="text-gray-700 text-sm">
-                          {post.content
-                            ? post.content.slice(0, 50) + "..."
+                          {entry.content
+                            ? entry.content.slice(0, 50) + "..."
                             : "Không có nội dung"}
                         </p>
                         <p className="text-gray-700 text-sm">
-                          Chủ đề: {post.topics || "Chưa chọn"}
+                          Chủ đề: {entry.topics || "Chưa chọn"}
                         </p>
-                        {Array.isArray(post.tags) && post.tags.length > 0 && (
+                        {Array.isArray(entry.tags) && entry.tags.length > 0 && (
                           <p className="text-gray-700 text-sm">
-                            Tags: {post.tags.join(", ")}
+                            Tags: {entry.tags.join(", ")}
                           </p>
                         )}
+                        <p className="text-gray-700 text-sm">
+                          Trạng thái:{" "}
+                          {entry.table === "demos" ? "Bản nháp" : "Đã đăng"}
+                        </p>
+                        {Array.isArray(entry.images) &&
+                          entry.images.length > 0 && (
+                            <p className="text-gray-700 text-sm">
+                              Hình ảnh:{" "}
+                              {entry.images.map((img) => img.name).join(", ")}
+                            </p>
+                          )}
+                        {Array.isArray(entry.files) &&
+                          entry.files.length > 0 && (
+                            <p className="text-gray-700 text-sm">
+                              Tệp:{" "}
+                              {entry.files.map((file) => file.name).join(", ")}
+                            </p>
+                          )}
+                        {Array.isArray(entry.videos) &&
+                          entry.videos.length > 0 && (
+                            <p className="text-gray-700 text-sm">
+                              Video:{" "}
+                              {entry.videos
+                                .map((video) => video.name)
+                                .join(", ")}
+                            </p>
+                          )}
                         <small className="text-gray-700">
-                          {new Date(post.created_at).toLocaleString()}
+                          {new Date(entry.created_at).toLocaleString()}
                         </small>
                       </div>
                     </div>
                     <div className="flex justify-end space-x-3 mt-2">
                       <button
-                        onClick={() => handleEditDraft(post)}
+                        onClick={() => handleEditDraft(entry)}
                         className="text-green-500 text-sm hover:text-green-600 transition duration-200 underline"
-                        title="Sửa bản nháp"
+                        title="Sửa"
                       >
                         Chỉnh sửa
                       </button>
                       <button
                         onClick={() => {
-                          setConfirmDeleteId(post.id);
+                          setConfirmDeleteId(entry.id);
+                          setConfirmDeleteTable(entry.table);
                           setShowConfirm(true);
                         }}
                         className="text-red-400 text-sm hover:text-red-500 transition duration-200 underline"
-                        title="Xóa bản nháp"
+                        title="Xóa"
                       >
                         Xóa
                       </button>
@@ -973,13 +1095,15 @@ export default function PostApp() {
                   </li>
                 ))
               ) : (
-                <p className="text-gray-700">Không tìm thấy bản nháp nào.</p>
+                <p className="text-gray-700">Không tìm thấy dữ liệu nào.</p>
               )}
             </ul>
           </div>
         </div>
-
         <style jsx>{`
+          .border-gradient-to-r {
+            border-image: linear-gradient(to right, #93c5fd, #c4b5fd) 1;
+          }
           .scrollbar-hidden::-webkit-scrollbar {
             display: none;
           }
