@@ -29,6 +29,10 @@ import {
   FaRedo,
   FaBell,
   FaBellSlash,
+  FaPlay,
+  FaPause,
+  FaLanguage,
+  FaThumbtack,
 } from "react-icons/fa";
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
@@ -47,12 +51,14 @@ const NoteApp = () => {
   const [uploadedImages, setUploadedImages] = useState([]);
   const [noteTypeMenu, setNoteTypeMenu] = useState(false);
   const [currentNoteType, setCurrentNoteType] = useState("rich");
-  const [category, setCategory] = useState("Personal"); // Thể loại mặc định là Personal
-  const [categoryMenu, setCategoryMenu] = useState(false); // Trạng thái menu thể loại
+  const [category, setCategory] = useState("Personal");
+  const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
+  const audioRef = useRef(null);
+  const importFileInputRef = useRef(null);
 
   const [fontFamily, setFontFamily] = useState("Verdana");
   const [fontSize, setFontSize] = useState("14pt");
@@ -72,8 +78,94 @@ const NoteApp = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [reminderTime, setReminderTime] = useState("");
 
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [selectedAudio, setSelectedAudio] = useState("");
+  const [audioMenuVisible, setAudioMenuVisible] = useState(false);
+  const [translateTo, setTranslateTo] = useState("");
+  const [translateMenuVisible, setTranslateMenuVisible] = useState(false);
+  const [extraMenuVisible, setExtraMenuVisible] = useState(false);
+
+  const [filterType, setFilterType] = useState("all");
+  const [filterMenuVisible, setFilterMenuVisible] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
+
+  const [visibleNoteTypes, setVisibleNoteTypes] = useState({
+    plain: true,
+    rich: true,
+    whiteboard: true,
+    spreadsheet: true,
+  });
+
+  const noteTypeMenuRef = useRef(null);
+  const categoryMenuRef = useRef(null);
+  const extraMenuRef = useRef(null);
+  const audioMenuRef = useRef(null);
+  const translateMenuRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const filterMenuRef = useRef(null);
+  const sortMenuRef = useRef(null);
+
   useEffect(() => {
     fetchNotes();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        noteTypeMenuRef.current &&
+        !noteTypeMenuRef.current.contains(event.target)
+      ) {
+        setNoteTypeMenu(false);
+      }
+      if (
+        categoryMenuRef.current &&
+        !categoryMenuRef.current.contains(event.target)
+      ) {
+        setCategoryMenu(false);
+      }
+      if (
+        extraMenuRef.current &&
+        !extraMenuRef.current.contains(event.target)
+      ) {
+        setExtraMenuVisible(false);
+      }
+      if (
+        audioMenuRef.current &&
+        !audioMenuRef.current.contains(event.target)
+      ) {
+        setAudioMenuVisible(false);
+      }
+      if (
+        translateMenuRef.current &&
+        !translateMenuRef.current.contains(event.target)
+      ) {
+        setTranslateMenuVisible(false);
+      }
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+      if (
+        filterMenuRef.current &&
+        !filterMenuRef.current.contains(event.target)
+      ) {
+        setFilterMenuVisible(false);
+      }
+      if (
+        sortMenuRef.current &&
+        !sortMenuRef.current.contains(event.target)
+      ) {
+        setSortMenuVisible(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   const fetchNotes = async () => {
@@ -125,15 +217,12 @@ const NoteApp = () => {
             ...note,
             todos: parsedTodos,
             spreadsheet_data: parsedSpreadsheetData,
+            isPinned: false,
           };
         }) || []
       );
     } catch (err) {
-      console.error("Error fetching notes:", err, {
-        message: err.message,
-        code: err.code,
-        details: err.details,
-      });
+      console.error("Error fetching notes:", err);
       setError(
         "Không thể tải ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -163,7 +252,6 @@ const NoteApp = () => {
           ? uploadedImages[uploadedImages.length - 1]
           : null;
 
-      // Xác định classification dựa trên note_type
       let classification;
       switch (currentNoteType) {
         case "plain":
@@ -179,12 +267,11 @@ const NoteApp = () => {
           classification = "spreadsheet";
           break;
         default:
-          classification = "Abundant"; // Mặc định nếu không khớp
+          classification = "Abundant";
       }
 
-      // Ánh xạ category sang category_id (giả sử có bảng categories trong Supabase)
       const categoryMap = {
-        Personal: 1, // Giả sử ID trong bảng categories
+        Personal: 1,
         Study: 2,
         Entertainment: 3,
         Upload: 4,
@@ -199,23 +286,21 @@ const NoteApp = () => {
         image_url: imageUrl,
         updated_at: new Date().toISOString(),
         note_type: currentNoteType,
-        font_style: currentNoteType === "rich" ? fontStyle : null,
-        font_size: currentNoteType === "rich" ? fontSize : null,
-        font_weight: currentNoteType === "rich" ? fontWeight : null,
-        font_family: currentNoteType === "rich" ? fontFamily : null,
-        text_align: currentNoteType === "rich" ? textAlign : null,
-        text_color: currentNoteType === "rich" ? textColor : null,
-        background_color: currentNoteType === "rich" ? backgroundColor : null,
+        font_style: fontStyle,
+        font_size: fontSize,
+        font_weight: fontWeight,
+        font_family: fontFamily,
+        text_align: textAlign,
+        text_color: textColor,
+        background_color: backgroundColor,
         todos: currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
         spreadsheet_data:
           currentNoteType === "spreadsheet"
             ? JSON.stringify(spreadsheetData)
             : null,
         classification: classification,
-        category_id: categoryMap[category] || 1, // Mặc định là Personal (ID = 1) nếu không khớp
+        category_id: categoryMap[category] || 1,
       };
-
-      console.log("Saving note with data:", noteData);
 
       if (editingId !== null) {
         const { data, error } = await supabase2
@@ -237,18 +322,13 @@ const NoteApp = () => {
           .select()
           .single();
         if (error) throw error;
-        setNotes([data, ...notes]);
+        setNotes([{ ...data, isPinned: false }, ...notes]);
       }
 
       resetForm();
       await fetchNotes();
     } catch (err) {
-      console.error("Error saving note:", err, {
-        message: err.message,
-        code: err.code,
-        details: err.details,
-        hint: err.hint,
-      });
+      console.error("Error saving note:", err);
       setError(
         "Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -266,10 +346,7 @@ const NoteApp = () => {
       setNotes(notes.filter((note) => note.id !== noteId));
       setError("");
     } catch (err) {
-      console.error("Error deleting note:", err, {
-        message: err.message,
-        code: err.code,
-      });
+      console.error("Error deleting note:", err);
       setError(
         "Không thể xóa ghi chú: " + (err.message || "Lỗi không xác định")
       );
@@ -309,7 +386,6 @@ const NoteApp = () => {
     setHistoryIndex(0);
     setImageUploadVisible(note.note_type !== "plain");
 
-    // Ánh xạ ngược category_id sang category name
     const reverseCategoryMap = {
       1: "Personal",
       2: "Study",
@@ -344,9 +420,13 @@ const NoteApp = () => {
     setSpreadsheetHistory([]);
     setHistoryIndex(-1);
     setReminderTime("");
-    setCategory("Personal"); // Reset về Personal
+    setCategory("Personal");
     setError("");
     setShowEmojiPicker(false);
+    setIsAudioPlaying(false);
+    setSelectedAudio("");
+    setTranslateTo("");
+    setExtraMenuVisible(false);
   };
 
   const handleExportNotes = () => {
@@ -382,6 +462,7 @@ const NoteApp = () => {
     a.href = link;
     a.download = "ghi-chu.txt";
     a.click();
+    setExtraMenuVisible(false);
   };
 
   const handleImageUpload = async (e) => {
@@ -437,7 +518,7 @@ const NoteApp = () => {
             }
             setTitle(file.name.replace(".pdf", ""));
             setContent(text.trim());
-            setCategory("Upload"); // Gán mặc định là Upload khi nhập file
+            setCategory("Upload");
             setError("");
           } catch (err) {
             throw new Error("Không thể đọc nội dung PDF: " + err.message);
@@ -456,11 +537,12 @@ const NoteApp = () => {
         const result = await mammoth.extractRawText({ arrayBuffer });
         setTitle(file.name.replace(".docx", ""));
         setContent(result.value.trim());
-        setCategory("Upload"); // Gán mặc định là Upload khi nhập file
+        setCategory("Upload");
         setError("");
       } else {
         setError("Chỉ hỗ trợ tệp PDF hoặc Word (.docx)");
       }
+      setExtraMenuVisible(false);
     } catch (err) {
       console.error("Error importing file:", err);
       setError(err.message || "Không thể nhập tệp. Vui lòng thử lại.");
@@ -503,6 +585,7 @@ const NoteApp = () => {
         .then(() => alert("Đã sao chép ghi chú vào clipboard!"))
         .catch((err) => setError("Không thể sao chép ghi chú."));
     }
+    setExtraMenuVisible(false);
   };
 
   const addEmoji = (emoji) => {
@@ -512,6 +595,10 @@ const NoteApp = () => {
 
   const handleImageButtonClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleImportButtonClick = () => {
+    importFileInputRef.current?.click();
   };
 
   const handleNoteTypeChange = (type) => {
@@ -594,129 +681,141 @@ const NoteApp = () => {
     }
   };
 
+  const toggleAudio = () => {
+    if (isAudioPlaying) {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    } else {
+      if (selectedAudio) {
+        audioRef.current.src = selectedAudio;
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsAudioPlaying(true);
+            setError("");
+          })
+          .catch((err) => {
+            console.error("Error playing audio:", err);
+            setError(
+              "Không thể phát âm thanh từ Google Drive. URL có thể không hỗ trợ phát trực tiếp."
+            );
+          });
+      } else {
+        setError("Vui lòng chọn một âm thanh trước khi phát.");
+      }
+    }
+  };
+
+  const handleAudioSelect = (audioUrl) => {
+    setSelectedAudio(audioUrl);
+    setAudioMenuVisible(false);
+    if (isAudioPlaying) {
+      audioRef.current.src = audioUrl;
+      audioRef.current
+        .play()
+        .then(() => setError(""))
+        .catch((err) =>
+          setError(
+            "Không thể phát âm thanh từ Google Drive. URL có thể không hỗ trợ phát trực tiếp."
+          )
+        );
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!content.trim()) {
+      setError("Vui lòng nhập nội dung để dịch.");
+      return;
+    }
+    if (!translateTo) {
+      setError("Vui lòng chọn ngôn ngữ để dịch.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${translateTo}&dt=t&q=${encodeURIComponent(
+          content
+        )}`
+      );
+      const data = await response.json();
+      const translatedText = data[0][0][0];
+      setContent(translatedText);
+      setError("");
+      setExtraMenuVisible(false);
+    } catch (err) {
+      console.error("Error translating text:", err);
+      setError("Không thể dịch nội dung. Vui lòng thử lại.");
+    }
+  };
+
+  const handlePinNote = (noteId) => {
+    setNotes(
+      notes.map((note) =>
+        note.id === noteId ? { ...note, isPinned: !note.isPinned } : note
+      )
+    );
+  };
+
+  const toggleNoteTypeVisibility = (type) => {
+    setVisibleNoteTypes((prev) => ({
+      ...prev,
+      [type]: !prev[type],
+    }));
+  };
+
   const sortedNotes = [...notes]
     .filter(
       (note) =>
-        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (note.content &&
-          note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        (filterType === "all" || note.note_type === filterType || filterType === "selective") &&
+        (filterType !== "selective" || visibleNoteTypes[note.note_type]) &&
+        (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (note.content &&
+            note.content.toLowerCase().includes(searchQuery.toLowerCase())))
     )
-    .sort((a, b) =>
-      sortBy === "title"
+    .sort((a, b) => {
+      if (filterType === "selective") {
+        const order = ["plain", "rich", "whiteboard", "spreadsheet"];
+        const aIndex = order.indexOf(a.note_type);
+        const bIndex = order.indexOf(b.note_type);
+        if (aIndex !== bIndex) return aIndex - bIndex;
+      }
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return sortBy === "title"
         ? a.title.localeCompare(b.title)
-        : new Date(b.updated_at) - new Date(a.updated_at)
-    );
+        : new Date(b.updated_at) - new Date(a.updated_at);
+    });
 
   const emojiList = [
-    ...new Set([
-      "😀",
-      "😃",
-      "😄",
-      "😊",
-      "😍",
-      "🥰",
-      "😘",
-      "😜",
-      "😎",
-      "🤓",
-      "😇",
-      "🥳",
-      "😂",
-      "🤗",
-      "😢",
-      "😭",
-      "😡",
-      "😤",
-      "😱",
-      "😳",
-      "🤔",
-      "🙄",
-      "😴",
-      "🤤",
-      "👍",
-      "👎",
-      "👏",
-      "🙌",
-      "✋",
-      "👊",
-      "✌️",
-      "🤝",
-      "🙏",
-      "💪",
-      "👀",
-      "👉",
-      "❤️",
-      "💕",
-      "💖",
-      "💙",
-      "💚",
-      "💛",
-      "💜",
-      "🖤",
-      "💔",
-      "💘",
-      "✨",
-      "⭐",
-      "🌟",
-      "🔥",
-      "💡",
-      "🎉",
-      "🎈",
-      "🎁",
-      "🎂",
-      "🍰",
-      "🍕",
-      "🍔",
-      "🍟",
-      "🍦",
-      "☕",
-      "🍵",
-      "🍺",
-      "🍷",
-      "🥂",
-      "🍹",
-      "🌈",
-      "☀️",
-      "🌙",
-      "☁️",
-      "⛄",
-      "⚡",
-      "🌊",
-      "🌸",
-      "🌺",
-      "🌼",
-      "🍁",
-      "🍂",
-      "🍃",
-      "📌",
-      "✅",
-      "❌",
-      "❓",
-      "❗",
-      "🚀",
-      "✈️",
-      "🚗",
-      "🚢",
-      "🏠",
-      "🏡",
-      "🏝️",
-      "⛰️",
-      "🎵",
-      "🎶",
-      "🎤",
-      "🎧",
-      "📱",
-      "💻",
-      "📷",
-      "📸",
-      "🎥",
-      "📺",
-      "⏰",
-      "⌚",
-      "🔧",
-      "⚙️",
-      "💰",
-    ]),
+    "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓",
+    "😇", "🥳", "😂", "🤗", "😢", "😭", "😡", "😤", "😱", "😳",
+    "🤔", "🙄", "😴", "🤤", "👍", "👎", "👏", "🙌", "✋", "👊",
+    "✌️", "🤝", "🙏", "💪", "👀", "👉", "❤️", "💕", "💖", "💙",
+    "💚", "💛", "💜", "🖤", "💔", "💘", "✨", "⭐", "🌟", "🔥",
+    "💡", "🎉", "🎈", "🎁", "🎂", "🍰", "🍕", "🍔", "🍟", "🍦",
+    "☕", "🍵", "🍺", "🍷", "🥂", "🍹", "🌈", "☀️", "🌙", "☁️",
+    "⛄", "⚡", "🌊", "🌸", "🌺", "🌼", "🍁", "🍂", "🍃", "📌",
+    "✅", "❌", "❓", "❗", "🚀", "✈️", "🚗", "🚢", "🏠", "🏡",
+    "🏝️", "⛰️", "🎵", "🎶", "🎤", "🎧", "📱", "💻", "📷", "📸",
+    "🎥", "📺", "⏰", "⌚", "🔧", "⚙️", "💰",
+  ];
+
+  const audioOptions = [
+    { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+    { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+    { name: "Câu Chuyện Nếu Như", url: "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID" },
+    { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
+    { name: "Âm thanh của nỗi nhớ anh", url: "https://drive.google.com/uc?export=download&id=1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB" },
+  ];
+
+  const languageOptions = [
+    { code: "en", name: "English" },
+    { code: "es", name: "Spanish" },
+    { code: "fr", name: "French" },
+    { code: "de", name: "German" },
+    { code: "vi", name: "Vietnamese" },
   ];
 
   const getSelectionInfo = () => {
@@ -803,7 +902,7 @@ const NoteApp = () => {
   return (
     <div className="text-gray-700">
       <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           BlogNote - Ghi chú
         </h1>
         <input
@@ -815,35 +914,35 @@ const NoteApp = () => {
         />
 
         <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
-          <div className="relative">
+          <div className="relative" ref={noteTypeMenuRef}>
             <button
               onClick={() => setNoteTypeMenu(!noteTypeMenu)}
-              className="btn-gradient"
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
             >
               <FaBars /> <span>Tạo Ghi Chú</span>
             </button>
             {noteTypeMenu && (
-              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("plain")}
                 >
                   📝 Ghi chú văn bản thuần
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("rich")}
                 >
                   🖋 Ghi chú văn bản phong phú
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("whiteboard")}
                 >
                   🎨 Ghi chú danh sách công việc
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleNoteTypeChange("spreadsheet")}
                 >
                   📊 Ghi chú bảng tính
@@ -859,7 +958,7 @@ const NoteApp = () => {
                 <div className="relative">
                   <button
                     onClick={handleImageButtonClick}
-                    className="btn-gradient"
+                    className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
                   >
                     <FaPlus /> <span>Chèn ảnh</span>
                   </button>
@@ -872,20 +971,20 @@ const NoteApp = () => {
                     className="hidden"
                   />
                 </div>
-                <div className="relative">
+                <div className="relative" ref={emojiPickerRef}>
                   <button
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="btn-gradient"
+                    className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
                   >
-                    <FaSmile /> <span>icon</span>
+                    <FaSmile /> <span>Icon</span>
                   </button>
                   {showEmojiPicker && (
-                    <div className="emoji-picker absolute z-10 bg-white border rounded-lg p-2 shadow-lg w-64 max-h-48 overflow-y-auto">
+                    <div className="absolute z-10 bg-white border rounded-lg p-2 shadow-xl w-64 max-h-48 overflow-y-auto mt-2 transition-all duration-200 ease-in-out">
                       {emojiList.map((emoji) => (
                         <button
                           key={emoji}
                           onClick={() => addEmoji(emoji)}
-                          className="p-2 hover:bg-gray-100 text-2xl"
+                          className="p-2 hover:bg-gray-100 text-2xl transition-all duration-200"
                         >
                           {emoji}
                         </button>
@@ -896,62 +995,147 @@ const NoteApp = () => {
               </>
             )}
 
-          <label className="btn-gradient cursor-pointer">
-            <FaFileImport /> <span>Nhập Word/PDF</span>
-            <input
-              type="file"
-              accept=".docx,application/pdf"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-          </label>
-
-          <button onClick={handleShareNote} className="btn-gradient">
-            <FaShareAlt /> <span>Chia sẻ</span>
-          </button>
-
-          <button
-            onClick={handleExportNotes}
-            className="btn-gradient text-green-600"
-          >
-            <FaFileExport /> <span>Xuất File</span>
-          </button>
-
-          <div className="relative">
+          <div className="relative" ref={categoryMenuRef}>
             <button
               onClick={() => setCategoryMenu(!categoryMenu)}
-              className="btn-gradient"
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
             >
               <FaBars /> <span>Thể loại: {category}</span>
             </button>
             {categoryMenu && (
-              <div className="absolute left-0 mt-2 bg-white border border-light-blue-300 rounded-lg shadow-lg w-48 z-10">
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Personal")}
                 >
                   👤 Personal
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Study")}
                 >
                   📚 Study
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Entertainment")}
                 >
                   🎬 Entertainment
                 </button>
                 <button
-                  className="dropdown-item hover:bg-light-blue-100"
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                   onClick={() => handleCategoryChange("Upload")}
                 >
                   📤 Upload
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="relative" ref={audioMenuRef}>
+            <button
+              onClick={() => setAudioMenuVisible(!audioMenuVisible)}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              <FaBars /> <span>Chọn âm thanh</span>
+            </button>
+            {audioMenuVisible && (
+              <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                {audioOptions.map((audio) => (
+                  <button
+                    key={audio.name}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => handleAudioSelect(audio.url)}
+                  >
+                    {audio.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={toggleAudio}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              {isAudioPlaying ? <FaPause /> : <FaPlay />}
+              <span>{isAudioPlaying ? "Tạm dừng" : "Phát âm thanh"}</span>
+            </button>
+          </div>
+
+          <div className="relative" ref={extraMenuRef}>
+            <button
+              onClick={() => setExtraMenuVisible(!extraMenuVisible)}
+              className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+            >
+              <FaBars /> <span>Thêm</span>
+            </button>
+            {extraMenuVisible && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                <button
+                  onClick={handleShareNote}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaShareAlt /> Chia sẻ
+                </button>
+                <button
+                  onClick={handleImportButtonClick}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaFileImport /> Nhập Word/PDF
+                </button>
+                <input
+                  type="file"
+                  accept=".docx,application/pdf"
+                  ref={importFileInputRef}
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={handleExportNotes}
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                >
+                  <FaFileExport /> Xuất File
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={handleTranslate}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  >
+                    <FaLanguage /> Dịch
+                  </button>
+                </div>
+                <div className="relative" ref={translateMenuRef}>
+                  <button
+                    onClick={() => setTranslateMenuVisible(!translateMenuVisible)}
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  >
+                    <FaBars />{" "}
+                    {translateTo
+                      ? languageOptions.find((l) => l.code === translateTo)?.name
+                      : "Chọn ngôn ngữ"}
+                  </button>
+                  {translateMenuVisible && (
+                    <div className="absolute left-full top-0 mt-0 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                      {languageOptions.map((lang) => (
+                        <button
+                          key={lang.code}
+                          className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                          onClick={() => {
+                            setTranslateTo(lang.code);
+                            setTranslateMenuVisible(false);
+                          }}
+                        >
+                          {lang.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            <audio ref={audioRef} loop />
           </div>
         </div>
 
@@ -1135,7 +1319,10 @@ const NoteApp = () => {
                 onChange={(e) => setReminderTime(e.target.value)}
                 className="border-2 border-gray-300 p-2 rounded-lg"
               />
-              <button onClick={addTodo} className="btn-gradient">
+              <button
+                onClick={addTodo}
+                className="menu-btn px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
                 <FaPlus /> Thêm
               </button>
             </div>
@@ -1166,46 +1353,195 @@ const NoteApp = () => {
             </ul>
           </div>
         ) : currentNoteType === "spreadsheet" ? (
-          <div className="mb-4 overflow-x-auto">
-            <div className="flex gap-2 mb-2">
+          <div className="mb-4 overflow-x-auto bg-white p-4 rounded-lg shadow-md border border-gray-200">
+            {/* Toolbar for Spreadsheet Formatting */}
+            <div className="flex flex-wrap gap-2 mb-4 bg-gray-100 p-3 rounded-lg border border-gray-300">
+              {/* Undo and Redo Buttons */}
               <button
                 onClick={undoSpreadsheet}
                 disabled={historyIndex <= 0}
-                className={`btn-gradient ${
-                  historyIndex <= 0 ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  historyIndex <= 0
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed rounded-xl shadow-md"
+                  : "menu-btn" 
+              }`}
+                title="Quay lại (Ctrl+Z)"
               >
                 <FaUndo /> Quay lại
               </button>
               <button
                 onClick={redoSpreadsheet}
                 disabled={historyIndex >= spreadsheetHistory.length - 1}
-                className={`btn-gradient ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-sm transition-all duration-200 ${
                   historyIndex >= spreadsheetHistory.length - 1
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed rounded-xl shadow-md"
+                  : "menu-btn" 
+              }`}
+                title="Tiến tới (Ctrl+Y)"
               >
                 <FaRedo /> Tiến tới
               </button>
+
+              {/* Font Family */}
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="border p-2 rounded-lg bg-white shadow-sm hover:bg-gray-50"
+              >
+                <option value="Verdana">Verdana</option>
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+
+              {/* Font Size */}
+              <select
+                value={fontSize}
+                onChange={(e) => setFontSize(e.target.value)}
+                className="border p-2 rounded-lg bg-white shadow-sm hover:bg-gray-50"
+              >
+                <option value="10pt">10pt</option>
+                <option value="12pt">12pt</option>
+                <option value="14pt">14pt</option>
+                <option value="16pt">16pt</option>
+                <option value="18pt">18pt</option>
+              </select>
+
+              {/* Bold and Italic */}
+              <button
+                onClick={() =>
+                  setFontWeight(fontWeight === "bold" ? "normal" : "bold")
+                }
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${ 
+                  fontWeight === "bold"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Đậm"
+              >
+                <FaBold />
+              </button>
+              <button
+                onClick={() =>
+                  setFontStyle(fontStyle === "italic" ? "normal" : "italic")
+                }
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  fontStyle === "italic"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Nghiêng"
+              >
+                <FaItalic />
+              </button>
+
+              {/* Text Alignment */}
+              <button
+                onClick={() => setTextAlign("left")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "left"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn trái"
+              >
+                <FaAlignLeft />
+              </button>
+              <button
+                onClick={() => setTextAlign("center")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "center"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn giữa"
+              >
+                <FaAlignCenter />
+              </button>
+              <button
+                onClick={() => setTextAlign("right")}
+                className={`border p-2 rounded-lg shadow-sm transition-all duration-200 ${
+                  textAlign === "right"
+                    ? "bg-blue-200 text-blue-800"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+                title="Căn phải"
+              >
+                <FaAlignRight />
+              </button>
+
+              {/* Text and Background Color */}
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1">
+                  <FaFont className="text-gray-600" />
+                  <input
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => setTextColor(e.target.value)}
+                    className="w-8 h-8 border rounded-lg cursor-pointer"
+                    title="Màu chữ"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <FaFill className="text-gray-600" />
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="w-8 h-8 border rounded-lg cursor-pointer"
+                    title="Màu nền"
+                  />
+                </label>
+              </div>
             </div>
-            <table className="border-collapse border border-gray-300">
+
+            {/* Spreadsheet Table */}
+            <table className="border-collapse border border-gray-300 w-full">
+              <thead>
+                <tr>
+                  <th className="border border-gray-300 p-2 bg-gray-100 font-semibold w-12">
+                    #
+                  </th>
+                  {spreadsheetData[0].map((_, colIndex) => (
+                    <th
+                      key={colIndex}
+                      className="border border-gray-300 p-2 bg-gray-100 font-semibold w-24"
+                    >
+                      {String.fromCharCode(65 + colIndex)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {spreadsheetData.map((row, rowIndex) => (
                   <tr key={rowIndex}>
+                    <td className="border border-gray-300 p-2 bg-gray-100 font-semibold text-center">
+                      {rowIndex + 1}
+                    </td>
                     {row.map((cell, colIndex) => (
-                      <td key={colIndex} className="border border-gray-300 p-1">
+                      <td
+                        key={colIndex}
+                        className="border border-gray-300 p-1"
+                        style={{
+                          backgroundColor: backgroundColor,
+                        }}
+                      >
                         <input
                           type="text"
                           value={cell}
                           onChange={(e) =>
-                            updateSpreadsheetCell(
-                              rowIndex,
-                              colIndex,
-                              e.target.value
-                            )
+                            updateSpreadsheetCell(rowIndex, colIndex, e.target.value)
                           }
-                          className="w-full h-full border-none p-1 focus:outline-none"
+                          className="w-full h-full border-none p-2 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded"
+                          style={{
+                            fontFamily: fontFamily,
+                            fontSize: fontSize,
+                            fontWeight: fontWeight,
+                            fontStyle: fontStyle,
+                            textAlign: textAlign,
+                            color: textColor,
+                            backgroundColor: "transparent",
+                          }}
                         />
                       </td>
                     ))}
@@ -1213,6 +1549,39 @@ const NoteApp = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* Add Row/Column Buttons */}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  const newData = [
+                    ...spreadsheetData,
+                    Array(spreadsheetData[0].length).fill(""),
+                  ];
+                  setSpreadsheetData(newData);
+                  const newHistory = spreadsheetHistory.slice(0, historyIndex + 1);
+                  newHistory.push(JSON.parse(JSON.stringify(newData)));
+                  setSpreadsheetHistory(newHistory);
+                  setHistoryIndex(newHistory.length - 1);
+                }}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaPlus /> Thêm hàng
+              </button>
+              <button
+                onClick={() => {
+                  const newData = spreadsheetData.map((row) => [...row, ""]);
+                  setSpreadsheetData(newData);
+                  const newHistory = spreadsheetHistory.slice(0, historyIndex + 1);
+                  newHistory.push(JSON.parse(JSON.stringify(newData)));
+                  setSpreadsheetHistory(newHistory);
+                  setHistoryIndex(newHistory.length - 1);
+                }}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaPlus /> Thêm cột
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -1221,31 +1590,198 @@ const NoteApp = () => {
         <div className="flex justify-center mt-4">
           <button
             onClick={handleSaveNote}
-            className="btn-gradient w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center"
+            className="menu-btn w-full max-w-md px-4 py-3 text-xl font-bold flex justify-center rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
           >
             {editingId !== null ? "Cập nhật" : "Lưu"}
           </button>
         </div>
 
         <div className="mt-6 p-4 border border-gray-300 rounded-lg">
-          <div className="relative">
-            <FaSearch className="absolute left-4 top-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm ghi chú..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border-2 border-gray-300 p-4 pl-12 rounded-xl transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
-            />
-          </div>
+          <div className="flex justify-between mt-6 text-blue-600 items-center">
+            <div className="relative" ref={filterMenuRef}>
+              <button
+                onClick={() => setFilterMenuVisible(!filterMenuVisible)}
+                className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+              >
+                <FaBars />{" "}
+                <span>
+                  Phân loại:{" "}
+                  {filterType === "all"
+                    ? "Tất cả"
+                    : filterType === "plain"
+                    ? "Văn bản thuần"
+                    : filterType === "rich"
+                    ? "Văn bản phong phú"
+                    : filterType === "whiteboard"
+                    ? "Danh sách công việc"
+                    : filterType === "spreadsheet"
+                    ? "Bảng tính"
+                    : "Chọn lọc"}
+                </span>
+              </button>
+              {filterMenuVisible && (
+                <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("all");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📑 Tất cả
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("selective");
+                      setVisibleNoteTypes({
+                        plain: true,
+                        rich: true,
+                        whiteboard: true,
+                        spreadsheet: true,
+                      });
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🔍 Chọn lọc
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("plain");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📝 Ghi chú văn bản thuần
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("rich");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🖋 Ghi chú văn bản phong phú
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("whiteboard");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🎨 Ghi chú danh sách công việc
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("spreadsheet");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    📊 Ghi chú bảng tính
+                  </button>
+                </div>
+              )}
+            </div>
 
-          <div className="flex justify-between mt-6 text-blue-600">
-            <button onClick={() => setSortBy("title")}>
-              ↕ Sắp xếp theo tiêu đề
-            </button>
-            <button onClick={() => setSortBy("updated_at")}>
-              ↕ Sắp xếp theo ngày cập nhật
-            </button>
+            <div className="flex items-center space-x-4">
+              {filterType === "selective" && (
+                <div className="flex gap-2">
+                  {visibleNoteTypes.plain && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Văn bản thuần
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("plain")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.rich && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Văn bản phong phú
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("rich")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.whiteboard && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Danh sách công việc
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("whiteboard")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {visibleNoteTypes.spreadsheet && (
+                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                      Bảng tính
+                      <button
+                        onClick={() => toggleNoteTypeVisibility("spreadsheet")}
+                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {searchVisible && (
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm ghi chú..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-80 border-2 border-gray-300 p-2 pl-4 rounded-xl transition-all duration-300 ease-in-out transform focus:border-blue-400 focus:ring-2 focus:ring-blue-300 shadow-md hover:shadow-lg animate-slide-in"
+                />
+              )}
+              <button
+                onClick={() => setSearchVisible(!searchVisible)}
+                className="text-blue-600 text-xl hover:text-blue-800 transition duration-200"
+                title="Tìm kiếm ghi chú"
+              >
+                <FaSearch />
+              </button>
+              <div className="relative" ref={sortMenuRef}>
+                <button
+                  onClick={() => setSortMenuVisible(!sortMenuVisible)}
+                  className="text-blue-600 text-xl hover:text-blue-800 transition duration-200"
+                  title="Sắp xếp ghi chú"
+                >
+                  <FaBars />
+                </button>
+                {sortMenuVisible && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-10 menu-dropdown transition-all duration-200 ease-in-out">
+                    <button
+                      className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                      onClick={() => {
+                        setSortBy("title");
+                        setSortMenuVisible(false);
+                      }}
+                    >
+                      ↕ Sắp xếp theo tiêu đề
+                    </button>
+                    <button
+                      className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                      onClick={() => {
+                        setSortBy("updated_at");
+                        setSortMenuVisible(false);
+                      }}
+                    >
+                      ↕ Sắp xếp theo ngày cập nhật
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="mt-8">
@@ -1384,6 +1920,17 @@ const NoteApp = () => {
                     </div>
                     <div className="flex space-x-3 ml-4">
                       <button
+                        onClick={() => handlePinNote(note.id)}
+                        className={`text-xl transition duration-200 ${
+                          note.isPinned
+                            ? "text-yellow-500 hover:text-yellow-700"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                        title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
+                      >
+                        <FaThumbtack />
+                      </button>
+                      <button
                         onClick={() => handleEditNote(note)}
                         className="text-green-600 text-xl hover:text-green-800 transition duration-200"
                         title="Sửa ghi chú"
@@ -1410,48 +1957,79 @@ const NoteApp = () => {
         </div>
 
         <style jsx>{`
-          .btn-gradient {
+          .menu-btn {
             background: linear-gradient(135deg, #6aa8ff, #b57edc);
             color: white;
-            padding: 12px 20px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
             font-size: 16px;
-            transition: all 0.3s ease-in-out;
-            border: 1px solid lightgray;
-          }
-          .btn-gradient:hover {
-            background: linear-gradient(135deg, #b57edc, #6aa8ff);
-            transform: scale(1.08);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-          }
-          .btn-gradient:disabled {
-            background: gray;
-            transform: none;
-            box-shadow: none;
-          }
-          .dropdown-item {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            text-align: left;
+            font-weight: 500;
             border: none;
-            background: none;
+            outline: none;
             cursor: pointer;
-            transition: background 0.3s ease;
+          }
+          .menu-btn:hover {
+            background: linear-gradient(135deg, #b57edc, #6aa8ff);
+            transform: scale(1.05);
+          }
+          .menu-dropdown {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        .dropdown-item {
+          background: none;
+          border: none;
+          color: #333;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s ease-in-out;
+          position: relative;
+        }
+
+        .dropdown-item:hover {
+          background: linear-gradient(
+            to right,
+            #e8e1ff,
+            #d6eaff
+          ); /* Gradient từ tím nhạt sang xanh nhạt */
+          color: #6aa8ff; /* Màu chữ khi hover */
+          box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3); /* Bóng đổ với màu xanh nhạt */
+          transform: translateY(-3px) scale(1.02); /* Nâng lên và phóng to nhẹ */
+          animation: bounce 0.4s ease infinite alternate; /* Hiệu ứng nảy nhẹ */
+        }
+
+        /* Hiệu ứng nảy sinh động */
+        @keyframes bounce {
+          0% {
+            transform: translateY(-3px) scale(1.02);
+          }
+          100% {
+            transform: translateY(-5px) scale(1.02);
+          }
+        }
+          @keyframes slideDown {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
           }
           .dropdown-item:hover {
-            background-color: rgba(173, 216, 230, 0.5);
+            color: #2563eb;
           }
-          .border-light-blue-300 {
-            border-color: #6aa8ff;
+          .animate-slide-in {
+            animation: slideIn 0.3s ease-in-out;
           }
-          .emoji-picker {
-            top: 100%;
-            left: 0;
-            transform: translateY(10px);
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: translateX(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
           }
         `}</style>
       </div>
@@ -1460,3 +2038,4 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
