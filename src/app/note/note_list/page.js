@@ -1,20 +1,23 @@
+// pages/note-list.js (hoặc file chứa NoteList)
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
 import { FaThumbtack } from "react-icons/fa";
+import ChiTiet from "../../components/details"; // Import component xem chi tiet
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
   const [richNotes, setRichNotes] = useState([]);
   const [sketchNotes, setSketchNotes] = useState([]);
   const [spreadsheetNotes, setSpreadsheetNotes] = useState([]);
-  const [pinnedNotes, setPinnedNotes] = useState(new Set()); // Track pinned note IDs
-  const [hiddenNotes, setHiddenNotes] = useState(new Set()); // Track hidden note IDs
-  const [pinInput, setPinInput] = useState(""); // PIN input for hidden notes
-  const [showPinModal, setShowPinModal] = useState(false); // Show/hide PIN modal
-  const [selectedNoteId, setSelectedNoteId] = useState(null); // Note requiring PIN
-  const [contextMenu, setContextMenu] = useState(null); // Context menu position and note ID
+  const [pinnedNotes, setPinnedNotes] = useState(new Set());
+  const [hiddenNotes, setHiddenNotes] = useState(new Set());
+  const [pinInput, setPinInput] = useState("");
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [viewDetailNoteId, setViewDetailNoteId] = useState(null); // Trạng thái để hiển thị chi tiết ghi chú
 
   // State for pagination
   const [currentTextPage, setCurrentTextPage] = useState(1);
@@ -28,9 +31,8 @@ export default function NoteList() {
   const [showMoreSpreadsheet, setShowMoreSpreadsheet] = useState(false);
 
   const notesPerPage = 5;
-  const PIN = "1234"; // Hardcoded PIN for simplicity (replace with secure storage in production)
+  const PIN = "1234";
 
-  // Fetch notes from Supabase
   const fetchNotes = async () => {
     try {
       const { data, error } = await supabase2
@@ -45,12 +47,14 @@ export default function NoteList() {
       const mappedNotes = data.map((note) => ({
         id: note.id,
         title: note.title,
-        description: note.content ? note.content.slice(0, 50) + "..." : "Không có nội dung",
+        description:
+          note.content && note.content.length > 0
+            ? note.content.slice(0, 50) + "..."
+            : "Không có nội dung",
         image: note.image_url,
         note_type: note.note_type,
       }));
 
-      // Categorize notes based on note_type
       setTextNotes(mappedNotes.filter((note) => note.note_type === "plain"));
       setRichNotes(mappedNotes.filter((note) => note.note_type === "rich"));
       setSketchNotes(
@@ -68,7 +72,6 @@ export default function NoteList() {
     fetchNotes();
   }, []);
 
-  // Pin/Unpin a note
   const togglePin = (noteId) => {
     setPinnedNotes((prev) => {
       const newPinned = new Set(prev);
@@ -81,13 +84,11 @@ export default function NoteList() {
     });
   };
 
-  // Hide a note
   const hideNote = (noteId) => {
     setHiddenNotes((prev) => new Set(prev).add(noteId));
     setContextMenu(null);
   };
 
-  // Show context menu on right-click
   const handleContextMenu = (e, noteId) => {
     e.preventDefault();
     setContextMenu({
@@ -97,12 +98,10 @@ export default function NoteList() {
     });
   };
 
-  // Close context menu
   const closeContextMenu = () => {
     setContextMenu(null);
   };
 
-  // Verify PIN and reveal note
   const verifyPin = () => {
     if (pinInput === PIN) {
       setHiddenNotes((prev) => {
@@ -119,7 +118,6 @@ export default function NoteList() {
     }
   };
 
-  // Check PIN to view hidden note
   const checkHiddenNote = (noteId) => {
     if (hiddenNotes.has(noteId)) {
       setSelectedNoteId(noteId);
@@ -178,15 +176,12 @@ export default function NoteList() {
                         : note.description}
                     </p>
                     {!hiddenNotes.has(note.id) && (
-                      <Link
-                        href={`/note/${note.id}`}
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
                         className="text-blue-500 mt-2 block"
-                        onClick={(e) =>
-                          checkHiddenNote(note.id) && e.preventDefault()
-                        }
                       >
                         Xem chi tiết →
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <button
@@ -274,15 +269,12 @@ export default function NoteList() {
                         : note.description}
                     </p>
                     {!hiddenNotes.has(note.id) && (
-                      <Link
-                        href={`/note/${note.id}`}
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
                         className="text-blue-500 mt-2 block"
-                        onClick={(e) =>
-                          checkHiddenNote(note.id) && e.preventDefault()
-                        }
                       >
                         Xem chi tiết →
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <button
@@ -330,15 +322,12 @@ export default function NoteList() {
                         : note.description}
                     </p>
                     {!hiddenNotes.has(note.id) && (
-                      <Link
-                        href={`/note/${note.id}`}
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
                         className="text-blue-500 mt-2 block"
-                        onClick={(e) =>
-                          checkHiddenNote(note.id) && e.preventDefault()
-                        }
                       >
                         Xem chi tiết →
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <button
@@ -425,15 +414,12 @@ export default function NoteList() {
                         : note.description}
                     </p>
                     {!hiddenNotes.has(note.id) && (
-                      <Link
-                        href={`/note/${note.id}`}
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
                         className="text-blue-500 mt-2 block"
-                        onClick={(e) =>
-                          checkHiddenNote(note.id) && e.preventDefault()
-                        }
                       >
                         Xem chi tiết công việc →
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <button
@@ -518,15 +504,12 @@ export default function NoteList() {
                         : note.description}
                     </p>
                     {!hiddenNotes.has(note.id) && (
-                      <Link
-                        href={`/note/${note.id}`}
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
                         className="text-blue-500 mt-2 block"
-                        onClick={(e) =>
-                          checkHiddenNote(note.id) && e.preventDefault()
-                        }
                       >
                         Đi đến bảng →
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <button
@@ -543,7 +526,7 @@ export default function NoteList() {
                 </div>
               </div>
             ))}
-        </div>
+ 🙂        </div>
 
         <button
           onClick={() => setShowMoreSpreadsheet(!showMoreSpreadsheet)}
@@ -637,6 +620,14 @@ export default function NoteList() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal hiển thị chi tiết ghi chú */}
+      {viewDetailNoteId && (
+        <ChiTiet
+          noteId={viewDetailNoteId}
+          onClose={() => setViewDetailNoteId(null)}
+        />
       )}
     </div>
   );

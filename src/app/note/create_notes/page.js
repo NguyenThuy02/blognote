@@ -50,7 +50,7 @@ const NoteApp = () => {
   const [imageUploadVisible, setImageUploadVisible] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [noteTypeMenu, setNoteTypeMenu] = useState(false);
-  const [currentNoteType, setCurrentNoteType] = useState("rich");
+  const [currentNoteType, setCurrentNoteType] = useState("plain");
   const [category, setCategory] = useState("Personal");
   const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +59,7 @@ const NoteApp = () => {
   const textAreaRef = useRef(null);
   const audioRef = useRef(null);
   const importFileInputRef = useRef(null);
+  const noteFormRef = useRef(null); // cuộn phần sửa 
 
   const [fontFamily, setFontFamily] = useState("Verdana");
   const [fontSize, setFontSize] = useState("14pt");
@@ -317,7 +318,7 @@ const NoteApp = () => {
         );
       } else {
         const { data, error } = await supabase2
-          .from("notess")
+          .from("notes")
           .insert([noteData])
           .select()
           .single();
@@ -339,7 +340,7 @@ const NoteApp = () => {
     if (!confirm("Bạn có chắc muốn xóa ghi chú này không?")) return;
     try {
       const { error } = await supabase2
-        .from("notess")
+        .from("notes")
         .delete()
         .eq("id", noteId);
       if (error) throw error;
@@ -385,7 +386,7 @@ const NoteApp = () => {
     ]);
     setHistoryIndex(0);
     setImageUploadVisible(note.note_type !== "plain");
-
+  
     const reverseCategoryMap = {
       1: "Personal",
       2: "Study",
@@ -393,8 +394,13 @@ const NoteApp = () => {
       4: "Upload",
     };
     setCategory(reverseCategoryMap[note.category_id] || "Personal");
-
+  
     setError("");
+  
+    // Cuộn lên phần tạo ghi chú
+    if (noteFormRef.current) {
+      noteFormRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const resetForm = () => {
@@ -805,9 +811,11 @@ const NoteApp = () => {
     { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
     { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
     { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-    { name: "Câu Chuyện Nếu Như", url: "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID" },
+    { name: "Câu Chuyện Nếu Như", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743346199/CauChuyenNeuNhu-Superluckyqi-5991519_q3a4ns.mp3" },
     { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
-    { name: "Âm thanh của nỗi nhớ anh", url: "https://drive.google.com/uc?export=download&id=1rZzDygxDdr9f8XR7qxQhs72BIEUUn0nB" },
+    { name: "Âm thanh của nỗi nhớ anh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345471/AmThanhCuaNoiNhoAnh-VK-6817533_r5gro0.mp3" },
+    { name: "Sự nghiệp chướng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345196/htptrtnfix_gvyo3k.mp3"},
+    { name: "Show Ra Cho Em Xem", url: ""},
   ];
 
   const languageOptions = [
@@ -901,16 +909,16 @@ const NoteApp = () => {
 
   return (
     <div className="text-gray-700">
-      <div className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
-          BlogNote - Ghi chú
-        </h1>
-        <input
-          type="text"
-          placeholder="Tiêu đề ghi chú"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
+<div ref={noteFormRef} className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
+  <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+    BlogNote - Ghi chú
+  </h1>
+  <input
+    type="text"
+    placeholder="Tiêu đề ghi chú"
+    value={title}
+    onChange={(e) => setTitle(e.target.value)}
+    className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
         />
 
         <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
@@ -1304,6 +1312,143 @@ const NoteApp = () => {
           </>
         ) : currentNoteType === "whiteboard" ? (
           <div className="mb-4">
+            {/* Thanh công cụ định dạng cho loại ghi chú whiteboard */}
+            <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="border p-1 rounded bg-white"
+              >
+                <option value="Verdana">Verdana</option>
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+              <select
+                value={fontSize}
+                onChange={(e) => setFontSize(e.target.value)}
+                className="border p-1 rounded bg-white"
+              >
+                <option value="10pt">10pt</option>
+                <option value="12pt">12pt</option>
+                <option value="14pt">14pt</option>
+                <option value="16pt">16pt</option>
+                <option value="18pt">18pt</option>
+              </select>
+              <button
+                onClick={() => setFontWeight(fontWeight === "bold" ? "normal" : "bold")}
+                className={`border p-2 rounded ${fontWeight === "bold" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaBold />
+              </button>
+              <button
+                onClick={() => setFontStyle(fontStyle === "italic" ? "normal" : "italic")}
+                className={`border p-2 rounded ${fontStyle === "italic" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaItalic />
+              </button>
+              <button
+                onClick={() => setTextAlign("left")}
+                className={`border p-2 rounded ${textAlign === "left" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaAlignLeft />
+              </button>
+              <button
+                onClick={() => setTextAlign("center")}
+                className={`border p-2 rounded ${textAlign === "center" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaAlignCenter />
+              </button>
+              <button
+                onClick={() => setTextAlign("right")}
+                className={`border p-2 rounded ${textAlign === "right" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaAlignRight />
+              </button>
+              <button
+                onClick={() => setTextAlign("justify")}
+                className={`border p-2 rounded ${textAlign === "justify" ? "bg-blue-200" : "bg-white"} hover:bg-blue-100`}
+              >
+                <FaAlignJustify />
+              </button>
+              {/* Thêm nút icon (emoji picker) */}
+              <div className="relative" ref={emojiPickerRef}>
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="border p-2 rounded bg-white hover:bg-blue-100"
+                >
+                  <FaSmile />
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute z-10 bg-white border rounded-lg p-2 shadow-xl w-64 max-h-48 overflow-y-auto mt-2 transition-all duration-200 ease-in-out">
+                    {emojiList.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => addEmoji(emoji)}
+                        className="p-2 hover:bg-gray-100 text-2xl transition-all duration-200"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Thêm nút chèn ảnh */}
+              <button
+                onClick={handleImageButtonClick}
+                className="border p-2 rounded bg-white hover:bg-blue-100"
+                title="Chèn ảnh"
+              >
+                <FaImage />
+              </button>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                className="border p-1 rounded w-8 h-8"
+              />
+              <input
+                type="color"
+                value={backgroundColor}
+                onChange={(e) => setBackgroundColor(e.target.value)}
+                className="border p-1 rounded w-8 h-8"
+              />
+            </div>
+        
+            {/* Hiển thị ảnh đã upload */}
+            {uploadedImages.length > 0 && (
+              <div className="mb-4 p-4 border border-gray-300 rounded-lg flex justify-center">
+                <div className="flex flex-wrap gap-4 max-w-3xl">
+                  {uploadedImages.map((image, index) => (
+                    <div key={index} className="relative">
+                      <Image
+                        src={image}
+                        alt={`Uploaded preview ${index}`}
+                        width={300}
+                        height={300}
+                        className="object-contain rounded-md"
+                      />
+                      <button
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                        title="Xóa ảnh"
+                      >
+                        <FaTimes size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+        
             <div className="flex items-center gap-2 mb-2">
               <input
                 type="text"
@@ -1312,6 +1457,15 @@ const NoteApp = () => {
                 onChange={(e) => setContent(e.target.value)}
                 onKeyPress={handleTodoKeyPress}
                 className="flex-grow border-2 border-gray-300 p-2 rounded-lg"
+                style={{
+                  fontFamily: fontFamily,
+                  fontSize: fontSize,
+                  fontWeight: fontWeight,
+                  fontStyle: fontStyle,
+                  textAlign: textAlign,
+                  color: textColor,
+                  backgroundColor: backgroundColor,
+                }}
               />
               <input
                 type="datetime-local"
@@ -1336,9 +1490,16 @@ const NoteApp = () => {
                     className="w-5 h-5"
                   />
                   <span
-                    className={
-                      todo.completed ? "line-through text-gray-500" : ""
-                    }
+                    className={todo.completed ? "line-through text-gray-500" : ""}
+                    style={{
+                      fontFamily: fontFamily,
+                      fontSize: fontSize,
+                      fontWeight: fontWeight,
+                      fontStyle: fontStyle,
+                      textAlign: textAlign,
+                      color: textColor,
+                      backgroundColor: backgroundColor,
+                    }}
                   >
                     {todo.text}
                   </span>
@@ -1826,7 +1987,7 @@ const NoteApp = () => {
                                       : t
                                   );
                                   supabase2
-                                    .from("notess")
+                                    .from("notes")
                                     .update({
                                       todos: JSON.stringify(updatedTodos),
                                     })
@@ -2038,4 +2199,5 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
 
