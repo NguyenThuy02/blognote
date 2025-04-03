@@ -1,11 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
+import ChiTiet from "../../components/details"; // Import component xem chi tiet
+
 
 export default function ManageNotes() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [notes, setNotes] = useState([]);
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [viewDetailNoteId, setViewDetailNoteId] = useState(null); // Trạng thái để hiển thị chi tiết ghi chú
 
   const categories = ["personal", "study", "entertainment", "upload"];
   const categoryMap = {
@@ -228,9 +231,12 @@ export default function ManageNotes() {
                   >
                     <h3 className="font-semibold">{note.title}</h3>
                     <p className="text-gray-500">{note.content}</p>
-                    <a href="#" className="text-blue-500 hover:underline">
-                      Xem chi tiết →
-                    </a>
+                    <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="text-blue-500 mt-2 block"
+                      >
+                        Xem chi tiết →
+                      </button>
                     <div className="flex gap-2 mt-3 justify-end">
                       <button
                         onClick={() => handleEdit(note)}
@@ -282,9 +288,12 @@ export default function ManageNotes() {
                     />
                     <h3 className="font-semibold">{note.title}</h3>
                     <p className="text-gray-500">{note.content}</p>
-                    <a href="#" className="text-blue-500 hover:underline">
-                      Xem chi tiết →
-                    </a>
+                    <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="text-blue-500 mt-2 block"
+                      >
+                        Xem chi tiết →
+                      </button>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => handleEdit(note)}
@@ -345,9 +354,12 @@ export default function ManageNotes() {
                         ))}
                       </ul>
                     )}
-                    <a href="#" className="text-blue-500 hover:underline">
-                      Xem chi tiết công việc →
-                    </a>
+                                          <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="text-blue-500 mt-2 block"
+                      >
+                        Xem chi tiết công việc →
+                      </button>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => handleEdit(note)}
@@ -421,9 +433,12 @@ export default function ManageNotes() {
                           </small>
                         </div>
                       )}
-                    <a href="#" className="text-blue-500 hover:underline">
-                      Đi đến bảng →
-                    </a>
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="text-blue-500 mt-2 block"
+                      >
+                        Đi đến bảng →
+                      </button>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => handleEdit(note)}
@@ -455,6 +470,13 @@ export default function ManageNotes() {
             </div>
           </div>
         </div>
+      )}
+           {/* Modal hiển thị chi tiết ghi chú */}
+           {viewDetailNoteId && (
+        <ChiTiet
+          noteId={viewDetailNoteId}
+          onClose={() => setViewDetailNoteId(null)}
+        />
       )}
     </div>
   );

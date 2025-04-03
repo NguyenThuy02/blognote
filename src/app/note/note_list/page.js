@@ -152,7 +152,7 @@ export default function NoteList() {
     >
       {/* Khung 1: Ghi chú văn bản thuần */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           📄 Ghi chú văn bản thuần
         </h1>
         <h2 className="text-xl font-bold mb-4">📄 Ghi chú văn bản thuần</h2>
@@ -242,7 +242,7 @@ export default function NoteList() {
 
       {/* Khung 2: Ghi chú văn bản phong phú */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           🖼️ Ghi chú văn bản phong phú
         </h1>
         <h2 className="text-xl font-bold mb-4">🖼️ Ghi chú văn bản phong phú</h2>
@@ -388,7 +388,7 @@ export default function NoteList() {
 
       {/* Khung 3: Ghi chú danh sách công việc */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           📝 Ghi chú danh sách công việc
         </h1>
         <h2 className="text-xl font-bold mb-4">
@@ -480,7 +480,7 @@ export default function NoteList() {
 
       {/* Khung 4: Ghi chú bảng tính */}
       <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
           📊 Ghi chú bảng tính
         </h1>
         <h2 className="text-xl font-bold mb-4">📊 Ghi chú bảng tính</h2>
@@ -526,7 +526,7 @@ export default function NoteList() {
                 </div>
               </div>
             ))}
- 🙂        </div>
+         </div>
 
         <button
           onClick={() => setShowMoreSpreadsheet(!showMoreSpreadsheet)}
