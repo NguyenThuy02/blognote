@@ -318,7 +318,7 @@ const NoteApp = () => {
         );
       } else {
         const { data, error } = await supabase2
-          .from("notes")
+          .from("notess")
           .insert([noteData])
           .select()
           .single();
@@ -340,7 +340,7 @@ const NoteApp = () => {
     if (!confirm("Bạn có chắc muốn xóa ghi chú này không?")) return;
     try {
       const { error } = await supabase2
-        .from("notes")
+        .from("notess")
         .delete()
         .eq("id", noteId);
       if (error) throw error;
@@ -1987,7 +1987,7 @@ const NoteApp = () => {
                                       : t
                                   );
                                   supabase2
-                                    .from("notes")
+                                    .from("notess")
                                     .update({
                                       todos: JSON.stringify(updatedTodos),
                                     })
