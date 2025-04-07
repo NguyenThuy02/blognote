@@ -3,7 +3,7 @@ import React from "react";
 
 const Confirm = ({ message, onConfirm, onCancel }) => {
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50">
+    <div className="fixed inset-0 flex items-center justify-center text-gray-700 z-50">
       <div className="bg-white p-5 rounded-lg shadow-lg max-w-md break-words w-85">
         <h2 className="text-lg mb-4">{message}</h2>
         <div className="flex justify-around">
