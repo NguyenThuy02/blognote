@@ -234,7 +234,7 @@ export default function RegisterApp() {
           <span className="text-gray-700 text-sm">
             Đã có tài khoản?{" "}
             <a
-              href="./login"
+              href="/auth/login"
               className="text-blue-500 hover:text-blue-800 text-base"
             >
               Đăng nhập ngay!

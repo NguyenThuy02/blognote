@@ -1,33 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-
-const initialArticles = [
-  {
-    id: 1,
-    title: "Bài viết 1",
-    summary: "Tóm tắt nội dung bài viết 1.",
-    author: "Tác giả 1",
-    date: "2023-01-01",
-    src: "/path/to/image1.jpg",
-    topics: "Công nghệ",
-    tags: ["Tech", "AI"],
-  },
-  {
-    id: 2,
-    title: "Bài viết 2",
-    summary: "Tóm tắt nội dung bài viết 2.",
-    author: "Tác giả 2",
-    date: "2023-01-02",
-    src: "/path/to/image2.jpg",
-    topics: "Khoa học",
-    tags: ["Science", "Research"],
-  },
-];
+import { useRouter } from "next/navigation";
+import { supabase } from "../../../lib/supabase";
+import Notification from "../../../utils/notification"; // Giả sử bạn đã có component này
 
 export default function ManageApp() {
-  const [articles, setArticles] = useState(initialArticles);
+  const [articles, setArticles] = useState([]);
   const [newArticle, setNewArticle] = useState({
+    id: null,
     title: "",
     summary: "",
     author: "",
@@ -37,18 +18,113 @@ export default function ManageApp() {
     tags: [],
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [error, setError] = useState("");
+  const [notification, setNotification] = useState(null); // Thay đổi từ error và successMessage
   const [expandedArticleId, setExpandedArticleId] = useState(null);
-  const [successMessage, setSuccessMessage] = useState("");
   const [deletingArticleId, setDeletingArticleId] = useState(null);
   const [tagInput, setTagInput] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const router = useRouter();
 
-  const loadArticleToForm = (article) => {
-    setNewArticle(article);
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      const userData = JSON.parse(localStorage.getItem("user"));
+      if (userData) {
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        await fetchArticles(userData);
+      } else {
+        setIsLoggedIn(false);
+        setArticles([]);
+        setShowLoginModal(true);
+        resetForm();
+      }
+    };
+
+    checkLoginStatus();
+
+    const handleStorageChange = (event) => {
+      if (event.key === "user" || event.key === null) {
+        checkLoginStatus();
+      }
+    };
+
+    const handleLogoutEvent = () => {
+      checkLoginStatus();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("user-logout", handleLogoutEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("user-logout", handleLogoutEvent);
+    };
+  }, []);
+
+  const fetchArticles = async (userData) => {
+    try {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("id, title, content, topics, tags, images, created_at, name")
+        .eq("name", userData.name || userData.email)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const formattedArticles = data.map((post) => {
+        let imageSrc = "/default-image.jpg";
+        if (post.images) {
+          if (Array.isArray(post.images) && post.images.length > 0) {
+            imageSrc = post.images[0];
+          } else if (typeof post.images === "string") {
+            try {
+              const parsedImages = JSON.parse(post.images);
+              if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+                imageSrc = parsedImages[0];
+              }
+            } catch (e) {
+              imageSrc =
+                post.images.startsWith("/") || post.images.startsWith("http")
+                  ? post.images
+                  : "/default-image.jpg";
+            }
+          }
+        }
+
+        return {
+          id: post.id,
+          title: post.title || "Không có tiêu đề",
+          summary: post.content?.slice(0, 100) + "..." || "Không có nội dung",
+          author: post.name || "Không rõ tác giả",
+          date: new Date(post.created_at).toISOString().split("T")[0],
+          src: imageSrc,
+          topics: post.topics || "Chưa chọn",
+          tags: post.tags
+            ? typeof post.tags === "string"
+              ? post.tags.split(",")
+              : Array.isArray(post.tags)
+              ? post.tags
+              : []
+            : [],
+        };
+      });
+
+      setArticles(formattedArticles);
+    } catch (err) {
+      setNotification({
+        message: `Không thể tải dữ liệu: ${err.message}`,
+        type: "error",
+      });
+    }
   };
 
   const handleEdit = (article) => {
-    loadArticleToForm(article);
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    setNewArticle(article);
     setIsEditing(true);
     setDeletingArticleId(null);
   };
@@ -58,19 +134,49 @@ export default function ManageApp() {
   };
 
   const handleDelete = (id) => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     const articleToDelete = articles.find((article) => article.id === id);
-    loadArticleToForm(articleToDelete);
+    setNewArticle(articleToDelete);
     setIsEditing(false);
     setDeletingArticleId(id);
   };
 
-  const confirmDelete = () => {
-    setArticles(articles.filter((article) => article.id !== deletingArticleId));
-    setSuccessMessage("Bài viết đã được xóa thành công!");
-    resetForm();
+  const confirmDelete = async () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .delete()
+        .eq("id", deletingArticleId);
+      if (error) throw error;
+
+      setArticles(
+        articles.filter((article) => article.id !== deletingArticleId)
+      );
+      setNotification({
+        message: "Bài viết đã được xóa thành công!",
+        type: "success",
+      });
+      resetForm();
+    } catch (err) {
+      setNotification({
+        message: `Không thể xóa bài viết: ${err.message}`,
+        type: "error",
+      });
+    }
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     if (
       !newArticle.title ||
       !newArticle.summary ||
@@ -80,19 +186,50 @@ export default function ManageApp() {
       !newArticle.topics ||
       newArticle.tags.length === 0
     ) {
-      setError("Tất cả các trường đều là bắt buộc!");
+      setNotification({
+        message: "Tất cả các trường đều là bắt buộc!",
+        type: "error",
+      });
       return;
     }
-    setError("");
 
     if (isEditing) {
-      setArticles(
-        articles.map((article) =>
-          article.id === newArticle.id ? newArticle : article
-        )
-      );
-      setSuccessMessage("Bài viết đã được cập nhật thành công!");
-      resetForm();
+      try {
+        const updatedData = {
+          title: newArticle.title,
+          content: newArticle.summary,
+          name: newArticle.author,
+          created_at: newArticle.date,
+          images: [newArticle.src],
+          topics: newArticle.topics,
+          tags: newArticle.tags.join(","),
+        };
+
+        const { error } = await supabase
+          .from("posts")
+          .update(updatedData)
+          .eq("id", newArticle.id);
+
+        if (error) throw error;
+
+        setArticles(
+          articles.map((article) =>
+            article.id === newArticle.id
+              ? { ...article, ...newArticle }
+              : article
+          )
+        );
+        setNotification({
+          message: "Bài viết đã được cập nhật thành công!",
+          type: "success",
+        });
+        resetForm();
+      } catch (err) {
+        setNotification({
+          message: `Không thể cập nhật bài viết: ${err.message}`,
+          type: "error",
+        });
+      }
     }
   };
 
@@ -120,6 +257,7 @@ export default function ManageApp() {
 
   const resetForm = () => {
     setNewArticle({
+      id: null,
       title: "",
       summary: "",
       author: "",
@@ -130,16 +268,28 @@ export default function ManageApp() {
     });
     setIsEditing(false);
     setDeletingArticleId(null);
-    setError("");
+    setNotification(null); // Reset thông báo
     setTagInput("");
   };
 
+  const handleLoginRedirect = () => {
+    setShowLoginModal(false);
+    router.push("/auth/login");
+  };
+
   return (
-    <div className="flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200">
+    <div className="text-gray-700 flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative">
       <div className="w-2/3 p-5 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg border-r border-gray-200">
         <h1 className="text-2xl text-gray-700 font-bold mb-5 animate-fade-in-down">
           Quản lý bài viết
         </h1>
+        {notification && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        )}
         <ul>
           {articles.map((article) => (
             <div key={article.id}>
@@ -161,12 +311,14 @@ export default function ManageApp() {
                   <button
                     onClick={() => handleEdit(article)}
                     className="text-green-500 hover:text-green-600 text-base mr-2 underline"
+                    disabled={!isLoggedIn}
                   >
                     Chỉnh sửa
                   </button>
                   <button
                     onClick={() => handleDelete(article.id)}
                     className="text-red-500 hover:text-red-600 text-base underline"
+                    disabled={!isLoggedIn}
                   >
                     Xóa
                   </button>
@@ -189,11 +341,6 @@ export default function ManageApp() {
             </div>
           ))}
         </ul>
-        {successMessage && (
-          <p className="text-green-500 mt-4 animate-fade-in">
-            {successMessage}
-          </p>
-        )}
       </div>
 
       <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2 text-gray-700 animate-slide-in-right">
@@ -202,7 +349,13 @@ export default function ManageApp() {
             {deletingArticleId ? "Xóa bài viết" : "Chỉnh sửa bài viết"}
           </h2>
         </div>
-        {error && <p className="text-red-500 mb-4 animate-shake">{error}</p>}
+        {notification && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        )}
 
         <div className="mb-4">
           <label className="block mb-1">Tiêu đề:</label>
@@ -212,7 +365,7 @@ export default function ManageApp() {
             value={newArticle.title}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -222,7 +375,7 @@ export default function ManageApp() {
             value={newArticle.summary}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -233,7 +386,7 @@ export default function ManageApp() {
             value={newArticle.author}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -244,7 +397,7 @@ export default function ManageApp() {
             value={newArticle.date}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -255,7 +408,7 @@ export default function ManageApp() {
             value={newArticle.src}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -266,7 +419,7 @@ export default function ManageApp() {
             value={newArticle.topics}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
         </div>
         <div className="mb-4">
@@ -278,7 +431,7 @@ export default function ManageApp() {
             onKeyPress={handleAddTag}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
             placeholder="Nhấn Enter để thêm tag"
-            disabled={deletingArticleId !== null}
+            disabled={!isLoggedIn || deletingArticleId !== null}
           />
           {newArticle.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
@@ -291,7 +444,7 @@ export default function ManageApp() {
                   <button
                     onClick={() => handleRemoveTag(tag)}
                     className="ml-2 text-red-500 hover:text-red-700"
-                    disabled={deletingArticleId !== null}
+                    disabled={!isLoggedIn || deletingArticleId !== null}
                   >
                     ×
                   </button>
@@ -306,12 +459,14 @@ export default function ManageApp() {
               <button
                 onClick={confirmDelete}
                 className="bg-red-400 hover:bg-red-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-pulse"
+                disabled={!isLoggedIn}
               >
                 Xóa bài viết
               </button>
               <button
                 onClick={resetForm}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
+                disabled={!isLoggedIn}
               >
                 Hủy
               </button>
@@ -322,6 +477,7 @@ export default function ManageApp() {
                 <button
                   onClick={handleSaveChanges}
                   className="bg-green-400 hover:bg-green-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-bounce"
+                  disabled={!isLoggedIn}
                 >
                   Lưu thay đổi
                 </button>
@@ -329,6 +485,7 @@ export default function ManageApp() {
               <button
                 onClick={resetForm}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
+                disabled={!isLoggedIn}
               >
                 Hủy
               </button>
@@ -336,6 +493,33 @@ export default function ManageApp() {
           )}
         </div>
       </div>
+
+      {showLoginModal && (
+        <div className="absolute inset-0 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full border border-gray-200">
+            <h2 className="text-xl font-semibold text-black mb-4">
+              Yêu cầu đăng nhập
+            </h2>
+            <p className="text-gray-700 mb-4">
+              Bạn cần đăng nhập để quản lý bài viết.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={handleLoginRedirect}
+                className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
+              >
+                Đăng nhập
+              </button>
+              <button
+                onClick={() => router.push("/")}
+                className="bg-gray-300 text-black py-2 px-4 rounded-md hover:bg-gray-400"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

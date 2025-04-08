@@ -9,9 +9,7 @@ const Notification = ({ message, type, onClose }) => {
   }, [onClose]);
 
   return (
-    <div
-      className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 mb-4 bg-white rounded-lg shadow-lg z-50`}
-    >
+    <div className="text-gray-700 fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 mb-4 bg-white rounded-lg shadow-lg z-50">
       <div className="flex items-center">
         <span className="mr-2">
           {type === "success" && "✅"}
