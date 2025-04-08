@@ -6,6 +6,9 @@ import {
   ReloadOutlined,
   FullscreenOutlined,
   ShareAltOutlined,
+  ApartmentOutlined,
+  SaveOutlined,
+  FileWordOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { saveAs } from "file-saver";
@@ -24,6 +27,7 @@ export default function BloglistApp() {
   const [showShareOverlay, setShowShareOverlay] = useState(null);
   const [copiedStatus, setCopiedStatus] = useState({});
   const [comments, setComments] = useState({});
+  const [newCommentContent, setNewCommentContent] = useState(""); // State mới cho bình luận
   const [replyContent, setReplyContent] = useState("");
   const [replyToCommentId, setReplyToCommentId] = useState(null);
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
@@ -190,6 +194,7 @@ export default function BloglistApp() {
     }
     setReplyContent("");
     setReplyToCommentId(null);
+    setNewCommentContent(""); // Reset bình luận mới khi đóng/mở
   };
 
   const toggleDiagram = (articleId) => {
@@ -205,6 +210,29 @@ export default function BloglistApp() {
     }
   };
 
+  const handleNewCommentChange = (event) => {
+    if (!isLoggedIn) return;
+    setNewCommentContent(event.target.value);
+  };
+
+  const submitComment = (articleId) => {
+    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!newCommentContent.trim()) return;
+
+    const newComment = {
+      id: Date.now(),
+      author: "Tác giả", // Có thể thay bằng user thực tế từ localStorage
+      content: newCommentContent,
+      replies: [],
+    };
+
+    setComments((prev) => ({
+      ...prev,
+      [articleId]: [...(prev[articleId] || []), newComment],
+    }));
+    setNewCommentContent("");
+  };
+
   const handleReplyChange = (event) => {
     if (!isLoggedIn) return;
     setReplyContent(event.target.value);
@@ -214,7 +242,7 @@ export default function BloglistApp() {
     if (!isLoggedIn || typeof window === "undefined") return;
     if (!replyContent.trim()) return;
 
-    const newComment = {
+    const newReply = {
       id: Date.now(),
       author: "Tác giả",
       content: replyContent,
@@ -224,7 +252,7 @@ export default function BloglistApp() {
       ...comments,
       [articleId]: comments[articleId].map((comment) =>
         comment.id === commentId
-          ? { ...comment, replies: [...comment.replies, newComment] }
+          ? { ...comment, replies: [...comment.replies, newReply] }
           : comment
       ),
     };
@@ -659,37 +687,40 @@ export default function BloglistApp() {
                     {isLoggedIn ? (
                       <>
                         <button
-                          className="hover:text-blue-600"
+                          className="flex items-center hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleComments(post.id);
                           }}
                           style={{ fontSize: "16px" }}
                         >
+                          <MessageOutlined className="mr-1" />
                           Bình luận
                         </button>
                         <button
-                          className="hover:text-blue-600"
+                          className="flex items-center hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleDiagram(post.id);
                           }}
                           style={{ fontSize: "16px" }}
                         >
+                          <ApartmentOutlined className="mr-1" />
                           Sơ đồ
                         </button>
                         <button
-                          className="hover:text-blue-600"
+                          className="flex items-center hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             saveArticle(post);
                           }}
                           style={{ fontSize: "16px" }}
                         >
+                          <SaveOutlined className="mr-1" />
                           Lưu bài viết
                         </button>
                         <button
-                          className="hover:text-blue-600"
+                          className="flex items-center hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             exportToWord(post.id);
@@ -697,23 +728,29 @@ export default function BloglistApp() {
                           disabled={exportingStates[post.id]}
                           style={{ fontSize: "16px" }}
                         >
+                          <FileWordOutlined className="mr-1" />
                           {exportingStates[post.id]
                             ? "Đang xuất..."
                             : "Xuất ra file Word"}
                         </button>
                         <button
-                          className="hover:text-blue-600"
+                          className="flex items-center hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             shareArticle(post.id);
                           }}
                           style={{ fontSize: "16px" }}
                         >
+                          <ShareAltOutlined className="mr-1" />
                           Chia sẻ
                         </button>
                       </>
                     ) : (
-                      <p className="text-gray-500" style={{ fontSize: "16px" }}>
+                      <p
+                        className="text-gray-500 flex items-center"
+                        style={{ fontSize: "16px" }}
+                      >
+                        <MessageOutlined className="mr-1" />
                         Đăng nhập để Bình luận, Lưu bài viết và Chia sẻ bài viết
                       </p>
                     )}
@@ -812,6 +849,30 @@ export default function BloglistApp() {
                         <h1 className="text-xl font-bold font-montserrat text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-400 mb-6">
                           Nhận xét và phản hồi
                         </h1>
+                        <div className="mb-6">
+                          <textarea
+                            placeholder="Nhập bình luận của bạn..."
+                            value={newCommentContent}
+                            onChange={handleNewCommentChange}
+                            rows="3"
+                            className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300"
+                            style={{
+                              border: "1px solid transparent",
+                              backgroundColor: "transparent",
+                              boxShadow:
+                                "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                              outline: "none",
+                              fontSize: "18px",
+                            }}
+                          />
+                          <button
+                            className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
+                            onClick={() => submitComment(post.id)}
+                            style={{ fontSize: "16px" }}
+                          >
+                            Gửi bình luận
+                          </button>
+                        </div>
                         {(comments[post.id] || []).map((comment) => (
                           <div key={comment.id} className="border-b pb-4 mb-4">
                             <p
@@ -831,6 +892,7 @@ export default function BloglistApp() {
                                 className="mr-1"
                                 title="Phản hồi"
                               />
+                              Phản hồi
                             </button>
 
                             {replyToCommentId === comment.id && (

@@ -12,29 +12,60 @@ export default function ClassfyApp() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [itemsPerPage] = useState(9);
+  const [errorMessage, setErrorMessage] = useState(null);
   const detailRef = useRef(null);
 
   useEffect(() => {
     const fetchArticles = async () => {
-      const { data, error } = await supabase.from("posts").select("*");
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select(
+            "id, title, content, topics, tags, name, images, videos, files"
+          );
 
-      if (error) {
-        console.error("Error fetching articles:", error);
-      } else {
+        if (error) {
+          throw error;
+        }
+
+        // Xử lý dữ liệu bài viết
         setArticles(data);
+
+        // Lấy danh sách chủ đề
         const uniqueTopics = [
-          ...new Set(data.flatMap((article) => article.topics || [])),
+          ...new Set(
+            data.flatMap((article) => {
+              if (typeof article.topics === "string") {
+                return article.topics
+                  .split(",")
+                  .map((topic) => topic.trim())
+                  .filter((topic) => topic);
+              }
+              return article.topics || [];
+            })
+          ),
         ];
-        const allTags = data.flatMap((article) => {
-          if (typeof article.tags === "string") {
-            return article.tags.split(",").map((tag) => tag.trim());
-          }
-          return article.tags || [];
-        });
-        const uniqueTags = [...new Set(allTags)];
+
+        // Lấy danh sách tag
+        const uniqueTags = [
+          ...new Set(
+            data.flatMap((article) => {
+              if (typeof article.tags === "string") {
+                return article.tags
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter((tag) => tag);
+              }
+              return article.tags || [];
+            })
+          ),
+        ];
 
         setTopics(uniqueTopics);
         setTags(uniqueTags);
+      } catch (error) {
+        console.error("Error fetching articles:", error.message);
+        setErrorMessage("Không thể tải bài viết. Vui lòng thử lại sau.");
       }
     };
 
@@ -42,7 +73,11 @@ export default function ClassfyApp() {
   }, []);
 
   const filteredArticles = articles.filter((article) => {
-    const articleTopics = Array.isArray(article.topics) ? article.topics : [];
+    const articleTopics = Array.isArray(article.topics)
+      ? article.topics
+      : typeof article.topics === "string"
+      ? article.topics.split(",").map((topic) => topic.trim())
+      : [];
     const articleTags = Array.isArray(article.tags)
       ? article.tags
       : typeof article.tags === "string"
@@ -80,9 +115,16 @@ export default function ClassfyApp() {
   };
 
   return (
-    <div className="text-gray-700 mt-[97px] flex flex-col">
-      {/* Background cho danh sách bài viết, co dãn theo nội dung */}
-      <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
+    <div className="text-gray-700 mt-[97px] flex flex-col min-h-screen">
+      {/* Hiển thị thông báo lỗi nếu có */}
+      {errorMessage && (
+        <div className="bg-red-100 text-red-700 p-4 rounded-lg mx-8 mb-4">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* Background cho danh sách bài viết */}
+      <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100 mx-8 flex-grow">
         <h1 className="text-2xl font-bold mb-5 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
           Phân loại bài viết
         </h1>
@@ -126,6 +168,11 @@ export default function ClassfyApp() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-16 mx-8">
+          {paginatedArticles.length === 0 && (
+            <p className="col-span-full text-center text-gray-500">
+              Không tìm thấy bài viết nào.
+            </p>
+          )}
           {paginatedArticles.map((article) => (
             <div
               key={article.id}
@@ -134,10 +181,13 @@ export default function ClassfyApp() {
             >
               {/* Chủ đề ở góc trên bên phải */}
               {article.topics &&
-                Array.isArray(article.topics) &&
-                article.topics.length > 0 && (
+                (Array.isArray(article.topics) ||
+                  typeof article.topics === "string") && (
                   <div className="absolute top-4 right-4 text-blue-500">
-                    {article.topics.map((topic) => (
+                    {(Array.isArray(article.topics)
+                      ? article.topics
+                      : article.topics.split(",").map((topic) => topic.trim())
+                    ).map((topic) => (
                       <span
                         key={topic}
                         className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-1 mb-1"
@@ -184,44 +234,51 @@ export default function ClassfyApp() {
 
               {/* Tác giả ở góc dưới bên phải */}
               <p className="absolute bottom-4 right-4 text-blue-500 font-semibold">
-                {article.author || "Không rõ tác giả"}
+                {article.name || "Chưa có tác giả"}
               </p>
             </div>
           ))}
         </div>
 
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 mr-2"
-          >
-            Trước
-          </button>
-          <span className="px-4 py-2 text-lg">{`${currentPage} of ${totalPages}`}</span>
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 ml-2"
-          >
-            Sau
-          </button>
-        </div>
+        {totalPages > 1 && (
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 mr-2 disabled:opacity-50"
+            >
+              Trước
+            </button>
+            <span className="px-4 py-2 text-lg">{`${currentPage} / ${totalPages}`}</span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 ml-2 disabled:opacity-50"
+            >
+              Sau
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Background riêng cho chi tiết bài viết với hiệu ứng, co dãn theo nội dung */}
+      {/* Background riêng cho chi tiết bài viết */}
       {selectedArticle && (
         <div
           ref={detailRef}
-          className="p-5 bg-gray-50 border-t border-gray-200 slide-up relative"
+          className="p-5 bg-gray-50 border-t border-gray-200 mx-8"
         >
           <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 relative">
             {/* Chủ đề ở góc trên bên phải */}
             {selectedArticle.topics &&
-              Array.isArray(selectedArticle.topics) &&
-              selectedArticle.topics.length > 0 && (
+              (Array.isArray(selectedArticle.topics) ||
+                typeof selectedArticle.topics === "string") && (
                 <div className="absolute top-6 right-6 text-blue-500">
-                  {selectedArticle.topics.map((topic) => (
+                  {(Array.isArray(selectedArticle.topics)
+                    ? selectedArticle.topics
+                    : selectedArticle.topics
+                        .split(",")
+                        .map((topic) => topic.trim())
+                  ).map((topic) => (
                     <span
                       key={topic}
                       className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-1 mb-1"
@@ -320,7 +377,7 @@ export default function ClassfyApp() {
                       {selectedArticle.videos.map((video, index) => (
                         <video key={index} controls className="w-full mt-2">
                           <source src={video} type="video/mp4" />
-                          Không được hỗ trợ!
+                          Trình duyệt của bạn không hỗ trợ video.
                         </video>
                       ))}
                     </div>
@@ -351,7 +408,7 @@ export default function ClassfyApp() {
 
               {/* Tác giả ở góc dưới bên phải */}
               <p className="absolute bottom-6 right-6 text-blue-500 font-semibold">
-                {selectedArticle.author || "Không rõ tác giả"}
+                {selectedArticle.name || "Chưa có tác giả"}
               </p>
             </div>
           </div>
