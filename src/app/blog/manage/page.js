@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
-import Notification from "../../../utils/notification"; // Giả sử bạn đã có component này
+import Notification from "../../../utils/notification";
+import Confirm from "../../../utils/error";
 
 export default function ManageApp() {
   const [articles, setArticles] = useState([]);
@@ -11,20 +12,30 @@ export default function ManageApp() {
     id: null,
     title: "",
     summary: "",
-    author: "",
     date: "",
     src: "",
     topics: "",
     tags: [],
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [notification, setNotification] = useState(null); // Thay đổi từ error và successMessage
+  const [notification, setNotification] = useState(null);
   const [expandedArticleId, setExpandedArticleId] = useState(null);
   const [deletingArticleId, setDeletingArticleId] = useState(null);
   const [tagInput, setTagInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState("");
   const router = useRouter();
+
+  // Tự động ẩn thông báo sau 3 giây
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   useEffect(() => {
     const checkLoginStatus = async () => {
@@ -96,7 +107,6 @@ export default function ManageApp() {
           id: post.id,
           title: post.title || "Không có tiêu đề",
           summary: post.content?.slice(0, 100) + "..." || "Không có nội dung",
-          author: post.name || "Không rõ tác giả",
           date: new Date(post.created_at).toISOString().split("T")[0],
           src: imageSrc,
           topics: post.topics || "Chưa chọn",
@@ -142,6 +152,13 @@ export default function ManageApp() {
     setNewArticle(articleToDelete);
     setIsEditing(false);
     setDeletingArticleId(id);
+    setConfirmMessage(
+      `Bạn có chắc chắn muốn xóa bài viết "${
+        articleToDelete.title || "Không có tiêu đề"
+      }" không?`
+    );
+    setConfirmAction(() => confirmDelete);
+    setShowConfirm(true);
   };
 
   const confirmDelete = async () => {
@@ -169,10 +186,12 @@ export default function ManageApp() {
         message: `Không thể xóa bài viết: ${err.message}`,
         type: "error",
       });
+    } finally {
+      setShowConfirm(false);
     }
   };
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
       return;
@@ -180,7 +199,6 @@ export default function ManageApp() {
     if (
       !newArticle.title ||
       !newArticle.summary ||
-      !newArticle.author ||
       !newArticle.date ||
       !newArticle.src ||
       !newArticle.topics ||
@@ -193,12 +211,19 @@ export default function ManageApp() {
       return;
     }
 
+    setConfirmMessage(
+      "Bạn có chắc chắn muốn lưu các thay đổi cho bài viết này?"
+    );
+    setConfirmAction(() => confirmSaveChanges);
+    setShowConfirm(true);
+  };
+
+  const confirmSaveChanges = async () => {
     if (isEditing) {
       try {
         const updatedData = {
           title: newArticle.title,
           content: newArticle.summary,
-          name: newArticle.author,
           created_at: newArticle.date,
           images: [newArticle.src],
           topics: newArticle.topics,
@@ -229,6 +254,8 @@ export default function ManageApp() {
           message: `Không thể cập nhật bài viết: ${err.message}`,
           type: "error",
         });
+      } finally {
+        setShowConfirm(false);
       }
     }
   };
@@ -260,7 +287,6 @@ export default function ManageApp() {
       id: null,
       title: "",
       summary: "",
-      author: "",
       date: "",
       src: "",
       topics: "",
@@ -268,8 +294,15 @@ export default function ManageApp() {
     });
     setIsEditing(false);
     setDeletingArticleId(null);
-    setNotification(null); // Reset thông báo
+    setNotification(null);
     setTagInput("");
+    setShowConfirm(false);
+  };
+
+  const handleCancel = () => {
+    setConfirmMessage("Bạn có chắc chắn muốn hủy chỉnh sửa?");
+    setConfirmAction(() => resetForm);
+    setShowConfirm(true);
   };
 
   const handleLoginRedirect = () => {
@@ -278,18 +311,11 @@ export default function ManageApp() {
   };
 
   return (
-    <div className="text-gray-700 flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative">
-      <div className="w-2/3 p-5 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg border-r border-gray-200">
+    <div className="text-gray-700 flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative bg-gradient-to-br from-blue-100 to-purple-100">
+      <div className="w-2/3 p-5 rounded-lg border-r border-gray-200">
         <h1 className="text-2xl text-gray-700 font-bold mb-5 animate-fade-in-down">
           Quản lý bài viết
         </h1>
-        {notification && (
-          <Notification
-            message={notification.message}
-            type={notification.type}
-            onClose={() => setNotification(null)}
-          />
-        )}
         <ul>
           {articles.map((article) => (
             <div key={article.id}>
@@ -328,9 +354,6 @@ export default function ManageApp() {
                 <div className="ml-2 mb-4 bg-gray-50 p-2 rounded border border-gray-300 animate-fade-in">
                   <h2 className="text-xl font-bold">{article.title}</h2>
                   <p className="text-gray-600">{article.summary}</p>
-                  <p className="mt-2 font-semibold text-gray-800">
-                    Được tạo bởi: {article.author}
-                  </p>
                   <p className="mt-1 text-gray-500">Ngày: {article.date}</p>
                   <p className="mt-1 text-gray-500">Chủ đề: {article.topics}</p>
                   <p className="mt-1 text-gray-500">
@@ -343,19 +366,13 @@ export default function ManageApp() {
         </ul>
       </div>
 
-      <div className="flex-1 p-5 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg ml-2 text-gray-700 animate-slide-in-right">
+      {/* Tăng khoảng cách bằng cách thay ml-2 thành ml-10 */}
+      <div className="flex-1 p-5 rounded-lg ml-10 text-gray-700 animate-slide-in-right">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-700">
             {deletingArticleId ? "Xóa bài viết" : "Chỉnh sửa bài viết"}
           </h2>
         </div>
-        {notification && (
-          <Notification
-            message={notification.message}
-            type={notification.type}
-            onClose={() => setNotification(null)}
-          />
-        )}
 
         <div className="mb-4">
           <label className="block mb-1">Tiêu đề:</label>
@@ -373,17 +390,6 @@ export default function ManageApp() {
           <textarea
             name="summary"
             value={newArticle.summary}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Tác giả:</label>
-          <input
-            type="text"
-            name="author"
-            value={newArticle.author}
             onChange={handleChange}
             className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
             disabled={!isLoggedIn || deletingArticleId !== null}
@@ -457,14 +463,14 @@ export default function ManageApp() {
           {deletingArticleId !== null ? (
             <>
               <button
-                onClick={confirmDelete}
+                onClick={() => handleDelete(deletingArticleId)}
                 className="bg-red-400 hover:bg-red-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-pulse"
                 disabled={!isLoggedIn}
               >
                 Xóa bài viết
               </button>
               <button
-                onClick={resetForm}
+                onClick={handleCancel}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
                 disabled={!isLoggedIn}
               >
@@ -483,7 +489,7 @@ export default function ManageApp() {
                 </button>
               )}
               <button
-                onClick={resetForm}
+                onClick={handleCancel}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
                 disabled={!isLoggedIn}
               >
@@ -494,6 +500,29 @@ export default function ManageApp() {
         </div>
       </div>
 
+      {/* Thông báo nhanh không có nền đen */}
+      {notification && (
+        <div className="absolute top-5 right-5 z-50">
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        </div>
+      )}
+
+      {/* Modal xác nhận không có nền đen */}
+      {showConfirm && (
+        <div className="absolute inset-0 flex items-center justify-center z-50">
+          <Confirm
+            message={confirmMessage}
+            onConfirm={confirmAction}
+            onCancel={() => setShowConfirm(false)}
+          />
+        </div>
+      )}
+
+      {/* Modal đăng nhập không có nền đen */}
       {showLoginModal && (
         <div className="absolute inset-0 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full border border-gray-200">
