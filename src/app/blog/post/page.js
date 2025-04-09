@@ -61,22 +61,19 @@ export default function PostApp() {
         setIsLoggedIn(false);
         setName("");
         setEntries([]);
-        setShowLoginModal(true); // Hiển thị modal khi chưa đăng nhập hoặc vừa đăng xuất
+        setShowLoginModal(true);
         resetForm();
       }
     };
 
-    // Kiểm tra trạng thái ban đầu
     checkLoginStatus();
 
-    // Lắng nghe sự kiện thay đổi localStorage (cho các tab khác)
     const handleStorageChange = (event) => {
       if (event.key === "user" || event.key === null) {
         checkLoginStatus();
       }
     };
 
-    // Lắng nghe sự kiện đăng xuất trong cùng tab
     const handleLogoutEvent = () => {
       checkLoginStatus();
     };
@@ -84,7 +81,6 @@ export default function PostApp() {
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("user-logout", handleLogoutEvent);
 
-    // Dọn dẹp listener khi component unmount
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("user-logout", handleLogoutEvent);
@@ -196,6 +192,14 @@ export default function PostApp() {
         .order("created_at", { ascending: false });
       if (demosError) throw demosError;
 
+      const normalizeMedia = (media) => {
+        if (!media || typeof media !== "string") return [];
+        if (isValidUrl(media)) {
+          return [{ url: media, name: media.split("/").pop() || "unnamed" }];
+        }
+        return [];
+      };
+
       const demosFormatted = demosData.map((entry) => ({
         ...entry,
         table: "demos",
@@ -209,38 +213,14 @@ export default function PostApp() {
             ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
             : []
           : [],
-        images: entry.images
-          ? Array.isArray(entry.images)
-            ? entry.images.map((img) =>
-                typeof img === "string"
-                  ? { url: img, name: img.split("/").pop() }
-                  : img
-              )
-            : []
-          : [],
-        files: entry.files
-          ? Array.isArray(entry.files)
-            ? entry.files.map((file) =>
-                typeof file === "string"
-                  ? { url: file, name: file.split("/").pop() }
-                  : file
-              )
-            : []
-          : [],
-        videos: entry.videos
-          ? Array.isArray(entry.videos)
-            ? entry.videos.map((video) =>
-                typeof video === "string"
-                  ? { url: video, name: video.split("/").pop() }
-                  : video
-              )
-            : []
-          : [],
+        images: normalizeMedia(entry.images),
+        files: normalizeMedia(entry.files),
+        videos: normalizeMedia(entry.videos),
       }));
 
       setEntries(demosFormatted);
     } catch (err) {
-      console.log("Error in fetchEntries:", err);
+      console.error("Error in fetchEntries:", err);
       setNotification({
         message: `Không thể tải dữ liệu: ${err.message}`,
         type: "error",
@@ -302,9 +282,9 @@ export default function PostApp() {
         content,
         topics: finalTopic,
         tags: Array.isArray(tags) ? tags.join(",") : "",
-        images: uploadedImages.map((img) => img.url),
-        files: uploadedFiles.map((file) => file.url),
-        videos: uploadedVideos.map((video) => video.url),
+        images: uploadedImages.length > 0 ? uploadedImages[0].url : null,
+        files: uploadedFiles.length > 0 ? uploadedFiles[0].url : null,
+        videos: uploadedVideos.length > 0 ? uploadedVideos[0].url : null,
         name,
       };
 
@@ -346,7 +326,7 @@ export default function PostApp() {
       await fetchTopics();
       await fetchTags();
     } catch (error) {
-      console.log("Error in handleSaveDraft:", error);
+      console.error("Error in handleSaveDraft:", error);
       setNotification({
         message: `Không thể lưu bản nháp. Lỗi: ${error.message}`,
         type: "error",
@@ -366,9 +346,9 @@ export default function PostApp() {
         content,
         topics: finalTopic,
         tags: Array.isArray(tags) ? tags.join(",") : "",
-        images: uploadedImages.map((img) => img.url),
-        files: uploadedFiles.map((file) => file.url),
-        videos: uploadedVideos.map((video) => video.url),
+        images: uploadedImages.length > 0 ? uploadedImages[0].url : null,
+        files: uploadedFiles.length > 0 ? uploadedFiles[0].url : null,
+        videos: uploadedVideos.length > 0 ? uploadedVideos[0].url : null,
         name,
       };
 
@@ -395,7 +375,7 @@ export default function PostApp() {
       await fetchTags();
       router.push("/blog/post");
     } catch (error) {
-      console.log("Error in handlePublish:", error);
+      console.error("Error in handlePublish:", error);
       setNotification({
         message: `Không thể đăng bài viết. Lỗi: ${error.message}`,
         type: "error",
@@ -427,33 +407,9 @@ export default function PostApp() {
           : []
         : []
     );
-    setUploadedImages(
-      entry.images
-        ? entry.images.map((img) =>
-            typeof img === "string"
-              ? { url: img, name: img.split("/").pop() }
-              : img
-          )
-        : []
-    );
-    setUploadedFiles(
-      entry.files
-        ? entry.files.map((file) =>
-            typeof file === "string"
-              ? { url: file, name: file.split("/").pop() }
-              : file
-          )
-        : []
-    );
-    setUploadedVideos(
-      entry.videos
-        ? entry.videos.map((video) =>
-            typeof video === "string"
-              ? { url: video, name: video.split("/").pop() }
-              : video
-          )
-        : []
-    );
+    setUploadedImages(entry.images || []);
+    setUploadedFiles(entry.files || []);
+    setUploadedVideos(entry.videos || []);
     setName(entry.name || "");
     setEditingId(entry.id);
     setEditingTable(entry.table);
@@ -518,15 +474,20 @@ export default function PostApp() {
             "https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload",
             { method: "POST", body: formData }
           );
-          if (!response.ok) throw new Error("Upload failed");
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Upload failed: ${errorText}`);
+          }
           const data = await response.json();
+          if (!data.secure_url)
+            throw new Error("Không nhận được URL từ Cloudinary");
           return { name: file.name, url: data.secure_url };
         })
       );
       setUploadedImages((prev) => [...prev, ...uploadedUrls]);
       setImageError("");
     } catch (err) {
-      console.log("Error in handleImageUpload:", err);
+      console.error("Error in handleImageUpload:", err);
       setImageError(err.message || "Không thể tải lên hình ảnh.");
     } finally {
       setIsUploadingImage(false);
@@ -570,7 +531,7 @@ export default function PostApp() {
       );
       setUploadedFiles((prevFiles) => [...prevFiles, ...uploadedFileUrls]);
     } catch (err) {
-      console.log("Error in handleFileUpload:", err);
+      console.error("Error in handleFileUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên tệp.",
         type: "error",
@@ -611,7 +572,7 @@ export default function PostApp() {
       );
       setUploadedVideos((prevVideos) => [...prevVideos, ...uploadedVideoUrls]);
     } catch (err) {
-      console.log("Error in handleVideoUpload:", err);
+      console.error("Error in handleVideoUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên video.",
         type: "error",
@@ -633,7 +594,8 @@ export default function PostApp() {
     setUploadedVideos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const truncateFileName = (name, maxLength = 20) => {
+  const truncateFileName = (name, maxLength = 10) => {
+    if (!name) return "unnamed";
     if (name.length <= maxLength) return name;
     return name.substring(0, maxLength - 3) + "...";
   };
@@ -645,6 +607,7 @@ export default function PostApp() {
 
   const mainContent = (
     <div className="flex flex-col lg:flex-row min-h-screen mt-[76px] mb-[-7px] gap-5 p-5 m-[-15px] relative">
+      {/* Phần chính */}
       <div className="lg:flex-1">
         <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
           {notification && (
@@ -689,7 +652,7 @@ export default function PostApp() {
                     type: "success",
                   });
                 } catch (err) {
-                  console.log("Error in delete:", err);
+                  console.error("Error in delete:", err);
                   setNotification({
                     message: `Không thể xóa: ${err.message}`,
                     type: "error",
@@ -905,8 +868,8 @@ export default function PostApp() {
               <div className="mt-4">
                 <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
                 <ul className="flex flex-wrap">
-                  {uploadedImages.map((image) =>
-                    isValidUrl(image.url) ? (
+                  {uploadedImages.map((image, index) =>
+                    image.url && isValidUrl(image.url) ? (
                       <li
                         key={image.url}
                         className="flex flex-col items-center mb-4 mr-4"
@@ -920,9 +883,7 @@ export default function PostApp() {
                             height={80}
                           />
                           <button
-                            onClick={() =>
-                              handleRemoveImage(uploadedImages.indexOf(image))
-                            }
+                            onClick={() => handleRemoveImage(index)}
                             className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
                             title="Xóa hình ảnh"
                             disabled={!isLoggedIn}
@@ -930,65 +891,21 @@ export default function PostApp() {
                             <FaTimes />
                           </button>
                         </div>
-                        <span className="text-blue-500 underline">
+                        <span className="text-blue-500 text-sm">
                           {truncateFileName(image.name)}
                         </span>
                       </li>
                     ) : (
                       <li
-                        key={image.url}
+                        key={index}
                         className="flex flex-col items-center mb-4 mr-4"
                       >
-                        <span className="text-red-500">
-                          URL hình ảnh không hợp lệ
+                        <span className="text-red-500 text-sm">
+                          Hình ảnh không hợp lệ
                         </span>
                       </li>
                     )
                   )}
-                </ul>
-              </div>
-            )}
-
-          {isUploadingFile && (
-            <div className="mt-4">
-              <h3 className="font-bold mb-3">Đang tải tệp...</h3>
-              <div className="flex items-center">
-                <div className="loader mr-2"></div>
-                <span className="text-gray-600">Vui lòng chờ...</span>
-              </div>
-            </div>
-          )}
-
-          {Array.isArray(uploadedFiles) &&
-            uploadedFiles.length > 0 &&
-            !isUploadingFile && (
-              <div className="mt-4">
-                <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
-                <ul className="mr-5">
-                  {uploadedFiles.map((file) => (
-                    <li key={file.url} className="mb-1">
-                      <div className="flex items-center">
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 underline"
-                        >
-                          {truncateFileName(file.name)}
-                        </a>
-                        <button
-                          onClick={() =>
-                            handleRemoveFile(uploadedFiles.indexOf(file))
-                          }
-                          className="ml-2 p-1 text-red-400 hover:text-red-500"
-                          title="Xóa tệp"
-                          disabled={!isLoggedIn}
-                        >
-                          <FaTimes />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
                 </ul>
               </div>
             )}
@@ -1009,7 +926,7 @@ export default function PostApp() {
               <div className="mt-4">
                 <h3 className="font-bold mb-3">Video đã tải lên:</h3>
                 <ul className="flex flex-wrap">
-                  {uploadedVideos.map((video) => (
+                  {uploadedVideos.map((video, index) => (
                     <li
                       key={video.url}
                       className="flex flex-col items-center mb-4 mr-4"
@@ -1021,9 +938,7 @@ export default function PostApp() {
                           className="w-40 h-24 object-cover rounded-md mb-2"
                         />
                         <button
-                          onClick={() =>
-                            handleRemoveVideo(uploadedVideos.indexOf(video))
-                          }
+                          onClick={() => handleRemoveVideo(index)}
                           className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
                           title="Xóa video"
                           disabled={!isLoggedIn}
@@ -1031,9 +946,51 @@ export default function PostApp() {
                           <FaTimes />
                         </button>
                       </div>
-                      <span className="text-blue-500 underline">
+                      <span className="text-blue-500 text-sm">
                         {truncateFileName(video.name)}
                       </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+          {isUploadingFile && (
+            <div className="mt-4">
+              <h3 className="font-bold mb-3">Đang tải tệp...</h3>
+              <div className="flex items-center">
+                <div className="loader mr-2"></div>
+                <span className="text-gray-600">Vui lòng chờ...</span>
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(uploadedFiles) &&
+            uploadedFiles.length > 0 &&
+            !isUploadingFile && (
+              <div className="mt-4">
+                <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
+                <ul className="mr-5">
+                  {uploadedFiles.map((file, index) => (
+                    <li key={file.url} className="mb-2">
+                      <div className="flex items-center">
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 text-sm"
+                        >
+                          {truncateFileName(file.name)}
+                        </a>
+                        <button
+                          onClick={() => handleRemoveFile(index)}
+                          className="ml-2 p-1 text-red-400 hover:text-red-500"
+                          title="Xóa tệp"
+                          disabled={!isLoggedIn}
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1068,6 +1025,7 @@ export default function PostApp() {
         </div>
       </div>
 
+      {/* Sidebar Bản nháp */}
       <div className="lg:w-1/3 lg:max-w-sm">
         <div className="p-4 border border-gray-300 rounded-lg bg-white h-[calc(0.75*(100vh-5px))] flex flex-col">
           <div className="sticky top-0 bg-white z-0 pb-2 border-b border-gray-200">
@@ -1075,113 +1033,113 @@ export default function PostApp() {
               <DiffOutlined className="inline mr-2" /> Bản nháp
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto mt-1 scrollbar-hidden">
+          <div className="flex-1 overflow-y-auto scrollbar-hidden">
+            <h3 className="font-semibold text-gray-700 mb-2">
+              Danh sách bản nháp
+            </h3>
             <ul>
               {entries.length > 0 ? (
                 entries.map((entry) => (
                   <li
                     key={`${entry.table}-${entry.id}`}
-                    className="border-2 border-gray-200 p-4 rounded-xl mb-2 flex flex-col transition duration-300 hover:shadow-lg"
+                    className="border-2 border-gray-200 p-2 rounded-xl mb-2 flex transition duration-300 hover:shadow-lg"
                   >
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-1">
-                        {Array.isArray(entry.images) &&
-                        entry.images.length > 0 &&
-                        isValidUrl(entry.images[0].url) ? (
+                    <div className="flex-shrink-0 mr-2 flex flex-col gap-1 items-center">
+                      {/* Preview hình ảnh */}
+                      {Array.isArray(entry.images) &&
+                      entry.images.length > 0 &&
+                      isValidUrl(entry.images[0].url) ? (
+                        <div className="flex flex-col items-center">
                           <Image
                             src={entry.images[0].url}
                             alt={`Entry ${entry.id} image`}
-                            width={60}
-                            height={60}
-                            className="w-16 h-16 object-cover rounded-md"
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 object-cover rounded-md"
                           />
-                        ) : (
-                          <span className="text-gray-500">
-                            Không có hình ảnh
+                          <span className="text-blue-500 text-sm">
+                            {truncateFileName(entry.images[0].name)}
                           </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 text-sm">No img</span>
+                      )}
+                      {/* Preview tệp (biểu tượng + tên) */}
+                      {Array.isArray(entry.files) && entry.files.length > 0 && (
+                        <div className="flex flex-col items-center">
+                          <div className="flex items-center justify-center w-10 h-10 bg-gray-200 rounded-md">
+                            <FileTextOutlined className="text-gray-600" />
+                          </div>
+                          <span className="text-blue-500 text-sm">
+                            {truncateFileName(entry.files[0].name)}
+                          </span>
+                        </div>
+                      )}
+                      {/* Preview video */}
+                      {Array.isArray(entry.videos) &&
+                        entry.videos.length > 0 && (
+                          <div className="flex flex-col items-center">
+                            <video
+                              src={entry.videos[0].url}
+                              className="w-10 h-10 object-cover rounded-md"
+                              muted
+                            />
+                            <span className="text-blue-500 text-sm">
+                              {truncateFileName(entry.videos[0].name)}
+                            </span>
+                          </div>
                         )}
-                      </div>
-                      <div className="flex-grow ml-3">
-                        <strong className="text-yellow-600 text-lg">
-                          {entry.title || "Không có tiêu đề"}
-                        </strong>
-                        <p className="text-gray-700 text-sm">
-                          {entry.content
-                            ? entry.content.slice(0, 50) + "..."
-                            : "Không có nội dung"}
-                        </p>
-                        <p className="text-gray-700 text-sm">
-                          Chủ đề: {entry.topics || "Chưa chọn"}
-                        </p>
-                        {Array.isArray(entry.tags) && entry.tags.length > 0 && (
-                          <p className="text-gray-700 text-sm">
-                            Tags: {entry.tags.join(", ")}
-                          </p>
-                        )}
-                        <p className="text-gray-700 text-sm">
-                          Tên: {entry.name}
-                        </p>
-                        <p className="text-gray-700 text-sm">
-                          Trạng thái: Bản nháp
-                        </p>
-                        {Array.isArray(entry.images) &&
-                          entry.images.length > 0 && (
-                            <p className="text-gray-700 text-sm">
-                              Hình ảnh:{" "}
-                              {entry.images
-                                .map((img) => truncateFileName(img.name))
-                                .join(", ")}
-                            </p>
-                          )}
-                        {Array.isArray(entry.files) &&
-                          entry.files.length > 0 && (
-                            <p className="text-gray-700 text-sm">
-                              Tệp:{" "}
-                              {entry.files
-                                .map((file) => truncateFileName(file.name))
-                                .join(", ")}
-                            </p>
-                          )}
-                        {Array.isArray(entry.videos) &&
-                          entry.videos.length > 0 && (
-                            <p className="text-gray-700 text-sm">
-                              Video:{" "}
-                              {entry.videos
-                                .map((video) => truncateFileName(video.name))
-                                .join(", ")}
-                            </p>
-                          )}
-                        <small className="text-gray-700">
-                          {new Date(entry.created_at).toLocaleString()}
-                        </small>
-                      </div>
                     </div>
-                    <div className="flex justify-end space-x-3 mt-2">
-                      <button
-                        onClick={() => handleEditDraft(entry)}
-                        className="text-green-500 text-sm hover:text-green-600 transition duration-200 underline"
-                        title="Sửa"
-                        disabled={!isLoggedIn}
-                      >
-                        Chỉnh sửa
-                      </button>
-                      <button
-                        onClick={() => {
-                          setConfirmDeleteId(entry.id);
-                          setConfirmDeleteTable(entry.table);
-                          setShowConfirm(true);
-                        }}
-                        className="text-red-400 text-sm hover:text-red-500 transition duration-200 underline"
-                        title="Xóa"
-                        disabled={!isLoggedIn}
-                      >
-                        Xóa
-                      </button>
+                    <div className="flex-grow flex flex-col">
+                      <strong className="text-yellow-600 text-sm">
+                        {entry.title || "Không có tiêu đề"}
+                      </strong>
+                      <p className="text-gray-700 text-sm">
+                        Nội dung:{" "}
+                        {entry.content
+                          ? entry.content.slice(0, 30) + "..."
+                          : "Không có nội dung"}
+                      </p>
+                      <p className="text-gray-700 text-sm">
+                        Chủ đề: {entry.topics || "Chưa chọn"}
+                      </p>
+                      {Array.isArray(entry.tags) && entry.tags.length > 0 && (
+                        <p className="text-gray-700 text-sm">
+                          Tags: {entry.tags.join(", ")}
+                        </p>
+                      )}
+                      <small className="text-gray-700 text-sm">
+                        {new Date(entry.created_at).toLocaleString()}
+                      </small>
+                      <div className="flex justify-end space-x-2 mt-1">
+                        <button
+                          onClick={() => handleEditDraft(entry)}
+                          className="text-green-500 text-sm hover:text-green-600 transition duration-200 underline"
+                          title="Sửa"
+                          disabled={!isLoggedIn}
+                        >
+                          Chỉnh sửa
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConfirmDeleteId(entry.id);
+                            setConfirmDeleteTable(entry.table);
+                            setShowConfirm(true);
+                          }}
+                          className="text-red-400 text-sm hover:text-red-500 transition duration-200 underline"
+                          title="Xóa"
+                          disabled={!isLoggedIn}
+                        >
+                          Xóa
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))
               ) : (
-                <p className="text-gray-700">Không tìm thấy bản nháp nào.</p>
+                <p className="text-gray-700 text-sm">
+                  Không tìm thấy bản nháp nào.
+                </p>
               )}
             </ul>
           </div>
