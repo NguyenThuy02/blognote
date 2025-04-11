@@ -9,11 +9,15 @@ import {
   ApartmentOutlined,
   SaveOutlined,
   FileWordOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { saveAs } from "file-saver";
 import { supabase } from "../../../lib/supabase";
 import "aframe";
+import Notification from "../../../utils/notification"; // Import Notification
+import Confirm from "../../../utils/error"; // Import Confirm
 
 const ForceGraph2D = dynamic(
   () => import("react-force-graph").then((mod) => mod.ForceGraph2D),
@@ -27,9 +31,11 @@ export default function BloglistApp() {
   const [showShareOverlay, setShowShareOverlay] = useState(null);
   const [copiedStatus, setCopiedStatus] = useState({});
   const [comments, setComments] = useState({});
-  const [newCommentContent, setNewCommentContent] = useState(""); // State mới cho bình luận
+  const [newCommentContent, setNewCommentContent] = useState("");
   const [replyContent, setReplyContent] = useState("");
   const [replyToCommentId, setReplyToCommentId] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editedCommentContent, setEditedCommentContent] = useState("");
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [nodeSize, setNodeSize] = useState(6);
   const [savedArticles, setSavedArticles] = useState([]);
@@ -44,18 +50,42 @@ export default function BloglistApp() {
   const [exportingStates, setExportingStates] = useState({});
   const [selectedSavedArticle, setSelectedSavedArticle] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [notification, setNotification] = useState(null); // Thông báo thành công
+  const [error, setError] = useState(null); // Thông báo lỗi hoặc xác nhận
   const graphRef = useRef();
 
-  // Kiểm tra trạng thái đăng nhập chỉ trên client
   useEffect(() => {
-    if (typeof window === "undefined") return; // Tránh chạy trên server
+    setIsMounted(true);
+  }, []);
 
-    const checkLoginStatus = () => {
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const checkLoginStatus = async () => {
       const userData = JSON.parse(localStorage.getItem("user") || "null");
       if (userData) {
         setIsLoggedIn(true);
+        setCurrentUser(userData);
+
+        try {
+          const { data: savedData, error: savedError } = await supabase
+            .from("saves")
+            .select("*")
+            .eq("user_id", userData.id);
+
+          if (savedError) {
+            setError("Lỗi khi lấy bài viết đã lưu: " + savedError.message);
+          } else {
+            setSavedArticles(savedData);
+          }
+        } catch (error) {
+          setError("Lỗi khi lấy bài viết đã lưu: " + error.message);
+        }
       } else {
         setIsLoggedIn(false);
+        setCurrentUser(null);
         setSavedArticles([]);
         setComments({});
         setAuthorInfo({ name: "", email: "", bio: "" });
@@ -81,7 +111,127 @@ export default function BloglistApp() {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("user-logout", handleLogoutEvent);
     };
-  }, []);
+  }, [isMounted]);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const fetchPostsAndAuthorsAndComments = async () => {
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select(
+          "id, title, content, images, files, videos, topics, tags, name, created_at"
+        );
+
+      if (postsError) {
+        setError("Lỗi khi lấy bài viết: " + postsError.message);
+      } else {
+        const normalizedPosts = postsData.map((post) => ({
+          ...post,
+          tags: normalizeTags(post.tags),
+          images: normalizeImages(post.images),
+          videos: normalizeVideos(post.videos),
+          files: normalizeFiles(post.files),
+          author: post.name || "Chưa có tác giả",
+          created_at: new Date(post.created_at).toLocaleDateString("vi-VN"),
+        }));
+        setPosts(normalizedPosts);
+
+        const initialComments = {};
+        normalizedPosts.forEach((post) => {
+          initialComments[post.id] = [];
+        });
+
+        const { data: commentsData, error: commentsError } = await supabase
+          .from("comments")
+          .select(
+            "id, article_id, user_id, content, updated_at, stickers, contentson"
+          )
+          .in(
+            "article_id",
+            normalizedPosts.map((post) => post.id)
+          );
+
+        if (commentsError) {
+          setError("Lỗi khi lấy bình luận: " + commentsError.message);
+        } else {
+          const uniqueComments = Array.from(
+            new Map(
+              commentsData.map((comment) => [comment.id, comment])
+            ).values()
+          );
+
+          const userIds = [...new Set(uniqueComments.map((c) => c.user_id))];
+          let userMap = {};
+          if (userIds.length > 0) {
+            const { data: usersData, error: usersError } = await supabase
+              .from("users")
+              .select("id, name")
+              .in("id", userIds);
+
+            if (usersError) {
+              setError("Lỗi khi lấy tên người dùng: " + usersError.message);
+            } else {
+              userMap = Object.fromEntries(
+                usersData.map((user) => [user.id, user.name])
+              );
+            }
+          }
+
+          uniqueComments.forEach((comment) => {
+            let replies = [];
+            if (comment.contentson && typeof comment.contentson === "string") {
+              try {
+                replies = JSON.parse(comment.contentson);
+                if (!Array.isArray(replies)) {
+                  console.warn(
+                    `contentson for comment ${comment.id} is not an array:`,
+                    replies
+                  );
+                  replies = [];
+                }
+              } catch (e) {
+                setError(
+                  `Lỗi phân tích contentson cho bình luận ${comment.id}: ` +
+                    e.message
+                );
+                replies = [];
+              }
+            }
+            initialComments[comment.article_id].push({
+              id: comment.id,
+              user_id: comment.user_id,
+              author: userMap[comment.user_id] || "Tác giả",
+              content: comment.content || "",
+              replies,
+            });
+          });
+
+          setComments(initialComments);
+        }
+      }
+
+      const { data: authorsData, error: authorsError } = await supabase
+        .from("posts")
+        .select("name");
+
+      if (authorsError) {
+        setError("Lỗi khi lấy tác giả: " + authorsError.message);
+      } else {
+        const authorCounts = authorsData.reduce((acc, { name }) => {
+          if (name) acc[name] = (acc[name] || 0) + 1;
+          return acc;
+        }, {});
+        const sortedAuthors = Object.entries(authorCounts)
+          .sort(([, countA], [, countB]) => countB - countA)
+          .slice(0, 7)
+          .map(([name]) => ({ name }));
+        setTopAuthors(sortedAuthors);
+      }
+    };
+
+    fetchPostsAndAuthorsAndComments();
+  }, [isMounted]);
 
   const normalizeTags = (tags) => {
     if (Array.isArray(tags)) return tags;
@@ -114,62 +264,8 @@ export default function BloglistApp() {
     return null;
   };
 
-  // Lấy bài viết và top 7 tác giả
-  useEffect(() => {
-    const fetchPostsAndAuthors = async () => {
-      const { data: postsData, error: postsError } = await supabase
-        .from("posts")
-        .select(
-          "id, title, content, images, files, videos, topics, tags, name, created_at"
-        );
-
-      if (postsError) {
-        console.error("Error fetching posts:", postsError);
-      } else {
-        const normalizedPosts = postsData.map((post) => ({
-          ...post,
-          tags: normalizeTags(post.tags),
-          images: normalizeImages(post.images),
-          videos: normalizeVideos(post.videos),
-          files: normalizeFiles(post.files),
-          author: post.name || "Chưa có tác giả",
-          created_at: new Date(post.created_at).toLocaleDateString("vi-VN"),
-        }));
-        setPosts(normalizedPosts);
-
-        const initialComments = {};
-        normalizedPosts.forEach((post) => {
-          if (!comments[post.id]) {
-            initialComments[post.id] = [];
-          }
-        });
-        setComments((prev) => ({ ...prev, ...initialComments }));
-      }
-
-      const { data: authorsData, error: authorsError } = await supabase
-        .from("posts")
-        .select("name");
-
-      if (authorsError) {
-        console.error("Error fetching authors:", authorsError);
-      } else {
-        const authorCounts = authorsData.reduce((acc, { name }) => {
-          if (name) acc[name] = (acc[name] || 0) + 1;
-          return acc;
-        }, {});
-        const sortedAuthors = Object.entries(authorCounts)
-          .sort(([, countA], [, countB]) => countB - countA)
-          .slice(0, 7)
-          .map(([name]) => ({ name }));
-        setTopAuthors(sortedAuthors);
-      }
-    };
-
-    fetchPostsAndAuthors();
-  }, []);
-
-  // Hàm xử lý khi nhấn vào bài viết
   const handlePostClick = (post) => {
+    if (!isMounted) return;
     setAuthorInfo({
       name: post.author,
       email: "N/A",
@@ -178,11 +274,12 @@ export default function BloglistApp() {
   };
 
   const handleSearchChange = (event) => {
+    if (!isMounted) return;
     setSearchTerm(event.target.value);
   };
 
   const toggleComments = (articleId) => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !isMounted) return;
     if (showCommentsForArticle !== articleId) {
       setLoadingStates((prev) => ({ ...prev, [articleId]: true }));
       setTimeout(() => {
@@ -194,11 +291,12 @@ export default function BloglistApp() {
     }
     setReplyContent("");
     setReplyToCommentId(null);
-    setNewCommentContent(""); // Reset bình luận mới khi đóng/mở
+    setNewCommentContent("");
+    setEditingCommentId(null);
   };
 
   const toggleDiagram = (articleId) => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !isMounted) return;
     if (showDiagramForArticle !== articleId) {
       setLoadingStates((prev) => ({ ...prev, [articleId]: true }));
       setTimeout(() => {
@@ -211,66 +309,284 @@ export default function BloglistApp() {
   };
 
   const handleNewCommentChange = (event) => {
-    if (!isLoggedIn) return;
+    if (!isMounted) return;
     setNewCommentContent(event.target.value);
   };
 
-  const submitComment = (articleId) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+  const submitComment = async (articleId) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
     if (!newCommentContent.trim()) return;
 
     const newComment = {
-      id: Date.now(),
-      author: "Tác giả", // Có thể thay bằng user thực tế từ localStorage
+      article_id: articleId,
+      user_id: currentUser.id,
       content: newCommentContent,
-      replies: [],
+      updated_at: new Date().toISOString(),
+      stickers: [],
+      contentson: JSON.stringify([]),
     };
 
-    setComments((prev) => ({
-      ...prev,
-      [articleId]: [...(prev[articleId] || []), newComment],
-    }));
-    setNewCommentContent("");
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .insert([newComment])
+        .select();
+
+      if (error) {
+        setError("Lỗi khi gửi bình luận: " + error.message);
+        return;
+      }
+
+      setComments((prev) => ({
+        ...prev,
+        [articleId]: [
+          ...(prev[articleId] || []),
+          {
+            id: data[0].id,
+            user_id: currentUser.id,
+            author: currentUser.name || "Tác giả",
+            content: newCommentContent,
+            replies: [],
+          },
+        ],
+      }));
+      setNewCommentContent("");
+      setNotification({
+        message: "Bình luận đã được gửi thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi gửi bình luận: " + error.message);
+    }
   };
 
   const handleReplyChange = (event) => {
-    if (!isLoggedIn) return;
+    if (!isMounted) return;
     setReplyContent(event.target.value);
   };
 
-  const submitReply = (articleId, commentId) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+  const submitReply = async (articleId, commentId) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
     if (!replyContent.trim()) return;
 
     const newReply = {
       id: Date.now(),
-      author: "Tác giả",
+      user_id: currentUser.id,
+      author: currentUser.name || "Tác giả",
       content: replyContent,
     };
 
-    const updatedComments = {
-      ...comments,
-      [articleId]: comments[articleId].map((comment) =>
-        comment.id === commentId
-          ? { ...comment, replies: [...comment.replies, newReply] }
-          : comment
-      ),
-    };
+    try {
+      const { data: commentData, error: fetchError } = await supabase
+        .from("comments")
+        .select("contentson")
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id)
+        .single();
 
-    setComments(updatedComments);
-    setReplyContent("");
-    setReplyToCommentId(null);
+      if (fetchError) {
+        setError("Lỗi khi lấy bình luận để phản hồi: " + fetchError.message);
+        return;
+      }
+
+      let currentReplies = [];
+      if (
+        commentData.contentson &&
+        typeof commentData.contentson === "string"
+      ) {
+        try {
+          currentReplies = JSON.parse(commentData.contentson);
+          if (!Array.isArray(currentReplies)) {
+            console.warn(
+              `contentson for comment ${commentId} is not an array:`,
+              currentReplies
+            );
+            currentReplies = [];
+          }
+        } catch (e) {
+          setError(
+            `Lỗi phân tích contentson cho bình luận ${commentId}: ` + e.message
+          );
+          currentReplies = [];
+        }
+      }
+
+      const updatedReplies = [...currentReplies, newReply];
+
+      const { error: updateError } = await supabase
+        .from("comments")
+        .update({ contentson: JSON.stringify(updatedReplies) })
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id);
+
+      if (updateError) {
+        setError("Lỗi khi lưu phản hồi: " + updateError.message);
+        return;
+      }
+
+      setComments((prev) => ({
+        ...prev,
+        [articleId]: prev[articleId].map((comment) =>
+          comment.id === commentId
+            ? { ...comment, replies: updatedReplies }
+            : comment
+        ),
+      }));
+      setReplyContent("");
+      setReplyToCommentId(null);
+      setNotification({
+        message: "Phản hồi đã được gửi thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi gửi phản hồi: " + error.message);
+    }
   };
 
-  const saveArticle = (article) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
-    if (!savedArticles.some((saved) => saved.id === article.id)) {
-      setSavedArticles([...savedArticles, article]);
+  const deleteComment = async (articleId, commentId) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
+
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        setError("Lỗi khi xóa bình luận: " + error.message);
+        return;
+      }
+
+      setComments((prev) => ({
+        ...prev,
+        [articleId]: prev[articleId].filter(
+          (comment) => comment.id !== commentId
+        ),
+      }));
+      setNotification({
+        message: "Bình luận đã được xóa thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi xóa bình luận: " + error.message);
+    }
+  };
+
+  const startEditingComment = (comment) => {
+    if (!isMounted) return;
+    setEditingCommentId(comment.id);
+    setEditedCommentContent(comment.content);
+  };
+
+  const cancelEditing = () => {
+    if (!isMounted) return;
+    setEditingCommentId(null);
+    setEditedCommentContent("");
+  };
+
+  const saveEditedComment = async (articleId, commentId) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
+    if (!editedCommentContent.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({
+          content: editedCommentContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        setError("Lỗi khi cập nhật bình luận: " + error.message);
+        return;
+      }
+
+      setComments((prev) => ({
+        ...prev,
+        [articleId]: prev[articleId].map((comment) =>
+          comment.id === commentId
+            ? { ...comment, content: editedCommentContent }
+            : comment
+        ),
+      }));
+      setEditingCommentId(null);
+      setEditedCommentContent("");
+      setNotification({
+        message: "Bình luận đã được chỉnh sửa thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi lưu bình luận đã chỉnh sửa: " + error.message);
+    }
+  };
+
+  const saveArticle = async (article) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
+    if (savedArticles.some((saved) => saved.article_id === article.id)) return;
+
+    const savedArticleEntry = {
+      user_id: currentUser.id,
+      name: currentUser.name || "Tác giả",
+      article_id: article.id,
+      title: article.title,
+      content: article.content,
+      author: article.author,
+      tags: article.tags,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("saves")
+        .insert([savedArticleEntry])
+        .select();
+
+      if (error) {
+        setError("Lỗi khi lưu bài viết: " + error.message);
+        return;
+      }
+
+      setSavedArticles((prev) => [...prev, data[0]]);
+      setNotification({
+        message: "Bài viết đã được lưu thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi lưu bài viết: " + error.message);
+    }
+  };
+
+  const deleteSavedArticle = async (saveId) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
+
+    try {
+      const { error } = await supabase
+        .from("saves")
+        .delete()
+        .eq("id", saveId)
+        .eq("user_id", currentUser.id);
+
+      if (error) {
+        setError("Lỗi khi xóa bài viết đã lưu: " + error.message);
+        return;
+      }
+
+      setSavedArticles((prev) =>
+        prev.filter((article) => article.id !== saveId)
+      );
+      setNotification({
+        message: "Bài viết đã được xóa khỏi danh sách lưu!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi xóa bài viết đã lưu: " + error.message);
     }
   };
 
   const resetDiagram = () => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
     setNodeSize(6);
     if (graphRef.current) {
       graphRef.current.zoomToFit(300);
@@ -278,7 +594,7 @@ export default function BloglistApp() {
   };
 
   const reloadDiagram = () => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
     if (showDiagramForArticle) {
       setLoadingStates((prev) => ({ ...prev, [showDiagramForArticle]: true }));
       setTimeout(() => {
@@ -297,17 +613,19 @@ export default function BloglistApp() {
             target: `comment-${comment.id}`,
           });
 
-          comment.replies.forEach((reply) => {
-            nodes.push({
-              id: `reply-${reply.id}`,
-              name: reply.author,
-              group: 2,
+          if (Array.isArray(comment.replies)) {
+            comment.replies.forEach((reply) => {
+              nodes.push({
+                id: `reply-${reply.id}`,
+                name: reply.author,
+                group: 2,
+              });
+              links.push({
+                source: `comment-${comment.id}`,
+                target: `reply-${reply.id}`,
+              });
             });
-            links.push({
-              source: `comment-${comment.id}`,
-              target: `reply-${reply.id}`,
-            });
-          });
+          }
         });
 
         setGraphData({ nodes, links });
@@ -324,7 +642,7 @@ export default function BloglistApp() {
   };
 
   const exportToWord = async (articleId) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
 
     setExportingStates((prev) => ({ ...prev, [articleId]: true }));
     try {
@@ -394,7 +712,7 @@ export default function BloglistApp() {
                   ],
                   spacing: { after: 100 },
                 }),
-                ...(comment.replies.length > 0
+                ...(Array.isArray(comment.replies) && comment.replies.length > 0
                   ? [
                       new Paragraph({
                         children: [
@@ -461,34 +779,39 @@ export default function BloglistApp() {
         );
         saveAs(blob, `${article.title}.docx`);
       }
+      setNotification({
+        message: "Xuất file Word thành công!",
+        type: "success",
+      });
     } catch (error) {
-      console.error("Lỗi khi xuất file Word:", error);
+      setError("Lỗi khi xuất file Word: " + error.message);
     } finally {
       setExportingStates((prev) => ({ ...prev, [articleId]: false }));
     }
   };
 
   const shareArticle = (articleId) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
     setShowShareOverlay(articleId);
   };
 
   const copyLink = (articleId) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
     const article = posts.find((a) => a.id === articleId);
     const shareUrl = `${window.location.origin}/post/${article.id}`;
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
         setCopiedStatus((prev) => ({ ...prev, [articleId]: true }));
+        setNotification({ message: "Đã sao chép liên kết!", type: "success" });
       })
       .catch((error) => {
-        console.error("Lỗi khi sao chép:", error);
+        setError("Lỗi khi sao chép liên kết: " + error.message);
       });
   };
 
   useEffect(() => {
-    if (!isLoggedIn || typeof window === "undefined") return;
+    if (!isMounted) return;
     if (showDiagramForArticle) {
       const nodes = [{ id: "center", name: "Bài viết", group: 0 }];
       const links = [];
@@ -506,35 +829,40 @@ export default function BloglistApp() {
           target: `comment-${comment.id}`,
         });
 
-        comment.replies.forEach((reply) => {
-          nodes.push({
-            id: `reply-${reply.id}`,
-            name: reply.author,
-            group: 2,
+        if (Array.isArray(comment.replies)) {
+          comment.replies.forEach((reply) => {
+            nodes.push({
+              id: `reply-${reply.id}`,
+              name: reply.author,
+              group: 2,
+            });
+            links.push({
+              source: `comment-${comment.id}`,
+              target: `reply-${reply.id}`,
+            });
           });
-          links.push({
-            source: `comment-${comment.id}`,
-            target: `reply-${reply.id}`,
-          });
-        });
+        }
       });
 
       setGraphData({ nodes, links });
     } else {
       setGraphData({ nodes: [], links: [] });
     }
-  }, [showDiagramForArticle, comments, isLoggedIn]);
+  }, [showDiagramForArticle, comments, isMounted]);
 
   const handleSavedArticleClick = (article) => {
-    if (typeof window === "undefined") return;
+    if (!isMounted) return;
     setSelectedSavedArticle(
       selectedSavedArticle === article.id ? null : article.id
     );
   };
 
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <div className="text-gray-700 mt-[97px] min-h-screen bg-gray-100 flex flex-row">
-      {/* Main content */}
       <div className="flex-1 mx-4 pt-5 pb-5 rounded-lg shadow-md bg-white">
         <div className="flex items-center justify-between mb-6 px-4">
           <h1
@@ -750,7 +1078,6 @@ export default function BloglistApp() {
                         className="text-gray-500 flex items-center"
                         style={{ fontSize: "16px" }}
                       >
-                        <MessageOutlined className="mr-1" />
                         Đăng nhập để Bình luận, Lưu bài viết và Chia sẻ bài viết
                       </p>
                     )}
@@ -797,9 +1124,7 @@ export default function BloglistApp() {
                             className="text-blue-500 break-all"
                             style={{ fontSize: "16px" }}
                           >
-                            {typeof window !== "undefined"
-                              ? `${window.location.origin}/post/${post.id}`
-                              : "Link không khả dụng trên server"}
+                            {`${window.location.origin}/post/${post.id}`}
                           </span>
                           <button
                             className={`${
@@ -808,10 +1133,7 @@ export default function BloglistApp() {
                                 : "bg-blue-500 hover:bg-blue-600"
                             } text-white px-3 py-1 rounded flex items-center transition duration-200`}
                             onClick={() => copyLink(post.id)}
-                            disabled={
-                              copiedStatus[post.id] ||
-                              typeof window === "undefined"
-                            }
+                            disabled={copiedStatus[post.id]}
                             style={{ fontSize: "16px" }}
                           >
                             {copiedStatus[post.id] ? (
@@ -832,7 +1154,7 @@ export default function BloglistApp() {
                   <div
                     className={`bg-white text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${
                       showCommentsForArticle === post.id
-                        ? "max-h-[600px] opacity-100"
+                        ? "opacity-100"
                         : "max-h-0 opacity-0 overflow-hidden"
                     }`}
                   >
@@ -855,7 +1177,7 @@ export default function BloglistApp() {
                             value={newCommentContent}
                             onChange={handleNewCommentChange}
                             rows="3"
-                            className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300"
+                            className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
                             style={{
                               border: "1px solid transparent",
                               backgroundColor: "transparent",
@@ -874,76 +1196,171 @@ export default function BloglistApp() {
                           </button>
                         </div>
                         {(comments[post.id] || []).map((comment) => (
-                          <div key={comment.id} className="border-b pb-4 mb-4">
-                            <p
-                              className="font-semibold text-blue-500"
-                              style={{ fontSize: "18px" }}
-                            >
-                              {comment.author}
-                            </p>
-                            <p style={{ fontSize: "18px" }}>
-                              {comment.content}
-                            </p>
-                            <button
-                              className="text-blue-500 mt-2"
-                              onClick={() => setReplyToCommentId(comment.id)}
-                            >
-                              <MessageOutlined
-                                className="mr-1"
-                                title="Phản hồi"
-                              />
-                              Phản hồi
-                            </button>
-
-                            {replyToCommentId === comment.id && (
-                              <div className="mt-2">
-                                <textarea
-                                  placeholder="Nhập phản hồi của bạn..."
-                                  value={replyContent}
-                                  onChange={handleReplyChange}
-                                  rows="2"
-                                  className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300"
-                                  style={{
-                                    border: "1px solid transparent",
-                                    backgroundColor: "transparent",
-                                    boxShadow:
-                                      "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
-                                    outline: "none",
-                                    fontSize: "18px",
-                                  }}
-                                />
-                                <button
-                                  className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
-                                  onClick={() =>
-                                    submitReply(post.id, comment.id)
-                                  }
-                                  style={{ fontSize: "16px" }}
-                                >
-                                  Gửi phản hồi
-                                </button>
+                          <div
+                            key={comment.id}
+                            className="pb-4 mb-4 border-b border-gray-200"
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div
+                                className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                                style={{ fontSize: "16px" }}
+                              >
+                                {comment.author[0]?.toUpperCase() || "?"}
                               </div>
-                            )}
-
-                            {comment.replies.length > 0 && (
-                              <div className="mt-4 pl-4 border-l">
-                                {comment.replies.map((reply, index) => (
-                                  <div key={reply.id} className="mb-2">
-                                    <p
-                                      className="font-semibold text-blue-500"
-                                      style={{ fontSize: "18px" }}
-                                    >
-                                      {reply.author}
-                                    </p>
-                                    <p style={{ fontSize: "18px" }}>
-                                      {reply.content}
-                                    </p>
-                                    {index < comment.replies.length - 1 && (
-                                      <div className="h-0.5 bg-gradient-to-r from-blue-300 to-purple-300 my-2"></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <p
+                                    className="font-semibold text-blue-500"
+                                    style={{ fontSize: "18px" }}
+                                  >
+                                    {comment.author}
+                                  </p>
+                                  {currentUser &&
+                                    comment.user_id === currentUser.id && (
+                                      <div className="flex space-x-2">
+                                        <button
+                                          className="text-blue-500 hover:text-blue-700"
+                                          onClick={() =>
+                                            startEditingComment(comment)
+                                          }
+                                        >
+                                          <EditOutlined />
+                                        </button>
+                                        <button
+                                          className="text-red-500 hover:text-red-700"
+                                          onClick={() =>
+                                            deleteComment(post.id, comment.id)
+                                          }
+                                        >
+                                          <DeleteOutlined />
+                                        </button>
+                                      </div>
                                     )}
+                                </div>
+                                {editingCommentId === comment.id ? (
+                                  <div className="mt-2">
+                                    <textarea
+                                      value={editedCommentContent}
+                                      onChange={(e) =>
+                                        setEditedCommentContent(e.target.value)
+                                      }
+                                      rows="2"
+                                      className="w-full p-2 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
+                                      style={{
+                                        border: "1px solid transparent",
+                                        backgroundColor: "transparent",
+                                        boxShadow:
+                                          "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                                        outline: "none",
+                                        fontSize: "18px",
+                                      }}
+                                    />
+                                    <div className="mt-2 space-x-2">
+                                      <button
+                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
+                                        onClick={() =>
+                                          saveEditedComment(post.id, comment.id)
+                                        }
+                                      >
+                                        Lưu
+                                      </button>
+                                      <button
+                                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded"
+                                        onClick={cancelEditing}
+                                      >
+                                        Hủy
+                                      </button>
+                                    </div>
                                   </div>
-                                ))}
+                                ) : (
+                                  <p
+                                    style={{
+                                      fontSize: "18px",
+                                      wordBreak: "break-word",
+                                    }}
+                                  >
+                                    {comment.content}
+                                  </p>
+                                )}
+                                <button
+                                  className="text-blue-500 mt-2"
+                                  onClick={() =>
+                                    setReplyToCommentId(comment.id)
+                                  }
+                                >
+                                  <MessageOutlined
+                                    className="mr-1"
+                                    title="Phản hồi"
+                                  />
+                                  Phản hồi
+                                </button>
+
+                                {replyToCommentId === comment.id && (
+                                  <div className="mt-2">
+                                    <textarea
+                                      placeholder="Nhập phản hồi của bạn..."
+                                      value={replyContent}
+                                      onChange={handleReplyChange}
+                                      rows="2"
+                                      className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
+                                      style={{
+                                        border: "1px solid transparent",
+                                        backgroundColor: "transparent",
+                                        boxShadow:
+                                          "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                                        outline: "none",
+                                        fontSize: "18px",
+                                      }}
+                                    />
+                                    <button
+                                      className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
+                                      onClick={() =>
+                                        submitReply(post.id, comment.id)
+                                      }
+                                      style={{ fontSize: "16px" }}
+                                    >
+                                      Gửi phản hồi
+                                    </button>
+                                  </div>
+                                )}
+
+                                {Array.isArray(comment.replies) &&
+                                  comment.replies.length > 0 && (
+                                    <div className="mt-4 pl-4 border-l">
+                                      {comment.replies.map((reply) => (
+                                        <div
+                                          key={reply.id}
+                                          className="mb-2 flex items-start space-x-3"
+                                        >
+                                          <div
+                                            className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                                            style={{ fontSize: "14px" }}
+                                          >
+                                            {reply.author[0]?.toUpperCase() ||
+                                              "?"}
+                                          </div>
+                                          <div className="flex-1">
+                                            <p
+                                              className="font-semibold text-blue-500"
+                                              style={{ fontSize: "16px" }}
+                                            >
+                                              {reply.author}
+                                            </p>
+                                            <p
+                                              style={{
+                                                fontSize: "16px",
+                                                wordBreak: "break-word",
+                                              }}
+                                            >
+                                              {reply.content}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         ))}
                       </>
@@ -1009,7 +1426,6 @@ export default function BloglistApp() {
         </div>
       </div>
 
-      {/* Right Sidebar */}
       <div className="w-1/4 min-w-[300px] max-w-[450px] bg-gradient-to-br from-gray-100 to-blue-100 border-l border-gray-200 p-4 rounded-lg shadow-md transition-all duration-300 flex-shrink-0 h-fit">
         <div className="mb-6">
           <h2
@@ -1044,7 +1460,7 @@ export default function BloglistApp() {
             >
               Bài viết đã lưu
             </h2>
-            <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm">
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm max-h-[400px] overflow-y-auto scrollbar-hidden">
               {savedArticles.length === 0 ? (
                 <p className="text-gray-500" style={{ fontSize: "18px" }}>
                   Chưa có bài viết nào được lưu.
@@ -1055,18 +1471,32 @@ export default function BloglistApp() {
                     key={article.id}
                     className="mb-4 last:mb-0 border-b border-gray-200 pb-2 last:border-0"
                   >
-                    <p
-                      className="font-medium text-gray-700 cursor-pointer hover:text-blue-500"
-                      style={{ fontSize: "18px" }}
-                      onClick={() => handleSavedArticleClick(article)}
-                    >
-                      {article.title}
-                    </p>
+                    <div className="flex justify-between items-center">
+                      <p
+                        className="font-medium text-gray-700 cursor-pointer hover:text-blue-500"
+                        style={{ fontSize: "18px" }}
+                        onClick={() => handleSavedArticleClick(article)}
+                      >
+                        {article.title}
+                      </p>
+                      <button
+                        className="text-red-400 hover:text-red-500 underline"
+                        onClick={() => deleteSavedArticle(article.id)}
+                      >
+                        Xóa
+                      </button>
+                    </div>
                     <p
                       className="text-sm text-blue-500"
                       style={{ fontSize: "16px" }}
                     >
-                      {article.author}
+                      Được lưu bởi: {article.name}
+                    </p>
+                    <p
+                      className="text-sm text-gray-500"
+                      style={{ fontSize: "16px" }}
+                    >
+                      Tác giả: {article.author}
                     </p>
                     {selectedSavedArticle === article.id && (
                       <div
@@ -1125,6 +1555,22 @@ export default function BloglistApp() {
           </div>
         </div>
       </div>
+
+      {/* Hiển thị Notification và Confirm */}
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
+      {error && (
+        <Confirm
+          message={error}
+          onConfirm={() => setError(null)} // "Có" để đóng thông báo
+          onCancel={() => setError(null)} // "Không" cũng đóng thông báo
+        />
+      )}
 
       <style jsx>{`
         .scrollbar-hidden::-webkit-scrollbar {

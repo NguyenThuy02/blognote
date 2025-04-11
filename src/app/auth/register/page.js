@@ -20,7 +20,7 @@ export default function RegisterApp() {
   const [showPassword, setShowPassword] = React.useState(false);
 
   const throttleEmailRequest = (callback) => {
-    setTimeout(callback, 3000);
+    setTimeout(callback, 2000);
   };
 
   const onSubmit = async (data) => {

@@ -1,10 +1,28 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
+import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+
+// Debounce hook to limit frequent updates
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 export default function ManageApp() {
   const [articles, setArticles] = useState([]);
@@ -21,19 +39,70 @@ export default function ManageApp() {
   const [notification, setNotification] = useState(null);
   const [expandedArticleId, setExpandedArticleId] = useState(null);
   const [deletingArticleId, setDeletingArticleId] = useState(null);
+  const [selectedArticles, setSelectedArticles] = useState([]);
   const [tagInput, setTagInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmMessage, setConfirmMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTopic, setFilterTopic] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [showPreview, setShowPreview] = useState(false);
+  const [favoriteArticles, setFavoriteArticles] = useState([]);
+  const [recentActions, setRecentActions] = useState([]);
+  const [theme, setTheme] = useState("light");
   const router = useRouter();
 
-  // Tự động ẩn thông báo sau 3 giây
+  // Debounce search query to reduce frequent updates
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Memoized filtered articles to avoid infinite update loops
+  const filteredArticles = useMemo(() => {
+    let result = articles;
+
+    if (debouncedSearchQuery) {
+      result = result.filter(
+        (article) =>
+          article.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          article.summary.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      );
+    }
+
+    if (filterTopic) {
+      result = result.filter((article) => article.topics === filterTopic);
+    }
+
+    if (filterTag) {
+      result = result.filter((article) => article.tags.includes(filterTag));
+    }
+
+    return [...result].sort((a, b) => {
+      if (sortBy === "created_at") {
+        return sortOrder === "desc"
+          ? new Date(b.date) - new Date(a.date)
+          : new Date(a.date) - new Date(b.date);
+      } else if (sortBy === "title") {
+        return sortOrder === "desc"
+          ? b.title.localeCompare(a.title)
+          : a.title.localeCompare(b.title);
+      }
+      return 0;
+    });
+  }, [debouncedSearchQuery, filterTopic, filterTag, sortBy, sortOrder, articles]);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") || "light";
+    setTheme(savedTheme);
+  }, []);
+
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000);
-      return () => clearTimeout(timer);
+      returnに戻
     }
   }, [notification]);
 
@@ -44,6 +113,13 @@ export default function ManageApp() {
         setIsLoggedIn(true);
         setShowLoginModal(false);
         await fetchArticles(userData);
+        const savedFavorites =
+          JSON.parse(localStorage.getItem("favoriteArticles")) || [];
+        setFavoriteArticles(
+          savedFavorites.filter((id) =>
+            articles.some((article) => article.id === id)
+          )
+        );
       } else {
         setIsLoggedIn(false);
         setArticles([]);
@@ -71,7 +147,7 @@ export default function ManageApp() {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("user-logout", handleLogoutEvent);
     };
-  }, []);
+  });
 
   const fetchArticles = async (userData) => {
     try {
@@ -121,6 +197,13 @@ export default function ManageApp() {
       });
 
       setArticles(formattedArticles);
+      const savedFavorites =
+        JSON.parse(localStorage.getItem("favoriteArticles")) || [];
+      setFavoriteArticles(
+        savedFavorites.filter((id) =>
+          formattedArticles.some((article) => article.id === id)
+        )
+      );
     } catch (err) {
       setNotification({
         message: `Không thể tải dữ liệu: ${err.message}`,
@@ -137,6 +220,14 @@ export default function ManageApp() {
     setNewArticle(article);
     setIsEditing(true);
     setDeletingArticleId(null);
+    setRecentActions((prev) => [
+      {
+        action: "Chỉnh sửa",
+        title: article.title,
+        timestamp: new Date().toLocaleString(),
+      },
+      ...prev.slice(0, 4),
+    ]);
   };
 
   const handleToggleDetails = (id) => {
@@ -176,8 +267,93 @@ export default function ManageApp() {
       setArticles(
         articles.filter((article) => article.id !== deletingArticleId)
       );
+      setSelectedArticles(
+        selectedArticles.filter((id) => id !== deletingArticleId)
+      );
+      setFavoriteArticles(
+        favoriteArticles.filter((id) => id !== deletingArticleId)
+      );
+      localStorage.setItem(
+        "favoriteArticles",
+        JSON.stringify(
+          favoriteArticles.filter((id) => id !== deletingArticleId)
+        )
+      );
+      setRecentActions((prev) => [
+        {
+          action: "Xóa",
+          title: newArticle.title,
+          timestamp: new Date().toLocaleString(),
+        },
+        ...prev.slice(0, 4),
+      ]);
       setNotification({
-        message: "Bài viết đã được xóa thành công!",
+        message: `Bài viết "${
+          newArticle.title || "Không có tiêu đề"
+        }" đã được xóa thành công!`,
+        type: "success",
+      });
+      resetForm();
+    } catch (err) {
+      setNotification({
+        message: `Không thể xóa bài viết: ${err.message}`,
+        type: "error",
+      });
+    } finally {
+      setShowConfirm(false);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    if (selectedArticles.length === 0) {
+      setNotification({
+        message: "Vui lòng chọn ít nhất một bài viết để xóa!",
+        type: "error",
+      });
+      return;
+    }
+    setConfirmMessage(
+      `Bạn có chắc chắn muốn xóa ${selectedArticles.length} bài viết đã chọn không?`
+    );
+    setConfirmAction(() => confirmBulkDelete);
+    setShowConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .delete()
+        .in("id", selectedArticles);
+      if (error) throw error;
+
+      setArticles(
+        articles.filter((article) => !selectedArticles.includes(article.id))
+      );
+      setFavoriteArticles(
+        favoriteArticles.filter((id) => !selectedArticles.includes(id))
+      );
+      localStorage.setItem(
+        "favoriteArticles",
+        JSON.stringify(
+          favoriteArticles.filter((id) => !selectedArticles.includes(id))
+        )
+      );
+      setRecentActions((prev) => [
+        {
+          action: "Xóa hàng loạt",
+          title: `${selectedArticles.length} bài viết`,
+          timestamp: new Date().toLocaleString(),
+        },
+        ...prev.slice(0, 4),
+      ]);
+      setSelectedArticles([]);
+      setNotification({
+        message: `${selectedArticles.length} bài viết đã được xóa thành công!`,
         type: "success",
       });
       resetForm();
@@ -201,11 +377,10 @@ export default function ManageApp() {
       !newArticle.summary ||
       !newArticle.date ||
       !newArticle.src ||
-      !newArticle.topics ||
-      newArticle.tags.length === 0
+      !newArticle.topics
     ) {
       setNotification({
-        message: "Tất cả các trường đều là bắt buộc!",
+        message: "Tất cả các trường (trừ tags) đều là bắt buộc!",
         type: "error",
       });
       return;
@@ -219,44 +394,58 @@ export default function ManageApp() {
   };
 
   const confirmSaveChanges = async () => {
-    if (isEditing) {
-      try {
-        const updatedData = {
-          title: newArticle.title,
-          content: newArticle.summary,
-          created_at: newArticle.date,
-          images: [newArticle.src],
-          topics: newArticle.topics,
-          tags: newArticle.tags.join(","),
-        };
+    try {
+      const articleData = {
+        title: newArticle.title,
+        content: newArticle.summary,
+        created_at: newArticle.date,
+        images: [newArticle.src],
+        topics: newArticle.topics,
+        tags: newArticle.tags.join(","),
+        name:
+          JSON.parse(localStorage.getItem("user")).name ||
+          JSON.parse(localStorage.getItem("user")).email,
+      };
 
-        const { error } = await supabase
-          .from("posts")
-          .update(updatedData)
-          .eq("id", newArticle.id);
+      const { error } = await supabase
+        .from("posts")
+        .update(articleData)
+        .eq("id", newArticle.id);
+      if (error) throw error;
 
-        if (error) throw error;
-
+      const updatedArticle = {
+        ...articles.find((article) => article.id === newArticle.id),
+        ...newArticle,
+      };
+      const isSame = JSON.stringify(updatedArticle) === JSON.stringify(newArticle);
+      if (!isSame) {
         setArticles(
           articles.map((article) =>
-            article.id === newArticle.id
-              ? { ...article, ...newArticle }
-              : article
+            article.id === newArticle.id ? updatedArticle : article
           )
         );
-        setNotification({
-          message: "Bài viết đã được cập nhật thành công!",
-          type: "success",
-        });
-        resetForm();
-      } catch (err) {
-        setNotification({
-          message: `Không thể cập nhật bài viết: ${err.message}`,
-          type: "error",
-        });
-      } finally {
-        setShowConfirm(false);
       }
+
+      setRecentActions((prev) => [
+        {
+          action: "Cập nhật",
+          title: newArticle.title,
+          timestamp: new Date().toLocaleString(),
+        },
+        ...prev.slice(0, 4),
+      ]);
+      setNotification({
+        message: `Bài viết "${newArticle.title}" đã được cập nhật thành công!`,
+        type: "success",
+      });
+      resetForm();
+    } catch (err) {
+      setNotification({
+        message: `Không thể cập nhật bài viết: ${err.message}`,
+        type: "error",
+      });
+    } finally {
+      setShowConfirm(false);
     }
   };
 
@@ -282,6 +471,36 @@ export default function ManageApp() {
     });
   };
 
+  const handleSelectArticle = (id) => {
+    setSelectedArticles((prev) =>
+      prev.includes(id)
+        ? prev.filter((articleId) => articleId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const toggleFavorite = (id) => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+    const newFavorites = favoriteArticles.includes(id)
+      ? favoriteArticles.filter((favId) => favId !== id)
+      : [...favoriteArticles, id];
+    setFavoriteArticles(newFavorites);
+    localStorage.setItem("favoriteArticles", JSON.stringify(newFavorites));
+    setRecentActions((prev) => [
+      {
+        action: favoriteArticles.includes(id)
+          ? "Bỏ yêu thích"
+          : "Thêm yêu thích",
+        title: articles.find((a) => a.id === id).title,
+        timestamp: new Date().toLocaleString(),
+      },
+      ...prev.slice(0, 4),
+    ]);
+  };
+
   const resetForm = () => {
     setNewArticle({
       id: null,
@@ -297,6 +516,7 @@ export default function ManageApp() {
     setNotification(null);
     setTagInput("");
     setShowConfirm(false);
+    setShowPreview(false);
   };
 
   const handleCancel = () => {
@@ -310,197 +530,654 @@ export default function ManageApp() {
     router.push("/auth/login");
   };
 
+  const handlePreview = () => {
+    if (
+      !newArticle.title ||
+      !newArticle.summary ||
+      !newArticle.date ||
+      !newArticle.src ||
+      !newArticle.topics
+    ) {
+      setNotification({
+        message: "Vui lòng điền đầy đủ thông tin (trừ tags) để xem trước!",
+        type: "error",
+      });
+      return;
+    }
+    setShowPreview(true);
+  };
+
+  const exportArticles = () => {
+    const dataStr = JSON.stringify(filteredArticles, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "articles.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotification({
+      message: "Danh sách bài viết đã được xuất thành công!",
+      type: "success",
+    });
+  };
+
+  const getTopTags = () => {
+    const tagCount = {};
+    articles.forEach((article) => {
+      article.tags.forEach((tag) => {
+        const normalizedTag = tag.toLowerCase();
+        tagCount[normalizedTag] = (tagCount[normalizedTag] || 0) + 1;
+      });
+    });
+    return Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag, count]) => ({ tag, count }));
+  };
+
+  const getActionSuggestion = () => {
+    const currentDate = new Date();
+    const date45DaysAgo = new Date(currentDate);
+    date45DaysAgo.setDate(currentDate.getDate() - 45);
+    const date14DaysAgo = new Date(currentDate);
+    date14DaysAgo.setDate(currentDate.getDate() - 14);
+
+    const oldArticles45Days = articles.filter(
+      (article) => new Date(article.date) < date45DaysAgo
+    );
+    const oldArticles14Days = articles.filter(
+      (article) => new Date(article.date) < date14DaysAgo
+    );
+
+    let suggestions = [];
+    if (oldArticles45Days.length > 5) {
+      suggestions.push(
+        "Bạn có nhiều bài viết cũ (>45 ngày). Hãy xem xét xóa bớt!"
+      );
+    }
+    if (oldArticles14Days.length > 5) {
+      suggestions.push(
+        "Bạn có nhiều bài viết cũ (>14 ngày). Hãy xem xét xóa bớt!"
+      );
+    }
+    if (
+      articles.length > 0 &&
+      articles.every((article) => article.tags.length === 0)
+    ) {
+      suggestions.push(
+        "Bài viết của bạn chưa có tag. Hãy thêm tag để dễ quản lý!"
+      );
+    }
+    if (suggestions.length === 0) {
+      return "Mọi thứ đang ổn! Tiếp tục quản lý bài viết nhé.";
+    }
+    return suggestions.join(" ");
+  };
+
   return (
-    <div className="text-gray-700 flex mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative bg-gradient-to-br from-blue-100 to-purple-100">
-      <div className="w-2/3 p-5 rounded-lg border-r border-gray-200">
-        <h1 className="text-2xl text-gray-700 font-bold mb-5 animate-fade-in-down">
-          Quản lý bài viết
-        </h1>
-        <ul>
-          {articles.map((article) => (
-            <div key={article.id}>
-              <li className="flex justify-between items-center text-gray-700 mb-4 animate-slide-in-left">
-                <div
-                  onClick={() => handleToggleDetails(article.id)}
-                  className="cursor-pointer flex items-center"
-                >
-                  <Image
-                    src={article.src}
-                    alt={article.title}
-                    width={50}
-                    height={50}
-                    className="rounded-md mr-3"
-                  />
-                  <span className="font-semibold">{article.title}</span>
-                </div>
-                <div>
-                  <button
-                    onClick={() => handleEdit(article)}
-                    className="text-green-500 hover:text-green-600 text-base mr-2 underline"
-                    disabled={!isLoggedIn}
-                  >
-                    Chỉnh sửa
-                  </button>
-                  <button
-                    onClick={() => handleDelete(article.id)}
-                    className="text-red-500 hover:text-red-600 text-base underline"
-                    disabled={!isLoggedIn}
-                  >
-                    Xóa
-                  </button>
-                </div>
-              </li>
-              {expandedArticleId === article.id && (
-                <div className="ml-2 mb-4 bg-gray-50 p-2 rounded border border-gray-300 animate-fade-in">
-                  <h2 className="text-xl font-bold">{article.title}</h2>
-                  <p className="text-gray-600">{article.summary}</p>
-                  <p className="mt-1 text-gray-500">Ngày: {article.date}</p>
-                  <p className="mt-1 text-gray-500">Chủ đề: {article.topics}</p>
-                  <p className="mt-1 text-gray-500">
-                    Tags: {article.tags.join(", ")}
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
-        </ul>
-      </div>
+    <div
+      className={`mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative ${themes[theme]}`}
+    >
+      <style jsx>{`
+        .scrollbar-hidden::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hidden {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
-      {/* Tăng khoảng cách bằng cách thay ml-2 thành ml-10 */}
-      <div className="flex-1 p-5 rounded-lg ml-10 text-gray-700 animate-slide-in-right">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-700">
-            {deletingArticleId ? "Xóa bài viết" : "Chỉnh sửa bài viết"}
-          </h2>
-        </div>
-
-        <div className="mb-4">
-          <label className="block mb-1">Tiêu đề:</label>
-          <input
-            type="text"
-            name="title"
-            value={newArticle.title}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Tóm tắt:</label>
-          <textarea
-            name="summary"
-            value={newArticle.summary}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Ngày:</label>
-          <input
-            type="date"
-            name="date"
-            value={newArticle.date}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Đường dẫn hình ảnh:</label>
-          <input
-            type="text"
-            name="src"
-            value={newArticle.src}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Chủ đề:</label>
-          <input
-            type="text"
-            name="topics"
-            value={newArticle.topics}
-            onChange={handleChange}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Thẻ tag:</label>
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyPress={handleAddTag}
-            className="border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 bg-white rounded px-2 py-2 w-full text-base transition-all duration-300"
-            placeholder="Nhấn Enter để thêm tag"
-            disabled={!isLoggedIn || deletingArticleId !== null}
-          />
-          {newArticle.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {newArticle.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center animate-fade-in"
-                >
-                  {tag}
-                  <button
-                    onClick={() => handleRemoveTag(tag)}
-                    className="ml-2 text-red-500 hover:text-red-700"
-                    disabled={!isLoggedIn || deletingArticleId !== null}
-                  >
-                    ×
-                  </button>
-                </span>
+      <div className="flex flex-col lg:flex-row gap-5">
+        <div
+          className={`w-full lg:w-2/3 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+            theme,
+            "container"
+          )}`}
+        >
+          <div className="flex justify-between items-center mb-5">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              Quản lý bài viết
+            </h1>
+            <span className="text-sm text-green-500">
+              Tổng: {filteredArticles.length} bài viết
+            </span>
+          </div>
+          <div className="mb-4 flex flex-col sm:flex-row gap-4">
+            <input
+              type="text"
+              placeholder="Tìm kiếm..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-lg transition-all duration-300 ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            />
+            <select
+              value={filterTopic}
+              onChange={(e) => setFilterTopic(e.target.value)}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-lg transition-all duration-300 ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            >
+              <option value="">Tất cả chủ đề</option>
+              {[...new Set(articles.map((a) => a.topics))].map((topic) => (
+                <option key={topic} value={topic}>
+                  {topic}
+                </option>
               ))}
-            </div>
-          )}
+            </select>
+            <select
+              value={filterTag}
+              onChange={(e) => setFilterTag(e.target.value)}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-lg transition-all duration-300 ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            >
+              <option value="">Tất cả thẻ</option>
+              {[...new Set(articles.flatMap((a) => a.tags))].map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
+            <select
+              value={`${sortBy}:${sortOrder}`}
+              onChange={(e) => {
+                const [by, order] = e.target.value.split(":");
+                setSortBy(by);
+                setSortOrder(order);
+              }}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-lg transition-all duration-300 ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            >
+              <option value="created_at:desc">Mới nhất trước</option>
+              <option value="created_at:asc">Cũ nhất trước</option>
+              <option value="title:asc">Tiêu đề A-Z</option>
+              <option value="title:desc">Tiêu đề Z-A</option>
+            </select>
+            {selectedArticles.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-lg transition-all duration-300"
+                disabled={!isLoggedIn}
+              >
+                Xóa {selectedArticles.length} bài viết
+              </button>
+            )}
+          </div>
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              checked={
+                filteredArticles.length > 0 &&
+                selectedArticles.length === filteredArticles.length
+              }
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedArticles(
+                    filteredArticles.map((article) => article.id)
+                  );
+                } else {
+                  setSelectedArticles([]);
+                }
+              }}
+              className="mr-2"
+              disabled={!isLoggedIn}
+            />
+            <label>
+              Chọn tất cả ({selectedArticles.length}/{filteredArticles.length})
+            </label>
+          </div>
+          <div className="max-h-[500px] overflow-y-auto scrollbar-hidden">
+            <ul>
+              {filteredArticles.map((article) => (
+                <div key={article.id} className="flex items-center mb-6">
+                  <input
+                    type="checkbox"
+                    checked={selectedArticles.includes(article.id)}
+                    onChange={() => handleSelectArticle(article.id)}
+                    className="mr-3"
+                    disabled={!isLoggedIn}
+                  />
+                  <li
+                    className={`flex justify-between items-center w-full shadow-md border border-gray-200 rounded-lg p-3 ${getThemeClasses(
+                      theme,
+                      "preview"
+                    )}`}
+                  >
+                    <div
+                      onClick={() => handleToggleDetails(article.id)}
+                      className="cursor-pointer flex items-center"
+                    >
+                      <Image
+                        src={article.src}
+                        alt={article.title}
+                        width={50}
+                        height={50}
+                        className="rounded-md mr-3"
+                      />
+                      <span>{article.title}</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => toggleFavorite(article.id)}
+                        className={`text-base underline ${
+                          favoriteArticles.includes(article.id)
+                            ? "text-yellow-500 hover:text-yellow-600"
+                            : "text-gray-500 hover:text-gray-600"
+                        }`}
+                        disabled={!isLoggedIn}
+                      >
+                        {favoriteArticles.includes(article.id)
+                          ? "Bỏ yêu thích"
+                          : "Yêu thích"}
+                      </button>
+                      <button
+                        onClick={() => handleEdit(article)}
+                        className="text-green-500 hover:text-green-600 text-base underline"
+                        disabled={!isLoggedIn}
+                      >
+                        Chỉnh sửa
+                      </button>
+                      <button
+                        onClick={() => handleDelete(article.id)}
+                        className="text-red-500 hover:text-red-600 text-base underline"
+                        disabled={!isLoggedIn}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  </li>
+                </div>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div className="flex space-x-2">
-          {deletingArticleId !== null ? (
-            <>
+
+        <div
+          className={`w-full lg:w-1/3 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+            theme,
+            "editor"
+          )}`}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              {deletingArticleId ? "Xóa bài viết" : "Chỉnh sửa bài viết"}
+            </h2>
+          </div>
+
+          {showPreview ? (
+            <div
+              className={`p-4 rounded border border-gray-300 mb-4 shadow-sm ${getThemeClasses(
+                theme,
+                "preview"
+              )}`}
+            >
+              <h3 className="text-xl font-bold">{newArticle.title}</h3>
+              <Image
+                src={newArticle.src}
+                alt={newArticle.title}
+                width={200}
+                height={200}
+                className="rounded-md my-2"
+              />
+              <p className="text-gray-600">{newArticle.summary}</p>
+              <p className="mt-1 text-gray-500">Ngày: {newArticle.date}</p>
+              <p className="mt-1 text-gray-500">Chủ đề: {newArticle.topics}</p>
+              <p className="mt-1 text-gray-500">
+                Tags: {newArticle.tags.join(", ")}
+              </p>
               <button
-                onClick={() => handleDelete(deletingArticleId)}
-                className="bg-red-400 hover:bg-red-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-pulse"
-                disabled={!isLoggedIn}
+                onClick={() => setShowPreview(false)}
+                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded mt-4 transition-all duration-300"
               >
-                Xóa bài viết
+                Đóng xem trước
               </button>
-              <button
-                onClick={handleCancel}
-                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
-                disabled={!isLoggedIn}
-              >
-                Hủy
-              </button>
-            </>
+            </div>
           ) : (
             <>
-              {isEditing && (
-                <button
-                  onClick={handleSaveChanges}
-                  className="bg-green-400 hover:bg-green-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-bounce"
-                  disabled={!isLoggedIn}
-                >
-                  Lưu thay đổi
-                </button>
-              )}
-              <button
-                onClick={handleCancel}
-                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
-                disabled={!isLoggedIn}
-              >
-                Hủy
-              </button>
+              <div className="mb-4">
+                <label className="block mb-1">Tiêu đề:</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={newArticle.title}
+                  onChange={handleChange}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block mb-1">Tóm tắt:</label>
+                <textarea
+                  name="summary"
+                  value={newArticle.summary}
+                  onChange={handleChange}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block mb-1">Ngày:</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={newArticle.date}
+                  onChange={handleChange}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block mb-1">
+                  Đường dẫn hình ảnh:
+                </label>
+                <input
+                  type="text"
+                  name="src"
+                  value={newArticle.src}
+                  onChange={handleChange}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block mb-1">Chủ đề:</label>
+                <input
+                  type="text"
+                  name="topics"
+                  value={newArticle.topics}
+                  onChange={handleChange}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block mb-1">Thẻ tag:</label>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyPress={handleAddTag}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 rounded px-3 py-2 w-full text-base transition-all duration-300 ${getThemeClasses(
+                    theme,
+                    "input"
+                  )}`}
+                  placeholder="Nhấn Enter để thêm tag"
+                  disabled={!isLoggedIn || deletingArticleId !== null}
+                />
+                {newArticle.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {newArticle.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center animate-fade-in"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-2 text-red-500 hover:text-red-700"
+                          disabled={!isLoggedIn || deletingArticleId !== null}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                {deletingArticleId !== null ? (
+                  <>
+                    <button
+                      onClick={() => handleDelete(deletingArticleId)}
+                      className="bg-red-400 hover:bg-red-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-pulse"
+                      disabled={!isLoggedIn}
+                    >
+                      Xóa bài viết
+                    </button>
+                    <button
+                      onClick={handleCancel}
+                      className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
+                      disabled={!isLoggedIn}
+                    >
+                      Hủy
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {isEditing && (
+                      <>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="bg-green-400 hover:bg-green-500 text-black px-4 py-2 rounded text-base transition-all duration-300 animate-bounce"
+                          disabled={!isLoggedIn}
+                        >
+                          Lưu thay đổi
+                        </button>
+                        <button
+                          onClick={handlePreview}
+                          className="bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded text-base transition-all duration-300"
+                          disabled={!isLoggedIn}
+                        >
+                          Xem trước
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={handleCancel}
+                      className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-base transition-all duration-300"
+                      disabled={!isLoggedIn}
+                    >
+                      Hủy
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
       </div>
 
-      {/* Thông báo nhanh không có nền đen */}
+      {/* Khu vực Công cụ phân tích nhanh */}
+      <div
+        className={`mt-5 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+          theme,
+          "support"
+        )}`}
+      >
+        <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Công cụ phân tích nhanh</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Bài viết yêu thích */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "favorites"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-green-700">
+              Bài viết yêu thích
+            </h3>
+            {favoriteArticles.length > 0 ? (
+              <ul className="list-disc pl-5 text-gray-600">
+                {favoriteArticles.slice(0, 5).map((id) => {
+                  const article = articles.find((a) => a.id === id);
+                  return article ? (
+                    <li key={id} className="truncate">
+                      <span
+                        className="cursor-pointer hover:underline"
+                        onClick={() => handleEdit(article)}
+                      >
+                        {article.title}
+                      </span>
+                    </li>
+                  ) : null;
+                })}
+              </ul>
+            ) : (
+              <p className="text-gray-600">Chưa có bài viết yêu thích nào.</p>
+            )}
+          </div>
+          {/* Thống kê nhanh */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "favorites"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-teal-700">
+              Thống kê nhanh
+            </h3>
+            <ul className="list-disc pl-5 text-gray-600">
+              <li>
+                Tổng bài viết:{" "}
+                <span className="font-semibold">{articles.length}</span>
+              </li>
+              <li>
+                Bài yêu thích:{" "}
+                <span className="font-semibold">{favoriteArticles.length}</span>
+              </li>
+              <li>
+                Bài đã chọn:{" "}
+                <span className="font-semibold">{selectedArticles.length}</span>
+              </li>
+            </ul>
+          </div>
+          {/* Hoạt động gần đây */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "recent"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-blue-700">
+              Hoạt động gần đây
+            </h3>
+            {recentActions.length > 0 ? (
+              <ul className="list-disc pl-5 text-gray-600">
+                {recentActions.map((action, index) => (
+                  <li key={index}>
+                    {action.action}:{" "}
+                    <span className="font-semibold">{action.title}</span> (
+                    {action.timestamp})
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-600">Chưa có hoạt động nào.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Khu vực Hỗ trợ quản lý bài viết */}
+      <div
+        className={`mt-5 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+          theme,
+          "support"
+        )}`}
+      >
+        <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+          Hỗ trợ quản lý bài viết
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Từ khóa phổ biến */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "recent"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-orange-700">
+              Từ khóa phổ biến
+            </h3>
+            {articles.length > 0 ? (
+              <ul className="list-disc pl-5 text-gray-600">
+                {getTopTags().map(({ tag, count }) => (
+                  <li key={tag}>
+                    {tag}: <span className="font-semibold">{count}</span> lần
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-600">Chưa có dữ liệu từ khóa.</p>
+            )}
+          </div>
+          {/* Mẹo quản lý nội dung */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "tips"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-purple-700">
+              Mẹo quản lý nội dung
+            </h3>
+            <ul className="list-disc pl-5 text-gray-600">
+              <li>Sử dụng thẻ tag để phân loại bài viết dễ dàng hơn.</li>
+              <li>Cập nhật hình ảnh thường xuyên để thu hút người xem.</li>
+              <li>Lưu bài viết quan trọng vào danh sách yêu thích.</li>
+              <li>Xóa bài viết không cần thiết để giữ danh sách gọn gàng.</li>
+            </ul>
+          </div>
+          {/* Gợi ý hành động */}
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "tips"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-pink-700">
+              Gợi ý hành động
+            </h3>
+            <p className="text-gray-600">{getActionSuggestion()}</p>
+          </div>
+        </div>
+
+        {/* Chức năng bổ sung */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            className={`p-4 rounded-lg shadow-sm border ${getThemeClasses(
+              theme,
+              "export"
+            )}`}
+          >
+            <h3 className="text-lg font-semibold text-yellow-700">
+              Xuất danh sách
+            </h3>
+            <button
+              onClick={exportArticles}
+              className="bg-yellow-300 hover:bg-yellow-400 text-white px-4 py-2 rounded mt-2 transition-all duration-300"
+            >
+              Tải về JSON
+            </button>
+          </div>
+          <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+        </div>
+      </div>
+
       {notification && (
         <div className="absolute top-5 right-5 z-50">
           <Notification
@@ -511,7 +1188,6 @@ export default function ManageApp() {
         </div>
       )}
 
-      {/* Modal xác nhận không có nền đen */}
       {showConfirm && (
         <div className="absolute inset-0 flex items-center justify-center z-50">
           <Confirm
@@ -522,33 +1198,6 @@ export default function ManageApp() {
         </div>
       )}
 
-      {/* Modal đăng nhập không có nền đen */}
-      {showLoginModal && (
-        <div className="absolute inset-0 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full border border-gray-200">
-            <h2 className="text-xl font-semibold text-black mb-4">
-              Yêu cầu đăng nhập
-            </h2>
-            <p className="text-gray-700 mb-4">
-              Bạn cần đăng nhập để quản lý bài viết.
-            </p>
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={handleLoginRedirect}
-                className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
-              >
-                Đăng nhập
-              </button>
-              <button
-                onClick={() => router.push("/")}
-                className="bg-gray-300 text-black py-2 px-4 rounded-md hover:bg-gray-400"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

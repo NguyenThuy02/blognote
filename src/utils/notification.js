@@ -4,7 +4,7 @@ import { FaExclamationTriangle, FaTimesCircle } from "react-icons/fa";
 
 const Notification = ({ message, type, onClose }) => {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(onClose, 2000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
