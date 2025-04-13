@@ -265,26 +265,27 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
             />
           </div>
         )}
-        {sample.storyType === "Truyện tranh" && Array.isArray(sample.images) && (
-          <div className="mb-4">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              Ảnh truyện:
-            </label>
-            {sample.images.map((img, imgIndex) => (
-              <div
-                key={`image-${sample.id || index}-${imgIndex}`}
-                className="flex items-center gap-2 mb-2"
-              >
-                <input
-                  type="text"
-                  value={img || ""}
-                  readOnly
-                  className="p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        {sample.storyType === "Truyện tranh" &&
+          Array.isArray(sample.images) && (
+            <div className="mb-4">
+              <label className="block text-gray-700 mb-2 font-semibold">
+                Ảnh truyện:
+              </label>
+              {sample.images.map((img, imgIndex) => (
+                <div
+                  key={`image-${sample.id || index}-${imgIndex}`}
+                  className="flex items-center gap-2 mb-2"
+                >
+                  <input
+                    type="text"
+                    value={img || ""}
+                    readOnly
+                    className="p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
       </>
     )}
 
@@ -334,6 +335,25 @@ export default function AvailableSamples({ onSelectSample }) {
   });
   const [generatedPost, setGeneratedPost] = useState(null);
   const [posts, setPosts] = useState(previewSamples);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        setIsLoggedIn(!!session);
+      } catch (error) {
+        console.error("Error checking auth:", error.message);
+        setIsLoggedIn(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -350,12 +370,9 @@ export default function AvailableSamples({ onSelectSample }) {
           throw error;
         }
 
-        console.log("Fetched posts:", data);
-
-        // Chuẩn hóa dữ liệu và xử lý trường hợp ID trùng hoặc thiếu
         const normalizedPosts = (data || []).map((post, idx) => ({
           ...post,
-          id: post.id || `supabase-fallback-${idx}`, // Fallback ID nếu thiếu
+          id: post.id || `supabase-fallback-${idx}`,
           tags: post.tags
             ? typeof post.tags === "string"
               ? post.tags.split(",").map((tag) => tag.trim())
@@ -365,7 +382,6 @@ export default function AvailableSamples({ onSelectSample }) {
             : [],
         }));
 
-        // Loại bỏ trùng lặp dựa trên id
         const uniquePosts = [];
         const seenIds = new Set();
         for (const post of normalizedPosts) {
@@ -377,24 +393,26 @@ export default function AvailableSamples({ onSelectSample }) {
           }
         }
 
-        // Kết hợp với previewSamples, tránh trùng lặp
         const combinedPosts = [
           ...uniquePosts,
-          ...previewSamples.filter(
-            (sample) => !seenIds.has(sample.id)
-          ),
+          ...previewSamples.filter((sample) => !seenIds.has(sample.id)),
         ];
 
         setPosts(combinedPosts.length ? combinedPosts : previewSamples);
       } catch (err) {
         console.error("Error fetching posts:", err.message);
-        setPosts(previewSamples); // Fallback về previewSamples nếu lỗi
+        setPosts(previewSamples);
       }
     };
     fetchPosts();
   }, []);
 
   const handlePurposeChange = (e) => {
+    if (!isLoggedIn) {
+      alert("Vui lòng đăng nhập để chọn mục đích!");
+      router.push("/login");
+      return;
+    }
     setSelectedPurpose(e.target.value);
     setShowForm(false);
     setFormData({
@@ -414,6 +432,10 @@ export default function AvailableSamples({ onSelectSample }) {
   };
 
   const handleCreateForm = () => {
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
     if (!selectedPurpose) {
       alert("Vui lòng chọn mục đích trước!");
       return;
@@ -481,6 +503,7 @@ export default function AvailableSamples({ onSelectSample }) {
       ],
     }));
   };
+
   const removeQuestion = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -493,6 +516,7 @@ export default function AvailableSamples({ onSelectSample }) {
     newQuestions[questionIndex].options.push("");
     setFormData((prev) => ({ ...prev, questions: newQuestions }));
   };
+
   const removeOption = (questionIndex, optionIndex) => {
     const newQuestions = [...formData.questions];
     newQuestions[questionIndex].options = newQuestions[
@@ -504,6 +528,7 @@ export default function AvailableSamples({ onSelectSample }) {
   const addMedia = () => {
     setFormData((prev) => ({ ...prev, media: [...prev.media, null] }));
   };
+
   const removeMedia = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -517,6 +542,7 @@ export default function AvailableSamples({ onSelectSample }) {
       quizzes: [...prev.quizzes, { question: "", answer: "" }],
     }));
   };
+
   const removeQuiz = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -527,6 +553,7 @@ export default function AvailableSamples({ onSelectSample }) {
   const addImage = () => {
     setFormData((prev) => ({ ...prev, images: [...prev.images, null] }));
   };
+
   const removeImage = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -650,6 +677,10 @@ export default function AvailableSamples({ onSelectSample }) {
     }
   };
 
+  if (loading) {
+    return <div className="text-center p-5">Đang tải...</div>;
+  }
+
   return (
     <div className="text-gray-700 flex flex-col p-5 bg-gradient-to-r from-blue-100 to-white min-h-screen">
       <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 mb-8 text-center">
@@ -661,7 +692,12 @@ export default function AvailableSamples({ onSelectSample }) {
           <select
             value={selectedPurpose}
             onChange={handlePurposeChange}
-            className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300 bg-white shadow-sm"
+            className={`p-3 rounded-lg w-full border-2 border-gray-300 transition-all duration-300 bg-white shadow-sm ${
+              isLoggedIn
+                ? "hover:border-blue-500 focus:border-purple-500"
+                : "opacity-50 cursor-not-allowed"
+            }`}
+            disabled={!isLoggedIn}
           >
             <option value="">-- Chọn mục đích --</option>
             {purposes.map((purpose) => (
@@ -670,13 +706,28 @@ export default function AvailableSamples({ onSelectSample }) {
               </option>
             ))}
           </select>
+          {!isLoggedIn && (
+            <p className="text-red-500 text-sm mt-2">
+              Vui lòng đăng nhập để chọn mục đích.
+            </p>
+          )}
         </div>
         <button
           onClick={handleCreateForm}
-          className="text-gray-700 py-2 px-8 rounded-lg bg-gradient-to-r from-purple-200 to-blue-200 hover:from-purple-300 hover:to-blue-300 hover:shadow-md transition-all duration-300 font-semibold"
+          className={`text-gray-700 py-2 px-8 rounded-lg bg-gradient-to-r from-purple-200 to-blue-200 transition-all duration-300 font-semibold ${
+            isLoggedIn
+              ? "hover:from-purple-300 hover:to-blue-300 hover:shadow-md"
+              : "opacity-50 cursor-not-allowed"
+          }`}
+          disabled={!isLoggedIn}
         >
           Tạo mẫu mới
         </button>
+        {!isLoggedIn && (
+          <p className="text-red-500 text-sm mt-2">
+            Vui lòng đăng nhập để tạo mẫu.
+          </p>
+        )}
       </div>
 
       {showForm && (
@@ -763,7 +814,9 @@ export default function AvailableSamples({ onSelectSample }) {
                         />
                         <button
                           type="button"
-                          onClick={() => removeOption(questionIndex, optionIndex)}
+                          onClick={() =>
+                            removeOption(questionIndex, optionIndex)
+                          }
                           className="text-red-500 hover:text-red-700"
                         >
                           Xóa
@@ -1026,6 +1079,32 @@ export default function AvailableSamples({ onSelectSample }) {
           </div>
         </form>
       )}
+      {showLoginModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Yêu cầu đăng nhập
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Vui lòng đăng nhập để xem thống kê bài viết.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleLoginRedirect}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition duration-200"
+              >
+                Đăng nhập
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {generatedPost ? (
@@ -1038,7 +1117,7 @@ export default function AvailableSamples({ onSelectSample }) {
         ) : !showForm ? (
           posts.map((post, index) => (
             <SampleDisplay
-              key={post.id || `post-${index}`} // Fallback key nếu id thiếu
+              key={post.id || `post-${index}`}
               sample={post}
               index={index}
               onSelect={handleUseSample}
