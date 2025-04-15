@@ -3,6 +3,10 @@ import { Bar, Pie } from "react-chartjs-2";
 import { Chart, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from "chart.js";
 import { useEffect, useState, useRef } from "react";
 import { supabase2 } from "../../../lib/supabase";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
+import ThemeSettings from "../../components/ThemeSettings"; // Import ThemeSettings
 
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -30,8 +34,10 @@ export default function NoteReport() {
   });
   const [tags, setTags] = useState([]);
   const [draggedIndex, setDraggedIndex] = useState(null);
-  const [tagPositions, setTagPositions] = useState([]); // Lưu vị trí và kích thước của các tag
-  const tagContainerRef = useRef(null); // Ref để lấy kích thước của tag-container
+  const [tagPositions, setTagPositions] = useState([]);
+  const tagContainerRef = useRef(null);
+  
+  const [showFullContent, setShowFullContent] = useState(false);
 
   useEffect(() => {
     const fetchNotesData = async () => {
@@ -135,7 +141,6 @@ export default function NoteReport() {
           tooltips: weeks.map((w) => `${w.start} - ${w.end}`),
         });
 
-        // Lấy tất cả ghi chú trong 1 tuần gần nhất
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
         const recentNotes = data
@@ -150,7 +155,6 @@ export default function NoteReport() {
     fetchNotesData();
   }, []);
 
-  // Hàm kiểm tra va chạm giữa hai hình chữ nhật (tags)
   const checkCollision = (rect1, rect2) => {
     return !(
       rect1.left >= rect2.right ||
@@ -160,9 +164,8 @@ export default function NoteReport() {
     );
   };
 
-  // Hàm tạo vị trí ngẫu nhiên cho tag mà không đè lên các tag khác
   const getNonOverlappingPosition = (tagElement, containerRect, existingPositions) => {
-    const maxAttempts = 50; // Số lần thử tối đa để tìm vị trí
+    const maxAttempts = 50;
     let attempts = 0;
     let position;
 
@@ -171,7 +174,7 @@ export default function NoteReport() {
 
     while (attempts < maxAttempts) {
       const left = Math.random() * (containerRect.width - tagWidth);
-      const top = Math.random() * (containerRect.height - tagHeight - 40) + 40; // +40 để tránh sát tiêu đề
+      const top = Math.random() * (containerRect.height - tagHeight - 40) + 40;
 
       const newRect = {
         left,
@@ -203,7 +206,6 @@ export default function NoteReport() {
       attempts++;
     }
 
-    // Nếu không tìm được vị trí sau maxAttempts, đặt ở vị trí mặc định
     if (!position) {
       position = { left: 10, top: 40, width: tagWidth, height: tagHeight };
     }
@@ -227,7 +229,6 @@ export default function NoteReport() {
 
       setTagPositions(newPositions);
 
-      // Thêm animation cho các tag
       tagElements.forEach((tag, index) => {
         tag.style.animation = `fadeIn 0.5s ease ${index * 0.1}s forwards`;
       });
@@ -237,6 +238,19 @@ export default function NoteReport() {
   useEffect(() => {
     const style = document.createElement("style");
     style.innerHTML = `
+      :root {
+        --background: #FFFFFF;
+        --text-color: #000000;
+        --accent-color: #6B46C1;
+        --secondary-bg: rgba(255, 255, 255, 0.8);
+        --shadow-color: rgba(0, 0, 0, 0.1);
+        --hover-shadow: rgba(0, 0, 0, 0.15);
+        --border-color: #A3BFFA;
+      }
+      body {
+        background-color: var(--background);
+        color: var(--text-color);
+      }
       @keyframes fadeIn {
         0% { opacity: 0; transform: translateY(-20px); }
         100% { opacity: 1; transform: translateY(0); }
@@ -246,15 +260,24 @@ export default function NoteReport() {
         40% { transform: translateY(-10px); }
         60% { transform: translateY(-5px); }
       }
-      .container { background: #FFFFFF; border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; }
-      .container:hover { box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15); }
+      .container { 
+        background: var(--background); 
+        border-radius: 20px; 
+        box-shadow: 0 10px 30px var(--shadow-color); 
+        transition: all 0.3s ease; 
+        color: var(--text-color);
+      }
+      .container:hover { 
+        box-shadow: 0 15px 40px var(--hover-shadow); 
+      }
       .stat-card { 
-        background: white; 
+        background: var(--background); 
         border-radius: 12px; 
         padding: 20px; 
         animation: fadeIn 0.5s ease forwards; 
         transition: all 0.3s ease; 
-        border: 2px solid #A3BFFA;
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
       }
       .total-notes-card { 
         background: url('https://i.pinimg.com/736x/eb/5c/14/eb5c1403bc61a35eff076432dce3c22e.jpg') no-repeat center center; 
@@ -263,7 +286,8 @@ export default function NoteReport() {
         padding: 20px; 
         animation: fadeIn 0.5s ease forwards; 
         transition: all 0.3s ease; 
-        border: 2px solid #A3BFFA;
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
       }
       .stat-card:hover, .total-notes-card:hover { 
         transform: translateY(-5px); 
@@ -274,13 +298,14 @@ export default function NoteReport() {
         height: 250px; 
         overflow: hidden; 
         border-radius: 15px; 
-        background: rgba(255, 255, 255, 0.8); 
-        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05); 
-        border: 2px solid #D4C4FB;
-        padding-top: 40px; /* Đảm bảo khoảng cách với tiêu đề */
+        background: var(--secondary-bg); 
+        box-shadow: inset 0 0 10px var(--shadow-color); 
+        border: 2px solid var(--border-color);
+        padding-top: 40px;
+        color: var(--text-color);
       }
       .tag { 
-        position: absolute; /* Dùng absolute để đặt vị trí ngẫu nhiên */
+        position: absolute;
         padding: 8px 16px; 
         border-radius: 20px; 
         background: rgba(163, 191, 250, 0.2); 
@@ -288,36 +313,57 @@ export default function NoteReport() {
         cursor: grab; 
         z-index: 1;
         white-space: nowrap;
+        color: var(--text-color);
       }
-      .tag:hover { background: rgba(107, 70, 193, 0.5); transform: scale(1.1); }
-      .tag:active { cursor: grabbing; }
+      .tag:hover { 
+        background: rgba(107, 70, 193, 0.5); 
+        transform: scale(1.1); 
+      }
+      .tag:active { 
+        cursor: grabbing; 
+      }
       .table-container { 
         max-height: 300px; 
         overflow-y: auto; 
         border-radius: 10px; 
-        background: white; 
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05); 
-        border: 2px solid #6B46C1;
+        background: var(--background); 
+        box-shadow: 0 5px 15px var(--shadow-color); 
+        border: 2px solid var(--accent-color);
+        color: var(--text-color);
       }
-      .export-btn, .filter-btn, .detail-btn { 
-        background: linear-gradient(to right, #6B46C1, #A3BFFA); 
+      .table-container table {
+        background: var(--background);
+        color: var(--text-color);
+      }
+      .table-container thead tr {
+        background: var(--border-color);
+        color: var(--text-color);
+      }
+      .table-container tbody tr:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
+      .export-btn { 
+        background: linear-gradient(to right, var(--accent-color), var(--border-color)); 
         padding: 8px 16px; 
         border-radius: 25px; 
         color: white; 
         transition: all 0.3s ease; 
+        margin: 0 5px;
       }
-      .export-btn:hover, .filter-btn:hover, .detail-btn:hover { 
+      .export-btn:hover { 
         transform: scale(1.05); 
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); 
+        box-shadow: 0 5px 15px var(--shadow-color); 
       }
       .search-input, .date-input, .category-select, .chart-type-select { 
         padding: 10px; 
         border-radius: 8px; 
         border: 1px solid #ccc; 
         transition: all 0.3s ease; 
+        background: var(--background);
+        color: var(--text-color);
       }
       .search-input:focus, .date-input:focus, .category-select:focus, .chart-type-select:focus { 
-        border-color: #6B46C1; 
+        border-color: var(--accent-color); 
         box-shadow: 0 0 5px rgba(107, 70, 193, 0.5); 
         outline: none; 
       }
@@ -333,13 +379,50 @@ export default function NoteReport() {
         align-items: center; 
       }
       .modal-content { 
-        background: white; 
+        background: var(--background); 
         padding: 20px; 
         border-radius: 12px; 
         max-width: 500px; 
         width: 100%; 
         animation: fadeIn 0.3s ease; 
-        border: 2px solid #D4C4FB;
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
+      }
+      .show-more-btn {
+        color: var(--accent-color);
+        cursor: pointer;
+        font-weight: 500;
+        margin-top: 8px;
+        display: inline-block;
+      }
+      .show-more-btn:hover {
+        text-decoration: underline;
+      }
+      .filter-btn {
+        background: var(--accent-color);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      .filter-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px var(--shadow-color);
+      }
+      .detail-btn {
+        background: var(--accent-color);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      .detail-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px var(--shadow-color);
       }
     `;
     document.head.appendChild(style);
@@ -387,16 +470,13 @@ export default function NoteReport() {
     const container = tagContainerRef.current;
     const containerRect = container.getBoundingClientRect();
 
-    // Tìm vị trí mới không đè lên các tag khác
-    const existingPositions = tagPositions.filter((_, i) => i !== draggedIndex); // Loại bỏ vị trí của tag đang kéo
+    const existingPositions = tagPositions.filter((_, i) => i !== draggedIndex);
     const newPosition = getNonOverlappingPosition(draggedTag, containerRect, existingPositions);
 
-    // Cập nhật vị trí của tag
     draggedTag.style.left = `${newPosition.left}px`;
     draggedTag.style.top = `${newPosition.top}px`;
     draggedTag.style.animation = "bounce 0.5s ease";
 
-    // Cập nhật tagPositions
     setTagPositions((prev) => {
       const newPositions = [...prev];
       newPositions[draggedIndex] = newPosition;
@@ -410,26 +490,74 @@ export default function NoteReport() {
 
   const handleDragOver = (e) => e.preventDefault();
 
-  const exportToCSV = () => {
-    const csvContent = [
-      ["ID", "Tiêu đề", "Nội dung", "Ngày tạo", "Thể loại", "Loại ghi chú"],
-      ...filteredNotes.map((note) => [
-        note.id,
-        note.title || "Không có tiêu đề",
-        note.content || "Không có nội dung",
-        new Date(note.created_at).toLocaleString(),
-        { 1: "personal", 2: "study", 3: "entertainment", 4: "upload" }[note.category_id] || "unknown",
-        { plain: "Ghi chú văn bản thuần", rich: "Ghi chú văn bản phong phú", todo: "Ghi chú danh sách công việc", spreadsheet: "Ghi chú bảng tính" }[note.note_type] || "Không xác định",
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
+  const exportToWord = () => {
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "Báo cáo Ghi chú",
+                  bold: true,
+                  size: 32,
+                }),
+              ],
+              spacing: { after: 200 },
+            }),
+            ...filteredNotes.map((note) =>
+              new Paragraph({
+                children: [
+                  new TextRun(`ID: ${note.id}`),
+                  new TextRun({
+                    text: `\nTiêu đề: ${note.title || "Không có tiêu đề"}`,
+                    break: 1,
+                  }),
+                  new TextRun({
+                    text: `Nội dung: ${note.content || "Không có nội dung"}`,
+                    break: 1,
+                  }),
+                  new TextRun({
+                    text: `Ngày tạo: ${new Date(note.created_at).toLocaleString()}`,
+                    break: 1,
+                  }),
+                  new TextRun({
+                    text: `Thể loại: ${ { 1: "personal", 2: "study", 3: "entertainment", 4: "upload" }[note.category_id] || "unknown" }`,
+                    break: 1,
+                  }),
+                  new TextRun({
+                    text: `Loại ghi chú: ${ { plain: "Ghi chú văn bản thuần", rich: "Ghi chú văn bản phong phú", todo: "Ghi chú danh sách công việc", spreadsheet: "Ghi chú bảng tính" }[note.note_type] || "Không xác định" }`,
+                    break: 1,
+                  }),
+                  new TextRun({ text: "\n", break: 1 }),
+                ],
+              })
+            ),
+          ],
+        },
+      ],
+    });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "notes_report.csv";
-    link.click();
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, "notes_report.docx");
+    });
+  };
+
+  const exportToExcel = () => {
+    const excelData = filteredNotes.map((note) => ({
+      ID: note.id,
+      "Tiêu đề": note.title || "Không có tiêu đề",
+      "Nội dung": note.content || "Không có nội dung",
+      "Ngày tạo": new Date(note.created_at).toLocaleString(),
+      "Thể loại": { 1: "personal", 2: "study", 3: "entertainment", 4: "upload" }[note.category_id] || "unknown",
+      "Loại ghi chú": { plain: "Ghi chú văn bản thuần", rich: "Ghi chú văn bản phong phú", todo: "Ghi chú danh sách công việc", spreadsheet: "Ghi chú bảng tính" }[note.note_type] || "Không xác định",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Notes");
+    XLSX.writeFile(workbook, "notes_report.xlsx");
   };
 
   const indexOfLastNote = currentPage * notesPerPage;
@@ -591,14 +719,17 @@ export default function NoteReport() {
         </div>
 
         <div className="text-center mb-6">
-          <button onClick={exportToCSV} className="export-btn">
-            Xuất file CSV
+          <button onClick={exportToWord} className="export-btn">
+            Xuất file Word
+          </button>
+          <button onClick={exportToExcel} className="export-btn">
+            Xuất file Excel
           </button>
         </div>
 
         <div className="tag-container" ref={tagContainerRef} onDragOver={handleDragOver} onDrop={handleDrop}>
-          <h2 className="text-2xl font-semibold mb-4 text-center">
-            Trending Tags
+          <h2 className="text-2xl font-semibold -mt-2 mb-4 text-center">
+            Ghi chú gần đây
           </h2>
           {tags.map((tag, index) => (
             <div
@@ -618,16 +749,44 @@ export default function NoteReport() {
           <div className="modal" onClick={() => setSelectedNote(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-2xl font-semibold mb-4">{selectedNote.title}</h2>
-              <p><strong>Nội dung:</strong> {selectedNote.content}</p>
+              <p>
+                <strong>Nội dung:</strong>{" "}
+                {selectedNote.content.length > 100 && !showFullContent
+                  ? `${selectedNote.content.substring(0, 100)}...`
+                  : selectedNote.content}
+                {selectedNote.content.length > 100 && (
+                  <span
+                    className="show-more-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowFullContent(!showFullContent);
+                    }}
+                  >
+                    {showFullContent ? "Thu gọn" : "Xem thêm"}
+                  </span>
+                )}
+              </p>
               {selectedNote.image_url && (
-                <img src={selectedNote.image_url} alt="Note" className="my-2 max-w-full rounded" />
+                <img 
+                  src={selectedNote.image_url} 
+                  alt="Note" 
+                  className="my-2 rounded" 
+                  style={{ 
+                    width: "300px", 
+                    height: "200px", 
+                    objectFit: "cover" 
+                  }} 
+                />
               )}
               <p><strong>Thể loại:</strong> { { 1: "Personal", 2: "Study", 3: "Entertainment", 4: "Upload" }[selectedNote.category_id] || "Unknown" }</p>
               <p><strong>Loại ghi chú:</strong> { { plain: "Ghi chú văn bản thuần", rich: "Ghi chú văn bản phong phú", todo: "Ghi chú danh sách công việc", spreadsheet: "Ghi chú bảng tính" }[selectedNote.note_type] || "Không xác định" }</p>
               <p><strong>Ngày tạo:</strong> {new Date(selectedNote.created_at).toLocaleString()}</p>
               <p><strong>Phong cách chữ:</strong> {selectedNote.font_style}, {selectedNote.font_size}, {selectedNote.font_family}</p>
               <button
-                onClick={() => setSelectedNote(null)}
+                onClick={() => {
+                  setSelectedNote(null);
+                  setShowFullContent(false);
+                }}
                 className="mt-4 export-btn"
               >
                 Đóng
@@ -636,6 +795,7 @@ export default function NoteReport() {
           </div>
         )}
       </div>
+      <ThemeSettings />
     </div>
   );
 }
