@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
+import Notification from "../../../utils/notification";
+import Confirm from "../../../utils/error";
 
 const purposes = ["Đặt câu hỏi", "Chia sẻ kiến thức", "Câu đố", "Chuyện tranh"];
 
@@ -96,11 +98,11 @@ const getPurposeColor = (purpose) => {
   }
 };
 
-const SampleDisplay = ({ sample, index, onSelect }) => (
+const SampleDisplay = ({ sample, index, onSelect, selectedPurpose }) => (
   <div
     className={`p-6 rounded-xl shadow-lg border-2 ${getPurposeColor(
       sample.purpose || ""
-    )} transform hover:-translate-y-2 transition-all duration-300 animate-fade-in`}
+    )} transform hover:-translate-y-2 transition-all duration-300 animate-fade-in text-sm`}
     style={{ animationDelay: `${0.1 + index * 0.05}s` }}
   >
     <div className="mb-4">
@@ -109,7 +111,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
         type="text"
         value={sample.title || ""}
         readOnly
-        className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+        className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
       />
     </div>
     <div className="mb-4">
@@ -119,36 +121,30 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
       <textarea
         value={sample.content || ""}
         readOnly
-        className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+        className="h-20 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
         rows="4"
       />
     </div>
 
     {sample.purpose === "Đặt câu hỏi" && Array.isArray(sample.questions) && (
       <div className="mb-4">
-        <label className="block text-gray-700 mb-2 font-semibold">
-          Danh sách câu hỏi:
-        </label>
+        <label className="block text-gray-700 mb-2 font-semibold">Danh sách câu hỏi:</label>
         {sample.questions.map((q, qIndex) => (
           <div
             key={`question-${sample.id || index}-${qIndex}`}
             className="mb-4 p-4 rounded-lg bg-white shadow-sm"
           >
             <div className="mb-3">
-              <label className="block text-gray-700 font-medium">
-                Câu hỏi {qIndex + 1}:
-              </label>
+              <label className="block text-gray-700 font-medium">Câu hỏi {qIndex + 1}:</label>
               <input
                 type="text"
                 value={q.question || ""}
                 readOnly
-                className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
               />
             </div>
             <div className="mb-3">
-              <label className="block text-gray-700 font-medium">
-                Lựa chọn đáp án:
-              </label>
+              <label className="block text-gray-700 font-medium">Lựa chọn đáp án:</label>
               {Array.isArray(q.options) &&
                 q.options.map((option, optIndex) => (
                   <div
@@ -160,7 +156,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
                       type="text"
                       value={option || ""}
                       readOnly
-                      className="p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                      className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
                     />
                   </div>
                 ))}
@@ -173,9 +169,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
                   readOnly
                   className="mr-2"
                 />
-                <span className="text-gray-700">
-                  Cho phép chọn nhiều đáp án
-                </span>
+                <span className="text-gray-700">Cho phép chọn nhiều đáp án</span>
               </label>
             </div>
           </div>
@@ -185,9 +179,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
 
     {sample.purpose === "Chia sẻ kiến thức" && Array.isArray(sample.media) && (
       <div className="mb-4">
-        <label className="block text-gray-700 mb-2 font-semibold">
-          Tệp đính kèm:
-        </label>
+        <label className="block text-gray-700 mb-2 font-semibold">Tệp đính kèm:</label>
         {sample.media.map((file, mIndex) => (
           <div
             key={`media-${sample.id || index}-${mIndex}`}
@@ -197,7 +189,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
               type="text"
               value={file || ""}
               readOnly
-              className="p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+              className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
             />
           </div>
         ))}
@@ -206,23 +198,19 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
 
     {sample.purpose === "Câu đố" && Array.isArray(sample.quizzes) && (
       <div className="mb-4">
-        <label className="block text-gray-700 mb-2 font-semibold">
-          Danh sách câu đố:
-        </label>
+        <label className="block text-gray-700 mb-2 font-semibold">Danh sách câu đố:</label>
         {sample.quizzes.map((quiz, qIndex) => (
           <div
             key={`quiz-${sample.id || index}-${qIndex}`}
             className="mb-4 p-4 rounded-lg bg-white shadow-sm"
           >
             <div className="mb-2">
-              <label className="block text-gray-700 font-medium">
-                Câu hỏi {qIndex + 1}:
-              </label>
+              <label className="block text-gray-700 font-medium">Câu hỏi {qIndex + 1}:</label>
               <input
                 type="text"
                 value={quiz.question || ""}
                 readOnly
-                className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
               />
             </div>
             <div className="mb-2">
@@ -231,7 +219,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
                 type="text"
                 value={quiz.answer || ""}
                 readOnly
-                className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
               />
             </div>
           </div>
@@ -242,50 +230,43 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
     {sample.purpose === "Chuyện tranh" && (
       <>
         <div className="mb-4">
-          <label className="block text-gray-700 mb-2 font-semibold">
-            Loại truyện:
-          </label>
+          <label className="block text-gray-700 mb-2 font-semibold">Loại truyện:</label>
           <input
             type="text"
             value={sample.storyType || ""}
             readOnly
-            className="p-3 rounded-lg w-full md:w-1/3 border-2 border-gray-300 bg-gray-100 text-gray-700"
+            className="h-8 p-2 rounded-lg w-full md:w-1/3 border-2 border-gray-300 bg-gray-100 text-gray-700"
           />
         </div>
         {sample.storyType === "Truyện chữ" && sample.storyContent && (
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              Nội dung truyện:
-            </label>
+            <label className="block text-gray-700 mb-2 font-semibold">Nội dung truyện:</label>
             <textarea
               value={sample.storyContent || ""}
               readOnly
-              className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+              className="h-20 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
               rows="6"
             />
           </div>
         )}
-        {sample.storyType === "Truyện tranh" &&
-          Array.isArray(sample.images) && (
-            <div className="mb-4">
-              <label className="block text-gray-700 mb-2 font-semibold">
-                Ảnh truyện:
-              </label>
-              {sample.images.map((img, imgIndex) => (
-                <div
-                  key={`image-${sample.id || index}-${imgIndex}`}
-                  className="flex items-center gap-2 mb-2"
-                >
-                  <input
-                    type="text"
-                    value={img || ""}
-                    readOnly
-                    className="p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+        {sample.storyType === "Truyện tranh" && Array.isArray(sample.images) && (
+          <div className="mb-4">
+            <label className="block text-gray-700 mb-2 font-semibold">Ảnh truyện:</label>
+            {sample.images.map((img, imgIndex) => (
+              <div
+                key={`image-${sample.id || index}-${imgIndex}`}
+                className="flex items-center gap-2 mb-2"
+              >
+                <input
+                  type="text"
+                  value={img || ""}
+                  readOnly
+                  className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </>
     )}
 
@@ -295,7 +276,7 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
         type="text"
         value={sample.topics || ""}
         readOnly
-        className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+        className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
       />
     </div>
     <div className="mb-4">
@@ -304,15 +285,17 @@ const SampleDisplay = ({ sample, index, onSelect }) => (
         type="text"
         value={Array.isArray(sample.tags) ? sample.tags.join(", ") : ""}
         readOnly
-        className="p-3 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
+        className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 bg-gray-100 text-gray-700"
       />
     </div>
-    <button
-      onClick={() => onSelect(sample)}
-      className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-all duration-300"
-    >
-      Sử dụng mẫu này
-    </button>
+    {selectedPurpose && (
+      <button
+        onClick={() => onSelect(sample)}
+        className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-all duration-300"
+      >
+        Sử dụng mẫu này
+      </button>
+    )}
   </div>
 );
 
@@ -337,84 +320,64 @@ export default function AvailableSamples({ onSelectSample }) {
   const [posts, setPosts] = useState(previewSamples);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+
+  const addNotification = (message, type) => {
+    setNotifications((prev) => [...prev, { id: Date.now(), message, type }]);
+  };
+
+  const removeNotification = (id) => {
+    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+  };
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkLoginStatus = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        setIsLoggedIn(!!session);
-      } catch (error) {
-        console.error("Error checking auth:", error.message);
-        setIsLoggedIn(false);
+        setLoading(true);
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        const loggedIn = !!(userData && (userData.name || userData.email));
+        setIsLoggedIn(loggedIn);
+        setShowLoginModal(!loggedIn);
+        setPosts(previewSamples);
+      } catch (err) {
+        addNotification(`Lỗi khi kiểm tra đăng nhập: ${err.message}`, "error");
       } finally {
         setLoading(false);
       }
     };
-    checkAuth();
-  }, []);
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("posts")
-          .select(
-            "id, title, content, topics, purpose, questions, media, quizzes, storyType, storyContent, images, tags"
-          )
-          .order("created_at", { ascending: false });
+    checkLoginStatus();
 
-        if (error) {
-          console.error("Supabase error:", error);
-          throw error;
-        }
-
-        const normalizedPosts = (data || []).map((post, idx) => ({
-          ...post,
-          id: post.id || `supabase-fallback-${idx}`,
-          tags: post.tags
-            ? typeof post.tags === "string"
-              ? post.tags.split(",").map((tag) => tag.trim())
-              : Array.isArray(post.tags)
-              ? post.tags
-              : []
-            : [],
-        }));
-
-        const uniquePosts = [];
-        const seenIds = new Set();
-        for (const post of normalizedPosts) {
-          if (!seenIds.has(post.id)) {
-            seenIds.add(post.id);
-            uniquePosts.push(post);
-          } else {
-            console.warn(`Duplicate ID detected: ${post.id}`);
-          }
-        }
-
-        const combinedPosts = [
-          ...uniquePosts,
-          ...previewSamples.filter((sample) => !seenIds.has(sample.id)),
-        ];
-
-        setPosts(combinedPosts.length ? combinedPosts : previewSamples);
-      } catch (err) {
-        console.error("Error fetching posts:", err.message);
-        setPosts(previewSamples);
+    const handleStorageChange = (event) => {
+      if (event.key === "user" || event.key === null) {
+        checkLoginStatus();
       }
     };
-    fetchPosts();
+
+    const handleLogoutEvent = () => {
+      checkLoginStatus();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("user-logout", handleLogoutEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("user-logout", handleLogoutEvent);
+    };
   }, []);
 
   const handlePurposeChange = (e) => {
     if (!isLoggedIn) {
-      alert("Vui lòng đăng nhập để chọn mục đích!");
-      router.push("/login");
+      setShowLoginModal(true);
       return;
     }
-    setSelectedPurpose(e.target.value);
-    setShowForm(false);
+    const newPurpose = e.target.value;
+    setSelectedPurpose(newPurpose);
+    setShowForm(!!newPurpose);
     setFormData({
       title: "",
       content: "",
@@ -433,14 +396,19 @@ export default function AvailableSamples({ onSelectSample }) {
 
   const handleCreateForm = () => {
     if (!isLoggedIn) {
-      router.push("/login");
+      setShowLoginModal(true);
       return;
     }
     if (!selectedPurpose) {
-      alert("Vui lòng chọn mục đích trước!");
+      addNotification("Vui lòng chọn mục đích trước!", "warning");
       return;
     }
     setShowForm(true);
+  };
+
+  const handleLoginRedirect = () => {
+    setShowLoginModal(false);
+    router.push("/login");
   };
 
   const handleFormChange = (e) => {
@@ -562,15 +530,21 @@ export default function AvailableSamples({ onSelectSample }) {
   };
 
   const handleSaveDraft = () => {
-    const draftData = { ...formData, purpose: selectedPurpose };
-    localStorage.setItem("draftPost", JSON.stringify(draftData));
-    alert("Đã lưu nháp thành công!");
+    setConfirmAction(() => () => {
+      const draftData = { ...formData, purpose: selectedPurpose };
+      localStorage.setItem("draftPost", JSON.stringify(draftData));
+      addNotification("Đã lưu nháp thành công!", "success");
+    });
+    setShowConfirm(true);
   };
 
   const handlePublishPost = async (e) => {
     e.preventDefault();
     if (!formData.title || !formData.content || !formData.topics) {
-      alert("Vui lòng điền đầy đủ tiêu đề, nội dung và chủ đề!");
+      addNotification(
+        "Vui lòng điền đầy đủ tiêu đề, nội dung và chủ đề!",
+        "error"
+      );
       return;
     }
     if (
@@ -580,8 +554,9 @@ export default function AvailableSamples({ onSelectSample }) {
           !q.question || q.options.some((opt) => !opt) || q.options.length < 2
       )
     ) {
-      alert(
-        "Vui lòng điền đầy đủ câu hỏi và ít nhất 2 lựa chọn đáp án cho mỗi câu hỏi!"
+      addNotification(
+        "Vui lòng điền đầy đủ câu hỏi và ít nhất 2 lựa chọn đáp án!",
+        "error"
       );
       return;
     }
@@ -589,7 +564,10 @@ export default function AvailableSamples({ onSelectSample }) {
       selectedPurpose === "Câu đố" &&
       formData.quizzes.some((q) => !q.question || !q.answer)
     ) {
-      alert("Vui lòng điền đầy đủ câu hỏi và đáp án cho tất cả câu đố!");
+      addNotification(
+        "Vui lòng điền đầy đủ câu hỏi và đáp án cho tất cả câu đố!",
+        "error"
+      );
       return;
     }
     if (
@@ -598,7 +576,10 @@ export default function AvailableSamples({ onSelectSample }) {
       !formData.storyContent &&
       !formData.storyFile
     ) {
-      alert("Vui lòng nhập nội dung hoặc upload file cho truyện chữ!");
+      addNotification(
+        "Vui lòng nhập nội dung hoặc upload file cho truyện chữ!",
+        "error"
+      );
       return;
     }
     if (
@@ -606,75 +587,85 @@ export default function AvailableSamples({ onSelectSample }) {
       formData.storyType === "Truyện tranh" &&
       formData.images.some((img) => !img)
     ) {
-      alert("Vui lòng chọn tất cả ảnh cho truyện tranh!");
+      addNotification("Vui lòng chọn tất cả ảnh cho truyện tranh!", "error");
       return;
     }
 
-    try {
-      const newPost = {
-        title: formData.title,
-        content: formData.content,
-        topics: formData.topics,
-        purpose: selectedPurpose,
-        tags: Array.isArray(formData.tags) ? formData.tags.join(",") : "",
-        ...(selectedPurpose === "Đặt câu hỏi" && {
-          questions: formData.questions,
-        }),
-        ...(selectedPurpose === "Chia sẻ kiến thức" && {
-          media: formData.media.map((file) => file?.name || "Không có file"),
-        }),
-        ...(selectedPurpose === "Câu đố" && { quizzes: formData.quizzes }),
-        ...(selectedPurpose === "Chuyện tranh" && {
-          storyType: formData.storyType,
-          ...(formData.storyType === "Truyện chữ" && {
-            storyContent:
-              formData.storyContent ||
-              (formData.storyFile ? formData.storyFile.name : ""),
-          }),
-          ...(formData.storyType === "Truyện tranh" && {
-            images: formData.images.map((img) => img?.name || "Không có ảnh"),
-          }),
-        }),
-      };
+    setConfirmAction(() => async () => {
+      try {
+        const newPost = {
+          title: formData.title,
+          content: formData.content,
+          topics: formData.topics,
+          tags: Array.isArray(formData.tags) ? formData.tags.join(",") : "",
+        };
 
-      const { data, error } = await supabase
-        .from("posts")
-        .insert([newPost])
-        .select()
-        .single();
+        const { data, error } = await supabase
+          .from("posts")
+          .insert([newPost])
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const savedPost = { ...data, id: data.id || `new-${Date.now()}` };
-      setGeneratedPost(savedPost);
-      setPosts((prev) => [savedPost, ...prev]);
-      alert("Bài viết đã được đăng thành công!");
-    } catch (err) {
-      console.error("Error publishing post:", err.message);
-      alert(`Không thể đăng bài viết: ${err.message}`);
-    }
+        const savedPost = {
+          ...data,
+          id: data.id || `new-${Date.now()}`,
+          purpose: selectedPurpose,
+          questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+          media:
+            selectedPurpose === "Chia sẻ kiến thức"
+              ? formData.media.map((file) => file?.name || "Không có file")
+              : [],
+          quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
+          storyType:
+            selectedPurpose === "Chuyện tranh" ? formData.storyType : "",
+          storyContent:
+            selectedPurpose === "Chuyện tranh" &&
+            formData.storyType === "Truyện chữ"
+              ? formData.storyContent ||
+                (formData.storyFile ? formData.storyFile.name : "")
+              : "",
+          images:
+            selectedPurpose === "Chuyện tranh" &&
+            formData.storyType === "Truyện tranh"
+              ? formData.images.map((img) => img?.name || "Không có ảnh")
+              : [],
+        };
+
+        setGeneratedPost(savedPost);
+        setPosts((prev) => [savedPost, ...prev]);
+        addNotification("Bài viết đã được đăng thành công!", "success");
+      } catch (err) {
+        console.error("Error publishing post:", err.message);
+        addNotification(`Không thể đăng bài viết: ${err.message}`, "error");
+      }
+    });
+    setShowConfirm(true);
   };
 
   const handleUseSample = (post) => {
-    if (onSelectSample) {
-      onSelectSample(post);
-    } else {
-      router.push(
-        `/blog/post?${new URLSearchParams({
-          title: post.title || "",
-          content: post.content || "",
-          topic: post.topics || "",
-          tags: Array.isArray(post.tags) ? post.tags.join(",") : "",
-          purpose: post.purpose || "",
-          ...(post.questions && { questions: JSON.stringify(post.questions) }),
-          ...(post.media && { media: JSON.stringify(post.media) }),
-          ...(post.quizzes && { quizzes: JSON.stringify(post.quizzes) }),
-          ...(post.storyType && { storyType: post.storyType }),
-          ...(post.storyContent && { storyContent: post.storyContent }),
-          ...(post.images && { images: JSON.stringify(post.images) }),
-        })}`
-      );
-    }
+    setFormData({
+      title: post.title || "",
+      content: post.content || "",
+      topics: post.topics || "",
+      tags: Array.isArray(post.tags) ? post.tags : [],
+      questions:
+        post.questions?.length > 0
+          ? post.questions
+          : [{ question: "", options: ["", ""], multipleChoice: false }],
+      media: post.media?.length > 0 ? post.media : [],
+      quizzes:
+        post.quizzes?.length > 0
+          ? post.quizzes
+          : [{ question: "", answer: "" }],
+      storyType: post.storyType || "Truyện chữ",
+      storyContent: post.storyContent || "",
+      storyFile: null,
+      images: post.images?.length > 0 ? post.images : [],
+    });
+    setShowForm(true);
+    addNotification("Đã áp dụng mẫu vào form nhập liệu!", "success");
   };
 
   if (loading) {
@@ -682,22 +673,37 @@ export default function AvailableSamples({ onSelectSample }) {
   }
 
   return (
-    <div className="text-gray-700 flex flex-col p-5 bg-gradient-to-r from-blue-100 to-white min-h-screen">
+    <div className="text-gray-700 flex flex-col p-5 rounded-lg bg-white min-h-screen text-sm">
       <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 mb-8 text-center">
         Mẫu bài viết có sẵn
       </h1>
+
+      {notifications.map((notif) => (
+        <Notification
+          key={notif.id}
+          message={notif.message}
+          type={notif.type}
+          onClose={() => removeNotification(notif.id)}
+        />
+      ))}
+
+      {showConfirm && (
+        <Confirm
+          message="Bạn có chắc muốn thực hiện hành động này?"
+          onConfirm={() => {
+            confirmAction();
+            setShowConfirm(false);
+          }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
 
       <div className="mb-8 flex flex-col md:flex-row items-center justify-center gap-6">
         <div className="w-full md:w-1/3">
           <select
             value={selectedPurpose}
             onChange={handlePurposeChange}
-            className={`p-3 rounded-lg w-full border-2 border-gray-300 transition-all duration-300 bg-white shadow-sm ${
-              isLoggedIn
-                ? "hover:border-blue-500 focus:border-purple-500"
-                : "opacity-50 cursor-not-allowed"
-            }`}
-            disabled={!isLoggedIn}
+            className="h-10 p-2 rounded-lg w-full border-2 border-gray-300 transition-all duration-300 bg-white shadow-sm hover:bg-blue-200 focus:bg-purple-200 focus:outline-none"
           >
             <option value="">-- Chọn mục đích --</option>
             {purposes.map((purpose) => (
@@ -706,117 +712,155 @@ export default function AvailableSamples({ onSelectSample }) {
               </option>
             ))}
           </select>
-          {!isLoggedIn && (
-            <p className="text-red-500 text-sm mt-2">
-              Vui lòng đăng nhập để chọn mục đích.
-            </p>
-          )}
         </div>
-        <button
-          onClick={handleCreateForm}
-          className={`text-gray-700 py-2 px-8 rounded-lg bg-gradient-to-r from-purple-200 to-blue-200 transition-all duration-300 font-semibold ${
-            isLoggedIn
-              ? "hover:from-purple-300 hover:to-blue-300 hover:shadow-md"
-              : "opacity-50 cursor-not-allowed"
-          }`}
-          disabled={!isLoggedIn}
-        >
-          Tạo mẫu mới
-        </button>
-        {!isLoggedIn && (
-          <p className="text-red-500 text-sm mt-2">
-            Vui lòng đăng nhập để tạo mẫu.
-          </p>
+        {!selectedPurpose && (
+          <button
+            onClick={handleCreateForm}
+            className="text-gray-700 py-2 px-8 rounded-lg bg-gradient-to-r from-purple-200 to-blue-200 hover:from-purple-300 hover:to-blue-300 transition-all duration-300 font-semibold"
+          >
+            Tạo mẫu mới
+          </button>
         )}
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handlePublishPost}
-          className="mb-8 bg-white p-8 rounded-xl shadow-lg"
-        >
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              Tiêu đề:
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleFormChange}
-              className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-              placeholder="Nhập tiêu đề"
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              {selectedPurpose === "Đặt câu hỏi"
-                ? "Mô tả (nếu có)"
-                : "Nội dung"}
-              :
-            </label>
-            <textarea
-              name="content"
-              value={formData.content}
-              onChange={handleFormChange}
-              className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-              rows="4"
-              placeholder={
-                selectedPurpose === "Đặt câu hỏi"
-                  ? "Nhập mô tả (nếu có)"
-                  : "Nhập nội dung"
-              }
-            />
-          </div>
+      {selectedPurpose ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {showForm && (
+            <div className="bg-white p-8 rounded-xl shadow-lg min-h-fit">
+              <form onSubmit={handlePublishPost} className="min-h-fit">
+                <div className="mb-6">
+                  <label className="block text-gray-700 mb-2 font-semibold">Tiêu đề:</label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleFormChange}
+                    className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                    placeholder="Nhập tiêu đề"
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-gray-700 mb-2 font-semibold">
+                    {selectedPurpose === "Đặt câu hỏi" ? "Mô tả (nếu có)" : "Nội dung"}:
+                  </label>
+                  <textarea
+                    name="content"
+                    value={formData.content}
+                    onChange={handleFormChange}
+                    className="h-20 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                    rows="4"
+                    placeholder={
+                      selectedPurpose === "Đặt câu hỏi" ? "Nhập mô tả (nếu có)" : "Nhập nội dung"
+                    }
+                  />
+                </div>
 
-          {selectedPurpose === "Đặt câu hỏi" && (
-            <div className="mb-6">
-              <label className="block text-gray-700 mb-2 font-semibold">
-                Danh sách câu hỏi:
-              </label>
-              {formData.questions.map((q, questionIndex) => (
-                <div
-                  key={`form-question-${questionIndex}`}
-                  className="mb-6 p-4 rounded-lg bg-gray-50 shadow-sm"
-                >
-                  <div className="mb-3">
-                    <label className="block text-gray-700 font-medium">
-                      Câu hỏi {questionIndex + 1}:
+                {selectedPurpose === "Đặt câu hỏi" && (
+                  <div className="mb-6">
+                    <label className="block text-gray-700 mb-2 font-semibold">
+                      Danh sách câu hỏi:
                     </label>
-                    <input
-                      type="text"
-                      name={`question-title-${questionIndex}`}
-                      value={q.question}
-                      onChange={handleFormChange}
-                      className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                      placeholder="Nhập câu hỏi"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="block text-gray-700 font-medium">
-                      Lựa chọn đáp án:
-                    </label>
-                    {q.options.map((option, optionIndex) => (
+                    {formData.questions.map((q, questionIndex) => (
                       <div
-                        key={`form-option-${questionIndex}-${optionIndex}`}
+                        key={`form-question-${questionIndex}`}
+                        className="mb-6 p-4 rounded-lg bg-gray-50 shadow-sm"
+                      >
+                        <div className="mb-3">
+                          <label className="block text-gray-700 font-medium">
+                            Câu hỏi {questionIndex + 1}:
+                          </label>
+                          <input
+                            type="text"
+                            name={`question-title-${questionIndex}`}
+                            value={q.question}
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                            placeholder="Nhập câu hỏi"
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="block text-gray-700 font-medium">Lựa chọn đáp án:</label>
+                          {q.options.map((option, optionIndex) => (
+                            <div
+                              key={`form-option-${questionIndex}-${optionIndex}`}
+                              className="flex items-center gap-2 mb-2"
+                            >
+                              <span className="text-gray-700">{optionIndex + 1}.</span>
+                              <input
+                                type="text"
+                                name={`option-${questionIndex}-${optionIndex}`}
+                                value={option}
+                                onChange={handleFormChange}
+                                className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                                placeholder={`Đáp án ${optionIndex + 1}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeOption(questionIndex, optionIndex)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => addOption(questionIndex)}
+                            className="text-blue-500 hover:text-blue-700 mt-2"
+                          >
+                            + Thêm đáp án
+                          </button>
+                        </div>
+                        <div className="mb-3">
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              name={`multipleChoice-${questionIndex}`}
+                              checked={q.multipleChoice}
+                              onChange={handleFormChange}
+                              className="mr-2"
+                            />
+                            <span className="text-gray-700">Cho phép chọn nhiều đáp án</span>
+                          </label>
+                        </div>
+                        {formData.questions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeQuestion(questionIndex)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Xóa câu hỏi
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addQuestion}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      + Thêm câu hỏi
+                    </button>
+                  </div>
+                )}
+
+                {selectedPurpose === "Chia sẻ kiến thức" && (
+                  <div className="mb-6">
+                    <label className="block text-gray-700 mb-2 font-semibold">Tệp đính kèm:</label>
+                    {formData.media.map((file, mediaIndex) => (
+                      <div
+                        key={`form-media-${mediaIndex}`}
                         className="flex items-center gap-2 mb-2"
                       >
-                        <span className="text-gray-700">
-                          {optionIndex + 1}.
-                        </span>
                         <input
-                          type="text"
-                          name={`option-${questionIndex}-${optionIndex}`}
-                          value={option}
+                          type="file"
+                          name={`media-${mediaIndex}`}
                           onChange={handleFormChange}
-                          className="p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                          placeholder={`Đáp án ${optionIndex + 1}`}
+                          className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            removeOption(questionIndex, optionIndex)
-                          }
+                          onClick={() => removeMedia(mediaIndex)}
                           className="text-red-500 hover:text-red-700"
                         >
                           Xóa
@@ -825,269 +869,216 @@ export default function AvailableSamples({ onSelectSample }) {
                     ))}
                     <button
                       type="button"
-                      onClick={() => addOption(questionIndex)}
-                      className="text-blue-500 hover:text-blue-700 mt-2"
+                      onClick={addMedia}
+                      className="text-blue-500 hover:text-blue-700"
                     >
-                      + Thêm đáp án
+                      + Thêm tệp
                     </button>
                   </div>
-                  <div className="mb-3">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        name={`multipleChoice-${questionIndex}`}
-                        checked={q.multipleChoice}
-                        onChange={handleFormChange}
-                        className="mr-2"
-                      />
-                      <span className="text-gray-700">
-                        Cho phép chọn nhiều đáp án
-                      </span>
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(questionIndex)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Xóa câu hỏi
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addQuestion}
-                className="text-blue-500 hover:text-blue-700"
-              >
-                + Thêm câu hỏi
-              </button>
-            </div>
-          )}
+                )}
 
-          {selectedPurpose === "Chia sẻ kiến thức" && (
-            <div className="mb-6">
-              <label className="block text-gray-700 mb-2 font-semibold">
-                Tệp đính kèm:
-              </label>
-              {formData.media.map((file, mediaIndex) => (
-                <div
-                  key={`form-media-${mediaIndex}`}
-                  className="flex items-center gap-2 mb-2"
-                >
-                  <input
-                    type="file"
-                    name={`media-${mediaIndex}`}
-                    onChange={handleFormChange}
-                    className="p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeMedia(mediaIndex)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Xóa
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addMedia}
-                className="text-blue-500 hover:text-blue-700"
-              >
-                + Thêm tệp
-              </button>
-            </div>
-          )}
-
-          {selectedPurpose === "Câu đố" && (
-            <div className="mb-6">
-              <label className="block text-gray-700 mb-2 font-semibold">
-                Danh sách câu đố:
-              </label>
-              {formData.quizzes.map((quiz, quizIndex) => (
-                <div
-                  key={`form-quiz-${quizIndex}`}
-                  className="mb-6 p-4 rounded-lg bg-gray-50 shadow-sm"
-                >
-                  <div className="mb-3">
-                    <label className="block text-gray-700 font-medium">
-                      Câu hỏi {quizIndex + 1}:
-                    </label>
-                    <input
-                      type="text"
-                      name={`quiz-question-${quizIndex}`}
-                      value={quiz.question}
-                      onChange={handleFormChange}
-                      className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                      placeholder="Nhập câu hỏi"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="block text-gray-700 font-medium">
-                      Đáp án:
-                    </label>
-                    <input
-                      type="text"
-                      name={`quiz-answer-${quizIndex}`}
-                      value={quiz.answer}
-                      onChange={handleFormChange}
-                      className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                      placeholder="Nhập đáp án"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeQuiz(quizIndex)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Xóa câu đố
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addQuiz}
-                className="text-blue-500 hover:text-blue-700"
-              >
-                + Thêm câu đố
-              </button>
-            </div>
-          )}
-
-          {selectedPurpose === "Chuyện tranh" && (
-            <>
-              <div className="mb-6">
-                <label className="block text-gray-700 mb-2 font-semibold">
-                  Loại truyện:
-                </label>
-                <select
-                  name="storyType"
-                  value={formData.storyType}
-                  onChange={handleFormChange}
-                  className="p-3 rounded-lg w-full md:w-1/3 border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                >
-                  <option value="Truyện chữ">Truyện chữ</option>
-                  <option value="Truyện tranh">Truyện tranh</option>
-                </select>
-              </div>
-              {formData.storyType === "Truyện chữ" && (
-                <>
+                {selectedPurpose === "Câu đố" && (
                   <div className="mb-6">
                     <label className="block text-gray-700 mb-2 font-semibold">
-                      Nội dung truyện:
+                      Danh sách câu đố:
                     </label>
-                    <textarea
-                      name="storyContent"
-                      value={formData.storyContent}
-                      onChange={handleFormChange}
-                      className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                      rows="6"
-                      placeholder="Nhập nội dung truyện"
-                    />
-                  </div>
-                  <div className="mb-6">
-                    <label className="block text-gray-700 mb-2 font-semibold">
-                      Hoặc tải lên file truyện:
-                    </label>
-                    <input
-                      type="file"
-                      name="storyFile"
-                      onChange={handleFormChange}
-                      className="p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                    />
-                  </div>
-                </>
-              )}
-              {formData.storyType === "Truyện tranh" && (
-                <div className="mb-6">
-                  <label className="block text-gray-700 mb-2 font-semibold">
-                    Ảnh truyện:
-                  </label>
-                  {formData.images.map((img, imgIndex) => (
-                    <div
-                      key={`form-image-${imgIndex}`}
-                      className="flex items-center gap-2 mb-2"
-                    >
-                      <input
-                        type="file"
-                        name={`image-${imgIndex}`}
-                        onChange={handleFormChange}
-                        className="p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(imgIndex)}
-                        className="text-red-500 hover:text-red-700"
+                    {formData.quizzes.map((quiz, quizIndex) => (
+                      <div
+                        key={`form-quiz-${quizIndex}`}
+                        className="mb-6 p-4 rounded-lg bg-gray-50 shadow-sm"
                       >
-                        Xóa
-                      </button>
+                        <div className="mb-3">
+                          <label className="block text-gray-700 font-medium">
+                            Câu hỏi {quizIndex + 1}:
+                          </label>
+                          <input
+                            type="text"
+                            name={`quiz-question-${quizIndex}`}
+                            value={quiz.question}
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                            placeholder="Nhập câu hỏi"
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="block text-gray-700 font-medium">Đáp án:</label>
+                          <input
+                            type="text"
+                            name={`quiz-answer-${quizIndex}`}
+                            value={quiz.answer}
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                            placeholder="Nhập đáp án"
+                          />
+                        </div>
+                        {formData.quizzes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeQuiz(quizIndex)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Xóa câu đố
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addQuiz}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      + Thêm câu đố
+                    </button>
+                  </div>
+                )}
+
+                {selectedPurpose === "Chuyện tranh" && (
+                  <>
+                    <div className="mb-6">
+                      <label className="block text-gray-700 mb-2 font-semibold">Loại truyện:</label>
+                      <select
+                        name="storyType"
+                        value={formData.storyType}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full md:w-1/3 border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                      >
+                        <option value="Truyện chữ">Truyện chữ</option>
+                        <option value="Truyện tranh">Truyện tranh</option>
+                      </select>
                     </div>
-                  ))}
+                    {formData.storyType === "Truyện chữ" && (
+                      <>
+                        <div className="mb-6">
+                          <label className="block text-gray-700 mb-2 font-semibold">
+                            Nội dung truyện:
+                          </label>
+                          <textarea
+                            name="storyContent"
+                            value={formData.storyContent}
+                            onChange={handleFormChange}
+                            className="h-20 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                            rows="6"
+                            placeholder="Nhập nội dung truyện"
+                          />
+                        </div>
+                        <div className="mb-6">
+                          <label className="block text-gray-700 mb-2 font-semibold">
+                            Hoặc tải lên file truyện:
+                          </label>
+                          <input
+                            type="file"
+                            name="storyFile"
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {formData.storyType === "Truyện tranh" && (
+                      <div className="mb-6">
+                        <label className="block text-gray-700 mb-2 font-semibold">Ảnh truyện:</label>
+                        {formData.images.map((img, imgIndex) => (
+                          <div
+                            key={`form-image-${imgIndex}`}
+                            className="flex items-center gap-2 mb-2"
+                          >
+                            <input
+                              type="file"
+                              name={`image-${imgIndex}`}
+                              onChange={handleFormChange}
+                              className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage(imgIndex)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              Xóa
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addImage}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          + Thêm ảnh
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="mb-6">
+                  <label className="block text-gray-700 mb-2 font-semibold">Chủ đề:</label>
+                  <input
+                    type="text"
+                    name="topics"
+                    value={formData.topics}
+                    onChange={handleFormChange}
+                    className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                    placeholder="Nhập chủ đề (cách nhau bằng dấu phẩy nếu nhiều)"
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-gray-700 mb-2 font-semibold">Tags:</label>
+                  <input
+                    type="text"
+                    name="tags"
+                    value={formData.tags.join(", ")}
+                    onChange={handleFormChange}
+                    className="h-8 p-2 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
+                    placeholder="Nhập tags (cách nhau bằng dấu phẩy)"
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    type="submit"
+                    className="bg-green-500 text-white py-2 px-6 rounded-lg hover:bg-green-600 transition-all duration-300"
+                  >
+                    Đăng bài
+                  </button>
                   <button
                     type="button"
-                    onClick={addImage}
-                    className="text-blue-500 hover:text-blue-700"
+                    onClick={handleSaveDraft}
+                    className="bg-gray-500 text-white py-2 px-6 rounded-lg hover:bg-gray-600 transition-all duration-300"
                   >
-                    + Thêm ảnh
+                    Lưu nháp
                   </button>
                 </div>
-              )}
-            </>
+              </form>
+            </div>
           )}
 
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              Chủ đề:
-            </label>
-            <input
-              type="text"
-              name="topics"
-              value={formData.topics}
-              onChange={handleFormChange}
-              className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-              placeholder="Nhập chủ đề (cách nhau bằng dấu phẩy nếu nhiều)"
-            />
+          <div className="flex flex-col gap-8 min-h-fit">
+            {posts
+              .filter((post) => post.purpose === selectedPurpose)
+              .map((post, index) => (
+                <SampleDisplay
+                  key={post.id || `post-${index}`}
+                  sample={post}
+                  index={index}
+                  onSelect={handleUseSample}
+                  selectedPurpose={selectedPurpose}
+                />
+              ))}
+            {posts.filter((post) => post.purpose === selectedPurpose).length === 0 && (
+              <p className="text-gray-700">Không có mẫu nào cho mục đích này.</p>
+            )}
           </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2 font-semibold">
-              Tags:
-            </label>
-            <input
-              type="text"
-              name="tags"
-              value={formData.tags.join(", ")}
-              onChange={handleFormChange}
-              className="p-3 rounded-lg w-full border-2 border-gray-300 hover:border-blue-500 focus:border-purple-500 focus:outline-none transition-all duration-300"
-              placeholder="Nhập tags (cách nhau bằng dấu phẩy)"
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <button
-              type="submit"
-              className="bg-green-500 text-white py-2 px-6 rounded-lg hover:bg-green-600 transition-all duration-300"
-            >
-              Đăng bài
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="bg-gray-500 text-white py-2 px-6 rounded-lg hover:bg-gray-600 transition-all duration-300"
-            >
-              Lưu nháp
-            </button>
-          </div>
-        </form>
+        </div>
+      ) : (
+        <div className="text-center text-gray-700">
+          <p>Vui lòng chọn mục đích để xem các mẫu có sẵn.</p>
+        </div>
       )}
+
       {showLoginModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Yêu cầu đăng nhập
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Vui lòng đăng nhập để xem thống kê bài viết.
-            </p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Yêu cầu đăng nhập</h3>
+            <p className="text-gray-600 mb-6">Vui lòng đăng nhập để tiếp tục.</p>
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => setShowLoginModal(false)}
@@ -1105,26 +1096,6 @@ export default function AvailableSamples({ onSelectSample }) {
           </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {generatedPost ? (
-          <SampleDisplay
-            key={generatedPost.id}
-            sample={generatedPost}
-            index={0}
-            onSelect={handleUseSample}
-          />
-        ) : !showForm ? (
-          posts.map((post, index) => (
-            <SampleDisplay
-              key={post.id || `post-${index}`}
-              sample={post}
-              index={index}
-              onSelect={handleUseSample}
-            />
-          ))
-        ) : null}
-      </div>
 
       <style jsx>{`
         @keyframes fade-in {

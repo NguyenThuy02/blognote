@@ -14,36 +14,27 @@ import Link from "next/link";
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 export default function ReportApp() {
-  // Trạng thái cho bộ lọc hệ thống
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [filterType, setFilterType] = useState("week");
   const [systemTimeFilter, setSystemTimeFilter] = useState("last7days");
-
-  // Dữ liệu hệ thống
   const [posts, setPosts] = useState([]);
   const [demos, setDemos] = useState([]);
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [filteredDemos, setFilteredDemos] = useState([]);
   const [availableYears, setAvailableYears] = useState([]);
-
-  // Trạng thái cho bộ lọc cá nhân
   const [userStartDate, setUserStartDate] = useState("");
   const [userEndDate, setUserEndDate] = useState("");
   const [userSelectedMonth, setUserSelectedMonth] = useState("");
   const [userSelectedYear, setUserSelectedYear] = useState("");
   const [userFilterType, setUserFilterType] = useState("week");
   const [userTimeFilter, setUserTimeFilter] = useState("last7days");
-
-  // Dữ liệu cá nhân
   const [userPosts, setUserPosts] = useState([]);
   const [userDemos, setUserDemos] = useState([]);
   const [filteredUserPosts, setFilteredUserPosts] = useState([]);
   const [filteredUserDemos, setFilteredUserDemos] = useState([]);
-
-  // Trạng thái giao diện
   const [loading, setLoading] = useState(true);
   const [isFiltered, setIsFiltered] = useState(false);
   const [isUserFiltered, setIsUserFiltered] = useState(false);
@@ -55,54 +46,43 @@ export default function ReportApp() {
   const [confirmAction, setConfirmAction] = useState(null);
   const router = useRouter();
 
-  // Xử lý thông báo tự động biến mất sau 3 giây
   useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => setNotification(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
+    const checkLoginStatus = async () => {
+      try {
+        setLoading(true);
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        const loggedIn = !!(userData && (userData.name || userData.email));
+        setIsLoggedIn(loggedIn);
+        setShowLoginModal(!loggedIn);
 
-  // Thiết lập ngày mặc định (tuần hiện tại với ngày kết thúc là hiện tại)
-  useEffect(() => {
-    const today = new Date("2025-04-13"); // Ngày hiện tại
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - 6); // 6 ngày trước
-
-    setStartDate(startOfWeek.toISOString().split("T")[0]); // 2025-04-07
-    setEndDate(today.toISOString().split("T")[0]); // 2025-04-13
-    setUserStartDate(startOfWeek.toISOString().split("T")[0]);
-    setUserEndDate(today.toISOString().split("T")[0]);
-  }, []);
-
-  // Kiểm tra trạng thái đăng nhập và lấy dữ liệu
-  useEffect(() => {
-    const checkLoginStatus = () => {
-      const userData = JSON.parse(localStorage.getItem("user"));
-      const loggedIn = !!userData;
-      setIsLoggedIn(loggedIn);
-      if (loggedIn) {
-        const userName = userData.name;
-        if (userName) {
-          fetchData(userName);
+        if (loggedIn) {
+          const userName = userData.name;
+          if (userName) {
+            await fetchData(userName);
+          } else {
+            setNotification({
+              message: "Không tìm thấy thông tin tên người dùng.",
+              type: "error",
+            });
+          }
         } else {
-          setNotification({
-            message: "Không tìm thấy thông tin tên người dùng.",
-            type: "error",
-          });
-          setLoading(false);
+          setPosts([]);
+          setDemos([]);
+          setUserPosts([]);
+          setUserDemos([]);
+          setFilteredPosts([]);
+          setFilteredDemos([]);
+          setFilteredUserPosts([]);
+          setFilteredUserDemos([]);
+          setIsFiltered(false);
+          setIsUserFiltered(false);
         }
-      } else {
-        setPosts([]);
-        setDemos([]);
-        setUserPosts([]);
-        setUserDemos([]);
-        setFilteredPosts([]);
-        setFilteredDemos([]);
-        setFilteredUserPosts([]);
-        setFilteredUserDemos([]);
-        setIsFiltered(false);
-        setIsUserFiltered(false);
+      } catch (err) {
+        setNotification({
+          message: `Lỗi khi kiểm tra đăng nhập: ${err.message}`,
+          type: "error",
+        });
+      } finally {
         setLoading(false);
       }
     };
@@ -116,18 +96,7 @@ export default function ReportApp() {
     };
 
     const handleLogoutEvent = () => {
-      setIsLoggedIn(false);
-      setShowLoginModal(true);
-      setPosts([]);
-      setDemos([]);
-      setUserPosts([]);
-      setUserDemos([]);
-      setFilteredPosts([]);
-      setFilteredDemos([]);
-      setFilteredUserPosts([]);
-      setFilteredUserDemos([]);
-      setIsFiltered(false);
-      setIsUserFiltered(false);
+      checkLoginStatus();
     };
 
     window.addEventListener("storage", handleStorageChange);
@@ -139,7 +108,23 @@ export default function ReportApp() {
     };
   }, []);
 
-  // Cập nhật danh sách năm khả dụng
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  useEffect(() => {
+    const today = new Date("2025-04-13");
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - 6);
+    setStartDate(startOfWeek.toISOString().split("T")[0]);
+    setEndDate(today.toISOString().split("T")[0]);
+    setUserStartDate(startOfWeek.toISOString().split("T")[0]);
+    setUserEndDate(today.toISOString().split("T")[0]);
+  }, []);
+
   useEffect(() => {
     const years = [
       ...new Set([
@@ -148,15 +133,14 @@ export default function ReportApp() {
       ]),
     ].sort();
     setAvailableYears(years);
-    if (years.length > 0 && !selectedYear) {
+    if (years.length > 0 && (!selectedYear || !years.includes(parseInt(selectedYear)))) {
       setSelectedYear(years[years.length - 1].toString());
     }
-    if (years.length > 0 && !userSelectedYear) {
+    if (years.length > 0 && (!userSelectedYear || !years.includes(parseInt(userSelectedYear)))) {
       setUserSelectedYear(years[years.length - 1].toString());
     }
-  }, [posts, demos, selectedYear, userSelectedYear]);
+  }, [posts, demos]);
 
-  // Lấy dữ liệu từ Supabase
   const fetchData = async (userName) => {
     try {
       setLoading(true);
@@ -205,7 +189,6 @@ export default function ReportApp() {
     }
   };
 
-  // Áp dụng bộ lọc nhanh cho hệ thống
   const applySystemTimeFilter = (filter, postsData = posts, demosData = demos) => {
     const today = new Date("2025-04-13");
     let filterStartDate;
@@ -243,13 +226,14 @@ export default function ReportApp() {
     setFilteredDemos(filteredDemosResult);
     setSystemTimeFilter(filter);
     setIsFiltered(true);
-    setNotification({
-      message: "Dữ liệu hệ thống đã được lọc thành công!",
-      type: "success",
-    });
+    if (filteredPostsResult.length > 0 || filteredDemosResult.length > 0) {
+      setNotification({
+        message: "Dữ liệu hệ thống đã được lọc thành công!",
+        type: "success",
+      });
+    }
   };
 
-  // Áp dụng bộ lọc nhanh cho cá nhân
   const applyUserTimeFilter = (filter, postsData = userPosts, demosData = userDemos) => {
     const today = new Date("2025-04-13");
     let filterStartDate;
@@ -287,13 +271,14 @@ export default function ReportApp() {
     setFilteredUserDemos(filteredDemosResult);
     setUserTimeFilter(filter);
     setIsUserFiltered(true);
-    setNotification({
-      message: "Dữ liệu cá nhân đã được lọc thành công!",
-      type: "success",
-    });
+    if (filteredPostsResult.length > 0 || filteredDemosResult.length > 0) {
+      setNotification({
+        message: "Dữ liệu cá nhân đã được lọc thành công!",
+        type: "success",
+      });
+    }
   };
 
-  // Xử lý bộ lọc tùy chỉnh hệ thống
   const handleSystemFilter = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -351,7 +336,6 @@ export default function ReportApp() {
     });
   };
 
-  // Xử lý bộ lọc tùy chỉnh cá nhân
   const handleUserFilter = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -409,7 +393,6 @@ export default function ReportApp() {
     });
   };
 
-  // Định dạng ngày
   const formatDate = (dateString) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
@@ -423,13 +406,11 @@ export default function ReportApp() {
     return date.toISOString().split("T")[0];
   };
 
-  // Đếm số bài viết
   const publishedCount = isLoggedIn ? filteredPosts.length : 0;
   const draftCount = isLoggedIn ? filteredDemos.length : 0;
   const userPublishedCount = isLoggedIn ? filteredUserPosts.length : 0;
   const userDraftCount = isLoggedIn ? filteredUserDemos.length : 0;
 
-  // Dữ liệu biểu đồ hệ thống
   const systemBarChartData = {
     labels: ["Đã đăng", "Nháp"],
     datasets: [
@@ -454,7 +435,6 @@ export default function ReportApp() {
     ],
   };
 
-  // Dữ liệu biểu đồ cá nhân
   const userBarChartData = {
     labels: ["Đã đăng", "Nháp"],
     datasets: [
@@ -479,7 +459,6 @@ export default function ReportApp() {
     ],
   };
 
-  // Cấu hình biểu đồ
   const maxSystemCount = Math.max(publishedCount, draftCount, 1);
   const systemStepSize = maxSystemCount < 10 ? 1 : maxSystemCount < 100 ? 5 : 10;
   const maxUserCount = Math.max(userPublishedCount, userDraftCount, 1);
@@ -516,7 +495,6 @@ export default function ReportApp() {
     cutout: "60%",
   };
 
-  // Xuất báo cáo Excel hệ thống
   const exportReportExcel = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -550,7 +528,6 @@ export default function ReportApp() {
     setShowConfirm(false);
   };
 
-  // Xuất báo cáo Word hệ thống
   const exportReportWord = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -650,7 +627,6 @@ export default function ReportApp() {
     });
   };
 
-  // Xuất báo cáo Excel cá nhân
   const exportPersonalReportExcel = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -684,7 +660,6 @@ export default function ReportApp() {
     setShowConfirm(false);
   };
 
-  // Xuất báo cáo Word cá nhân
   const exportPersonalReportWord = () => {
     if (!isLoggedIn) {
       setShowLoginModal(true);
@@ -784,13 +759,11 @@ export default function ReportApp() {
     });
   };
 
-  // Chuyển hướng đến trang đăng nhập
   const handleLoginRedirect = () => {
     setShowLoginModal(false);
     router.push("/auth/login");
   };
 
-  // Giao diện khi đang tải
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -801,34 +774,40 @@ export default function ReportApp() {
 
   return (
     <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 relative">
-      <div className="min-h-screen bg-blue-100 flex flex-col">
-        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 text-center mb-5 mt-2">
+      <div className="min-h-screen rounded-lg bg-blue-100 flex flex-col">
+        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 text-center my-5">
           Thống kê bài viết
         </h1>
         <div className="flex flex-1 pb-10 px-6">
           <main className="flex-1 space-y-8">
-            {/* Tổng quan bài viết cá nhân */}
             <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in">
               <h2 className="text-2xl font-semibold text-purple-600 mb-4">Tổng quan bài viết cá nhân</h2>
-              <div className="mb-6 bg-gray-50 p-4 rounded-lg shadow-inner animate-slide-in">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Thông tin nhanh</h3>
-                <ul className="space-y-2 text-gray-700">
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Tổng bài viết:</span>
-                    <span className="font-bold">{isLoggedIn ? posts.length + demos.length : 0}</span>
+              <div className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <span className="bg-blue-500 text-white rounded-full p-2 mr-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
+                    </svg>
+                  </span>
+                  Thông tin nhanh
+                </h3>
+                <ul className="space-y-3 text-gray-700">
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Tổng bài viết:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? posts.length + demos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Bài của bạn:</span>
-                    <span className="font-bold">{isLoggedIn ? userPosts.length + userDemos.length : 0}</span>
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Bài của bạn:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? userPosts.length + userDemos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Năm khả dụng:</span>
-                    <span className="font-bold">{isLoggedIn ? availableYears.length : 0}</span>
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Năm khả dụng:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? availableYears.length : 0}</span>
                   </li>
                 </ul>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-105 transition duration-200">
+                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
                   <div className="flex items-center">
                     <CheckCircleOutlined className="text-3xl text-blue-500 mr-3" />
                     <div>
@@ -837,7 +816,7 @@ export default function ReportApp() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-105 transition duration-200">
+                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
                   <div className="flex items-center">
                     <FileOutlined className="text-3xl text-gray-500 mr-3" />
                     <div>
@@ -849,7 +828,7 @@ export default function ReportApp() {
               </div>
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc nhanh</h3>
-                <div className="flex flex-wrap gap-2 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm">
+                <div className="flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
                   {[
                     { label: "Hôm nay", value: "today" },
                     { label: "7 ngày qua", value: "last7days" },
@@ -859,11 +838,11 @@ export default function ReportApp() {
                     <button
                       key={filter.value}
                       onClick={() => applyUserTimeFilter(filter.value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
                         userTimeFilter === filter.value
-                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                          : "bg-white text-gray-700 hover:bg-blue-200"
-                      } disabled:bg-gray-300 disabled:text-gray-500`}
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md"
+                          : "bg-white text-gray-700 hover:bg-blue-100 shadow-sm"
+                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none`}
                       disabled={!isLoggedIn}
                     >
                       {filter.label}
@@ -934,7 +913,7 @@ export default function ReportApp() {
                   )}
                   <button
                     onClick={handleUserFilter}
-                    className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-105"
+                    className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95"
                     disabled={!isLoggedIn}
                   >
                     Lọc dữ liệu
@@ -945,38 +924,59 @@ export default function ReportApp() {
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-3">Kết quả lọc</h3>
                   <div className="flex justify-center">
-                    <div className="w-1/2 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto">
-                      <table className="w-full border-collapse bg-white rounded-lg text-sm">
-                        <thead className="bg-gradient-to-r from-blue-500 to-purple-500 text-white sticky top-0">
+                    <div className="w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto">
+                      <table className="w-full border-collapse bg-white rounded-lg text-sm table-fixed">
+                        <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-6 py-4 text-left font-semibold">Tiêu đề</th>
-                            <th className="px-6 py-4 text-left font-semibold">Trạng thái</th>
-                            <th className="px-6 py-4 text-left font-semibold">Thời gian</th>
-                            <th className="px-6 py-4 text-left font-semibold">Hành động</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/5">Tiêu đề</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Trạng thái</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Thời gian</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Hành động</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredUserPosts.concat(filteredUserDemos).length > 0 ? (
-                            filteredUserPosts.concat(filteredUserDemos).map((article, index) => {
-                              console.log("Rendering user article:", article);
-                              return (
-                                <tr key={`${article.id}-${index}`} className={`hover:bg-blue-50 transition-all duration-200 ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}>
-                                  <td className="px-6 py-4 truncate max-w-xs">{article.title || "Không có tiêu đề"}</td>
-                                  <td className={`px-6 py-4 ${filteredUserPosts.includes(article) ? "text-blue-600 font-medium" : "text-gray-600 font-medium"}`}>
-                                    {filteredUserPosts.includes(article) ? "Đã đăng" : "Nháp"}
-                                  </td>
-                                  <td className="px-6 py-4">{formatDate(article.created_at)}</td>
-                                  <td className="px-6 py-4">
-                                    <Link href={`/detail?postId=${article.id}&type=${filteredUserPosts.includes(article) ? "post" : "demo"}`} className="text-blue-600 hover:text-blue-800 transition-colors duration-200" title="Xem chi tiết">
-                                      <EyeOutlined className="text-lg" />
-                                    </Link>
-                                  </td>
-                                </tr>
-                              );
-                            })
+                            filteredUserPosts.concat(filteredUserDemos).map((article, index) => (
+                              <tr
+                                key={`${article.id}-${index}`}
+                                className={`hover:bg-blue-50 transition-all duration-200 ${
+                                  index % 2 === 0 ? "bg-gray-50" : "bg-white"
+                                }`}
+                              >
+                                <td className="px-6 py-4 truncate max-w-0">
+                                  {article.title || "Không có tiêu đề"}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 whitespace-nowrap ${
+                                    filteredUserPosts.includes(article)
+                                      ? "text-blue-600 font-medium"
+                                      : "text-gray-600 font-medium"
+                                  }`}
+                                >
+                                  {filteredUserPosts.includes(article) ? "Đã đăng" : "Nháp"}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {formatDate(article.created_at)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <Link
+                                    href={`/detail?postId=${article.id}&type=${
+                                      filteredUserPosts.includes(article) ? "post" : "demo"
+                                    }`}
+                                    className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+                                    title="Xem chi tiết"
+                                  >
+                                    <EyeOutlined className="text-lg" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))
                           ) : (
                             <tr>
-                              <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                              <td
+                                colSpan="4"
+                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap"
+                              >
                                 Không có dữ liệu
                               </td>
                             </tr>
@@ -991,18 +991,24 @@ export default function ReportApp() {
                   <div className="mt-6 text-gray-600 text-center">Vui lòng đăng nhập để xem kết quả lọc.</div>
                 )
               )}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-[50px]">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <BarChartOutlined className="mr-2" /> Thống kê cột
+                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <BarChartOutlined className="mr-2 text-blue-600" />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                      Thống kê cột
+                    </span>
                   </h3>
                   <div className="w-full" style={{ height: "300px" }}>
                     <Bar data={userBarChartData} options={userChartOptions} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <PieChartOutlined className="mr-2" /> Thống kê vòng
+                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <PieChartOutlined className="mr-2 text-blue-600" />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                      Thống kê vòng
+                    </span>
                   </h3>
                   <div className="w-full flex justify-center" style={{ height: "300px" }}>
                     <div style={{ width: "50%" }}>
@@ -1015,41 +1021,47 @@ export default function ReportApp() {
                 <div className="mt-6 flex justify-end gap-4">
                   <button
                     onClick={exportPersonalReportExcel}
-                    className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-200 disabled:bg-gray-400"
+                    className="bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400"
                   >
                     Xuất Excel
                   </button>
                   <button
                     onClick={exportPersonalReportWord}
-                    className="bg-purple-500 text-white px-6 py-2 rounded-lg hover:bg-purple-600 transition duration-200 disabled:bg-gray-400"
+                    className="bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400"
                   >
                     Xuất Word
                   </button>
                 </div>
               )}
             </div>
-            {/* Tổng quan bài viết hệ thống */}
             <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in">
               <h2 className="text-2xl font-semibold text-purple-600 mb-4">Tổng quan bài viết toàn hệ thống</h2>
-              <div className="mb-6 bg-gray-50 p-4 rounded-lg shadow-inner animate-slide-in">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Thông tin nhanh</h3>
-                <ul className="space-y-2 text-gray-700">
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Tổng bài viết:</span>
-                    <span className="font-bold">{isLoggedIn ? posts.length + demos.length : 0}</span>
+              <div className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <span className="bg-blue-500 text-white rounded-full p-2 mr-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
+                    </svg>
+                  </span>
+                  Thông tin nhanh
+                </h3>
+                <ul className="space-y-3 text-gray-700">
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Tổng bài viết:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? posts.length + demos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Bài đã đăng:</span>
-                    <span className="font-bold">{isLoggedIn ? posts.length : 0}</span>
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Bài đã đăng:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? posts.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 hover:scale-95">
-                    <span className="w-32">Bản nháp:</span>
-                    <span className="font-bold">{isLoggedIn ? demos.length : 0}</span>
+                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
+                    <span className="w-32 font-medium text-blue-600">Bản nháp:</span>
+                    <span className="font-bold text-purple-600">{isLoggedIn ? demos.length : 0}</span>
                   </li>
                 </ul>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-105 transition duration-200">
+                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
                   <div className="flex items-center">
                     <CheckCircleOutlined className="text-3xl text-blue-500 mr-3" />
                     <div>
@@ -1058,7 +1070,7 @@ export default function ReportApp() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-105 transition duration-200">
+                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
                   <div className="flex items-center">
                     <FileOutlined className="text-3xl text-gray-500 mr-3" />
                     <div>
@@ -1070,7 +1082,7 @@ export default function ReportApp() {
               </div>
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc nhanh</h3>
-                <div className="flex flex-wrap gap-2 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm">
+                <div className="flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
                   {[
                     { label: "Hôm nay", value: "today" },
                     { label: "7 ngày qua", value: "last7days" },
@@ -1080,11 +1092,11 @@ export default function ReportApp() {
                     <button
                       key={filter.value}
                       onClick={() => applySystemTimeFilter(filter.value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
                         systemTimeFilter === filter.value
-                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                          : "bg-white text-gray-700 hover:bg-blue-200"
-                      } disabled:bg-gray-300 disabled:text-gray-500`}
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md"
+                          : "bg-white text-gray-700 hover:bg-blue-100 shadow-sm"
+                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none`}
                       disabled={!isLoggedIn}
                     >
                       {filter.label}
@@ -1155,7 +1167,7 @@ export default function ReportApp() {
                   )}
                   <button
                     onClick={handleSystemFilter}
-                    className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-105"
+                    className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95"
                     disabled={!isLoggedIn}
                   >
                     Lọc dữ liệu
@@ -1166,38 +1178,59 @@ export default function ReportApp() {
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-3">Kết quả lọc</h3>
                   <div className="flex justify-center">
-                    <div className="w-1/2 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto">
-                      <table className="w-full border-collapse bg-white rounded-lg text-sm">
-                        <thead className="bg-gradient-to-r from-blue-500 to-purple-500 text-white sticky top-0">
+                    <div className="w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto">
+                      <table className="w-full border-collapse bg-white rounded-lg text-sm table-fixed">
+                        <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-6 py-4 text-left font-semibold">Tiêu đề</th>
-                            <th className="px-6 py-4 text-left font-semibold">Trạng thái</th>
-                            <th className="px-6 py-4 text-left font-semibold">Thời gian</th>
-                            <th className="px-6 py-4 text-left font-semibold">Hành động</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/5">Tiêu đề</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Trạng thái</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Thời gian</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5">Hành động</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredPosts.concat(filteredDemos).length > 0 ? (
-                            filteredPosts.concat(filteredDemos).map((article, index) => {
-                              console.log("Rendering system article:", article);
-                              return (
-                                <tr key={`${article.id}-${index}`} className={`hover:bg-blue-50 transition-all duration-200 ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}>
-                                  <td className="px-6 py-4 truncate max-w-xs">{article.title || "Không có tiêu đề"}</td>
-                                  <td className={`px-6 py-4 ${filteredPosts.includes(article) ? "text-blue-600 font-medium" : "text-gray-600 font-medium"}`}>
-                                    {filteredPosts.includes(article) ? "Đã đăng" : "Nháp"}
-                                  </td>
-                                  <td className="px-6 py-4">{formatDate(article.created_at)}</td>
-                                  <td className="px-6 py-4">
-                                    <Link href={`/detail?postId=${article.id}&type=${filteredPosts.includes(article) ? "post" : "demo"}`} className="text-blue-600 hover:text-blue-800 transition-colors duration-200" title="Xem chi tiết">
-                                      <EyeOutlined className="text-lg" />
-                                    </Link>
-                                  </td>
-                                </tr>
-                              );
-                            })
+                            filteredPosts.concat(filteredDemos).map((article, index) => (
+                              <tr
+                                key={`${article.id}-${index}`}
+                                className={`hover:bg-blue-50 transition-all duration-200 ${
+                                  index % 2 === 0 ? "bg-gray-50" : "bg-white"
+                                }`}
+                              >
+                                <td className="px-6 py-4 truncate max-w-0">
+                                  {article.title || "Không có tiêu đề"}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 whitespace-nowrap ${
+                                    filteredPosts.includes(article)
+                                      ? "text-blue-600 font-medium"
+                                      : "text-gray-600 font-medium"
+                                  }`}
+                                >
+                                  {filteredPosts.includes(article) ? "Đã đăng" : "Nháp"}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {formatDate(article.created_at)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <Link
+                                    href={`/detail?postId=${article.id}&type=${
+                                      filteredPosts.includes(article) ? "post" : "demo"
+                                    }`}
+                                    className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+                                    title="Xem chi tiết"
+                                  >
+                                    <EyeOutlined className="text-lg" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))
                           ) : (
                             <tr>
-                              <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                              <td
+                                colSpan="4"
+                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap"
+                              >
                                 Không có dữ liệu
                               </td>
                             </tr>
@@ -1209,21 +1242,29 @@ export default function ReportApp() {
                 </div>
               ) : (
                 !isLoggedIn && (
-                  <div className="mt-6 text-gray-600 text-center">Vui lòng đăng nhập để xem kết quả lọc.</div>
+                  <div className="mt-6 text-gray-600 text-center">
+                    Vui lòng đăng nhập để xem kết quả lọc.
+                  </div>
                 )
               )}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-[50px]">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <BarChartOutlined className="mr-2" /> Thống kê cột
+                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <BarChartOutlined className="mr-2 text-blue-600" />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                      Thống kê cột
+                    </span>
                   </h3>
                   <div className="w-full" style={{ height: "300px" }}>
                     <Bar data={systemBarChartData} options={chartOptions} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
-                    <PieChartOutlined className="mr-2" /> Thống kê vòng
+                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <PieChartOutlined className="mr-2 text-blue-600" />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                      Thống kê vòng
+                    </span>
                   </h3>
                   <div className="w-full flex justify-center" style={{ height: "300px" }}>
                     <div style={{ width: "50%" }}>
@@ -1236,13 +1277,13 @@ export default function ReportApp() {
                 <div className="mt-6 flex justify-end gap-4">
                   <button
                     onClick={exportReportExcel}
-                    className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-200 disabled:bg-gray-400"
+                    className="bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400"
                   >
                     Xuất Excel
                   </button>
                   <button
                     onClick={exportReportWord}
-                    className="bg-purple-500 text-white px-6 py-2 rounded-lg hover:bg-purple-600 transition duration-200 disabled:bg-gray-400"
+                    className="bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400"
                   >
                     Xuất Word
                   </button>
@@ -1251,8 +1292,6 @@ export default function ReportApp() {
             </div>
           </main>
         </div>
-
-        {/* Thông báo */}
         {notification && (
           <div className="fixed top-20 right-6 z-50">
             <Notification
@@ -1262,10 +1301,8 @@ export default function ReportApp() {
             />
           </div>
         )}
-
-        {/* Modal xác nhận */}
         {showConfirm && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
             <Confirm
               message={confirmMessage}
               onConfirm={confirmAction}
@@ -1273,11 +1310,8 @@ export default function ReportApp() {
             />
           </div>
         )}
-
-        {/* Modal đăng nhập */}
         {showLoginModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
-
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Yêu cầu đăng nhập</h3>
               <p className="text-gray-600 mb-6">Vui lòng đăng nhập để xem thống kê bài viết.</p>
@@ -1290,7 +1324,7 @@ export default function ReportApp() {
                 </button>
                 <button
                   onClick={handleLoginRedirect}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition duration-200"
+                  className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-4 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition duration-200"
                 >
                   Đăng nhập
                 </button>
@@ -1298,8 +1332,6 @@ export default function ReportApp() {
             </div>
           </div>
         )}
-
-        {/* CSS tùy chỉnh */}
         <style jsx>{`
           .no-scrollbar {
             scrollbar-width: none;
@@ -1316,11 +1348,23 @@ export default function ReportApp() {
             from { opacity: 0; transform: translateX(-20px); }
             to { opacity: 1; transform: translateX(0); }
           }
+          @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+          }
           .animate-fade-in {
             animation: fadeIn 0.5s ease-out;
           }
           .animate-slide-in {
             animation: slideIn 0.5s ease-out;
+          }
+          .animate-scale-in {
+            animation: scaleIn 0.3s ease-out;
+          }
+          .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
         `}</style>
       </div>

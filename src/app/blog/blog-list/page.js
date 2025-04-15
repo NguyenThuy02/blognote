@@ -11,13 +11,14 @@ import {
   FileWordOutlined,
   EditOutlined,
   DeleteOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { saveAs } from "file-saver";
 import { supabase } from "../../../lib/supabase";
 import "aframe";
-import Notification from "../../../utils/notification"; // Import Notification
-import Confirm from "../../../utils/error"; // Import Confirm
+import Notification from "../../../utils/notification";
+import Confirm from "../../../utils/error";
 
 const ForceGraph2D = dynamic(
   () => import("react-force-graph").then((mod) => mod.ForceGraph2D),
@@ -44,7 +45,6 @@ export default function BloglistApp() {
   const [authorInfo, setAuthorInfo] = useState({
     name: "",
     email: "",
-    bio: "",
   });
   const [loadingStates, setLoadingStates] = useState({});
   const [exportingStates, setExportingStates] = useState({});
@@ -52,9 +52,17 @@ export default function BloglistApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [notification, setNotification] = useState(null); // Thông báo thành công
-  const [error, setError] = useState(null); // Thông báo lỗi hoặc xác nhận
+  const [notification, setNotification] = useState(null);
+  const [error, setError] = useState(null);
+  const [showStickerPicker, setShowStickerPicker] = useState(null);
   const graphRef = useRef();
+
+  // Danh sách nhãn tĩnh (có thể thay bằng API lấy từ temp/stickers/)
+  const availableStickers = [
+    "/temp/stickers/sticker1.png",
+    "/temp/stickers/sticker2.png",
+    "/temp/stickers/sticker3.png",
+  ];
 
   useEffect(() => {
     setIsMounted(true);
@@ -88,7 +96,7 @@ export default function BloglistApp() {
         setCurrentUser(null);
         setSavedArticles([]);
         setComments({});
-        setAuthorInfo({ name: "", email: "", bio: "" });
+        setAuthorInfo({ name: "", email: "" });
       }
     };
 
@@ -203,6 +211,7 @@ export default function BloglistApp() {
               user_id: comment.user_id,
               author: userMap[comment.user_id] || "Tác giả",
               content: comment.content || "",
+              stickers: Array.isArray(comment.stickers) ? comment.stickers : [],
               replies,
             });
           });
@@ -264,13 +273,36 @@ export default function BloglistApp() {
     return null;
   };
 
-  const handlePostClick = (post) => {
+  const handlePostClick = async (post) => {
     if (!isMounted) return;
-    setAuthorInfo({
-      name: post.author,
-      email: "N/A",
-      bio: "Tác giả của bài viết này",
-    });
+
+    try {
+      // Lấy name và email từ bảng users dựa trên post.author
+      const { data: userData, error } = await supabase
+        .from("users")
+        .select("name, email")
+        .eq("name", post.author) // Nếu bảng posts có user_id, thay bằng .eq("id", post.user_id)
+        .single();
+
+      if (error) {
+        console.error("Lỗi khi lấy thông tin người dùng:", error.message);
+        setAuthorInfo({
+          name: post.author,
+          email: "Không có",
+        });
+      } else {
+        setAuthorInfo({
+          name: userData.name || post.author,
+          email: userData.email || "Không có",
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi trong handlePostClick:", error.message);
+      setAuthorInfo({
+        name: post.author,
+        email: "Không có",
+      });
+    }
   };
 
   const handleSearchChange = (event) => {
@@ -293,6 +325,7 @@ export default function BloglistApp() {
     setReplyToCommentId(null);
     setNewCommentContent("");
     setEditingCommentId(null);
+    setShowStickerPicker(null);
   };
 
   const toggleDiagram = (articleId) => {
@@ -346,6 +379,7 @@ export default function BloglistApp() {
             user_id: currentUser.id,
             author: currentUser.name || "Tác giả",
             content: newCommentContent,
+            stickers: [],
             replies: [],
           },
         ],
@@ -381,7 +415,6 @@ export default function BloglistApp() {
         .from("comments")
         .select("contentson")
         .eq("id", commentId)
-        .eq("user_id", currentUser.id)
         .single();
 
       if (fetchError) {
@@ -446,31 +479,38 @@ export default function BloglistApp() {
   const deleteComment = async (articleId, commentId) => {
     if (!isLoggedIn || !currentUser || !isMounted) return;
 
-    try {
-      const { error } = await supabase
-        .from("comments")
-        .delete()
-        .eq("id", commentId)
-        .eq("user_id", currentUser.id);
+    setError({
+      message: "Bạn có chắc muốn xóa bình luận này không?",
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from("comments")
+            .delete()
+            .eq("id", commentId)
+            .eq("user_id", currentUser.id);
 
-      if (error) {
-        setError("Lỗi khi xóa bình luận: " + error.message);
-        return;
-      }
+          if (error) {
+            setError("Lỗi khi xóa bình luận: " + error.message);
+            return;
+          }
 
-      setComments((prev) => ({
-        ...prev,
-        [articleId]: prev[articleId].filter(
-          (comment) => comment.id !== commentId
-        ),
-      }));
-      setNotification({
-        message: "Bình luận đã được xóa thành công!",
-        type: "success",
-      });
-    } catch (error) {
-      setError("Lỗi khi xóa bình luận: " + error.message);
-    }
+          setComments((prev) => ({
+            ...prev,
+            [articleId]: prev[articleId].filter(
+              (comment) => comment.id !== commentId
+            ),
+          }));
+          setNotification({
+            message: "Bình luận đã được xóa thành công!",
+            type: "success",
+          });
+        } catch (error) {
+          setError("Lỗi khi xóa bình luận: " + error.message);
+        }
+        setError(null);
+      },
+      onCancel: () => setError(null),
+    });
   };
 
   const startEditingComment = (comment) => {
@@ -520,6 +560,66 @@ export default function BloglistApp() {
       });
     } catch (error) {
       setError("Lỗi khi lưu bình luận đã chỉnh sửa: " + error.message);
+    }
+  };
+
+  const toggleStickerPicker = (commentId) => {
+    if (!isLoggedIn || !isMounted) return;
+    setShowStickerPicker(showStickerPicker === commentId ? null : commentId);
+  };
+
+  const addStickerToComment = async (articleId, commentId, sticker) => {
+    if (!isLoggedIn || !currentUser || !isMounted) return;
+
+    try {
+      const { data: commentData, error: fetchError } = await supabase
+        .from("comments")
+        .select("stickers")
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id)
+        .single();
+
+      if (fetchError) {
+        setError("Lỗi khi lấy nhãn của bình luận: " + fetchError.message);
+        return;
+      }
+
+      const currentStickers = Array.isArray(commentData.stickers)
+        ? commentData.stickers
+        : [];
+      if (currentStickers.includes(sticker)) {
+        setError("Nhãn này đã được thêm!");
+        return;
+      }
+
+      const updatedStickers = [...currentStickers, sticker];
+
+      const { error: updateError } = await supabase
+        .from("comments")
+        .update({ stickers: updatedStickers })
+        .eq("id", commentId)
+        .eq("user_id", currentUser.id);
+
+      if (updateError) {
+        setError("Lỗi khi thêm nhãn: " + updateError.message);
+        return;
+      }
+
+      setComments((prev) => ({
+        ...prev,
+        [articleId]: prev[articleId].map((comment) =>
+          comment.id === commentId
+            ? { ...comment, stickers: updatedStickers }
+            : comment
+        ),
+      }));
+      setShowStickerPicker(null);
+      setNotification({
+        message: "Nhãn đã được thêm thành công!",
+        type: "success",
+      });
+    } catch (error) {
+      setError("Lỗi khi thêm nhãn: " + error.message);
     }
   };
 
@@ -712,6 +812,21 @@ export default function BloglistApp() {
                   ],
                   spacing: { after: 100 },
                 }),
+                ...(Array.isArray(comment.stickers) && comment.stickers.length > 0
+                  ? [
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `Nhãn: ${comment.stickers
+                              .map((s) => s.split("/").pop())
+                              .join(", ")}`,
+                            size: 20,
+                          }),
+                        ],
+                        spacing: { after: 100 },
+                      }),
+                    ]
+                  : []),
                 ...(Array.isArray(comment.replies) && comment.replies.length > 0
                   ? [
                       new Paragraph({
@@ -862,8 +977,8 @@ export default function BloglistApp() {
   }
 
   return (
-    <div className="text-gray-700 mt-[97px] min-h-screen bg-gray-100 flex flex-row">
-      <div className="flex-1 mx-4 pt-5 pb-5 rounded-lg shadow-md bg-white">
+    <div className="text-gray-700 mt-[97px] border border-blue-200 rounded-lg min-h-screen bg-blue-100 flex flex-row">
+      <div className="flex-1 mx-4 pt-5 pb-5 my-3 rounded-lg shadow-md bg-white">
         <div className="flex items-center justify-between mb-6 px-4">
           <h1
             className="text-2xl font-bold font-montserrat bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent"
@@ -1223,6 +1338,7 @@ export default function BloglistApp() {
                                           onClick={() =>
                                             startEditingComment(comment)
                                           }
+                                          title="Chỉnh sửa"
                                         >
                                           <EditOutlined />
                                         </button>
@@ -1231,8 +1347,18 @@ export default function BloglistApp() {
                                           onClick={() =>
                                             deleteComment(post.id, comment.id)
                                           }
+                                          title="Xóa"
                                         >
                                           <DeleteOutlined />
+                                        </button>
+                                        <button
+                                          className="text-green-500 hover:text-green-700"
+                                          onClick={() =>
+                                            toggleStickerPicker(comment.id)
+                                          }
+                                          title="Thêm nhãn"
+                                        >
+                                          <TagOutlined />
                                         </button>
                                       </div>
                                     )}
@@ -1282,11 +1408,57 @@ export default function BloglistApp() {
                                     {comment.content}
                                   </p>
                                 )}
+                                {Array.isArray(comment.stickers) &&
+                                  comment.stickers.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {comment.stickers.map((sticker, index) => (
+                                        <Image
+                                          key={index}
+                                          src={sticker}
+                                          alt={`Nhãn ${index + 1}`}
+                                          width={24}
+                                          height={24}
+                                          className="object-contain"
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                {showStickerPicker === comment.id && (
+                                  <div className="mt-2 p-2 bg-gray-100 rounded-md">
+                                    <p
+                                      className="font-semibold"
+                                      style={{ fontSize: "16px" }}
+                                    >
+                                      Chọn nhãn:
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                      {availableStickers.map((sticker) => (
+                                        <button
+                                          key={sticker}
+                                          onClick={() =>
+                                            addStickerToComment(
+                                              post.id,
+                                              comment.id,
+                                              sticker
+                                            )
+                                          }
+                                          className="p-1 hover:bg-gray-200 rounded"
+                                        >
+                                          <Image
+                                            src={sticker}
+                                            alt={sticker.split("/").pop()}
+                                            width={24}
+                                            height={24}
+                                            className="object-contain"
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                                 <button
                                   className="text-blue-500 mt-2"
-                                  onClick={() =>
-                                    setReplyToCommentId(comment.id)
-                                  }
+                                  onClick={() => setReplyToCommentId(comment.id)}
                                 >
                                   <MessageOutlined
                                     className="mr-1"
@@ -1426,7 +1598,7 @@ export default function BloglistApp() {
         </div>
       </div>
 
-      <div className="w-1/4 min-w-[300px] max-w-[450px] bg-gradient-to-br from-gray-100 to-blue-100 border-l border-gray-200 p-4 rounded-lg shadow-md transition-all duration-300 flex-shrink-0 h-fit">
+      <div className="w-1/4 min-w-[300px] max-w-[450px] bg-gradient-to-br from-gray-100 to-blue-100 border-l my-3 mr-3 border-gray-200 p-4 rounded-lg shadow-md transition-all duration-300 flex-shrink-0 h-fit">
         <div className="mb-6">
           <h2
             className="text-lg font-semibold text-gray-800 mb-4"
@@ -1444,9 +1616,6 @@ export default function BloglistApp() {
               </p>
               <p style={{ fontSize: "18px" }}>
                 <strong>Email:</strong> {authorInfo.email}
-              </p>
-              <p style={{ fontSize: "18px" }}>
-                <strong>Giới thiệu:</strong> {authorInfo.bio}
               </p>
             </div>
           </div>
@@ -1556,7 +1725,6 @@ export default function BloglistApp() {
         </div>
       </div>
 
-      {/* Hiển thị Notification và Confirm */}
       {notification && (
         <Notification
           message={notification.message}
@@ -1566,9 +1734,9 @@ export default function BloglistApp() {
       )}
       {error && (
         <Confirm
-          message={error}
-          onConfirm={() => setError(null)} // "Có" để đóng thông báo
-          onCancel={() => setError(null)} // "Không" cũng đóng thông báo
+          message={error.message}
+          onConfirm={error.onConfirm || (() => setError(null))}
+          onCancel={error.onCancel || (() => setError(null))}
         />
       )}
 

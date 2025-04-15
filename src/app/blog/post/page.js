@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { FaTimes } from "react-icons/fa";
+import {
+  FaTimes,
+  FaPaperPlane,
+  FaSave,
+  FaTrash,
+  FaSearch,
+  FaEye,
+  FaTags,
+} from "react-icons/fa";
 import {
   FileImageOutlined,
   FileTextOutlined,
@@ -23,6 +31,7 @@ export default function PostPage() {
   const [tags, setTags] = useState([]);
   const [selectedTag, setSelectedTag] = useState("");
   const [customTag, setCustomTag] = useState("");
+  const [tagSuggestions, setTagSuggestions] = useState([]);
   const [tagsList, setTagsList] = useState([]);
   const [topicsList, setTopicsList] = useState([]);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -41,16 +50,21 @@ export default function PostPage() {
   const [topicError, setTopicError] = useState("");
   const [tagError, setTagError] = useState("");
   const [entries, setEntries] = useState([]);
+  const [filteredEntries, setFilteredEntries] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editingTable, setEditingTable] = useState(null);
   const [name, setName] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [livePreview, setLivePreview] = useState(false);
   const MAX_IMAGES = 5;
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Xử lý thông báo tự động đóng sau 3 giây
+  // Handle notification auto-close
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000);
@@ -58,7 +72,7 @@ export default function PostPage() {
     }
   }, [notification]);
 
-  // Kiểm tra trạng thái đăng nhập và đồng bộ sự kiện
+  // Check login status and sync events
   useEffect(() => {
     const checkLoginStatus = () => {
       const userData = JSON.parse(localStorage.getItem("user"));
@@ -74,7 +88,7 @@ export default function PostPage() {
           initFromQuery();
         } else {
           setNotification({
-            message: "Không tìm thấy thông tin tên người dùng trong trạng thái đăng nhập.",
+            message: "Không tìm thấy thông tin tên người dùng.",
             type: "error",
           });
           setLoading(false);
@@ -83,6 +97,7 @@ export default function PostPage() {
         setLoading(false);
         resetForm();
         setEntries([]);
+        setFilteredEntries([]);
         setTopicsList([]);
         setTagsList([]);
       }
@@ -114,22 +129,15 @@ export default function PostPage() {
     const handleLogoutEvent = () => {
       setIsLoggedIn(false);
       setEntries([]);
+      setFilteredEntries([]);
       setTopicsList([]);
       setTagsList([]);
       setUploadedImages([]);
       setUploadedFiles([]);
       setUploadedVideos([]);
-      setTitle("");
-      setContent("");
-      setTopic("");
-      setCustomTopic("");
-      setTags([]);
-      setSelectedTag("");
-      setCustomTag("");
-      setEditingId(null);
-      setEditingTable(null);
+      resetForm();
       setNotification({
-        message: "Bạn đã đăng xuất. Vui lòng đăng nhập lại để tiếp tục.",
+        message: "Bạn đã đăng xuất. Vui lòng đăng nhập lại.",
         type: "info",
       });
     };
@@ -142,6 +150,20 @@ export default function PostPage() {
       window.removeEventListener("user-logout", handleLogoutEvent);
     };
   }, [router, searchParams]);
+
+  // Suggest tags based on content
+  useEffect(() => {
+    const keywords = content
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((word) => word.length > 3);
+    const suggestions = tagsList
+      .filter((tag) =>
+        keywords.some((keyword) => tag.value.toLowerCase().includes(keyword))
+      )
+      .slice(0, 5);
+    setTagSuggestions(suggestions);
+  }, [content, tagsList]);
 
   const capitalizeFirstLetter = (string) => {
     if (!string) return "";
@@ -273,6 +295,7 @@ export default function PostPage() {
       }));
 
       setEntries(demosFormatted);
+      setFilteredEntries(demosFormatted);
     } catch (err) {
       console.error("Error in fetchEntries:", err);
       setNotification({
@@ -300,12 +323,12 @@ export default function PostPage() {
       hasError = true;
     }
     if (!topic || (topic === "Khác" && !customTopic)) {
-      setTopicError("Vui lòng chọn chủ đề hoặc nhập chủ đề nếu chọn 'Khác'.");
+      setTopicError("Vui lòng chọn hoặc nhập chủ đề.");
       hasError = true;
     }
     if (!isLoggedIn) {
       setNotification({
-        message: "Bạn cần đăng nhập để thực hiện hành động này.",
+        message: "Vui lòng đăng nhập để thực hiện hành động này.",
         type: "error",
       });
       hasError = true;
@@ -327,9 +350,7 @@ export default function PostPage() {
   };
 
   const handleSaveDraft = async () => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     if (validateInputs()) return;
     try {
       const finalTopic = capitalizeFirstLetter(
@@ -386,16 +407,14 @@ export default function PostPage() {
     } catch (error) {
       console.error("Error in handleSaveDraft:", error);
       setNotification({
-        message: `Không thể lưu bản nháp. Lỗi: ${error.message}`,
+        message: `Không thể lưu bản nháp: ${error.message}`,
         type: "error",
       });
     }
   };
 
   const handlePublish = async () => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     if (validateInputs()) return;
 
     try {
@@ -437,16 +456,14 @@ export default function PostPage() {
     } catch (error) {
       console.error("Error in handlePublish:", error);
       setNotification({
-        message: `Không thể đăng bài viết. Lỗi: ${error.message}`,
+        message: `Không thể đăng bài viết: ${error.message}`,
         type: "error",
       });
     }
   };
 
   const handleEditDraft = (entry) => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     setTitle(entry.title || "");
     setContent(entry.content || "");
     setTopic(
@@ -483,13 +500,13 @@ export default function PostPage() {
   };
 
   const handleUseSample = (post) => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     setTitle(post.title);
     setContent(post.content);
     setTopic(post.topics);
-    setTags(post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []);
+    setTags(
+      post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []
+    );
     setCustomTopic("");
     setSelectedTag("");
     setCustomTag("");
@@ -524,6 +541,7 @@ export default function PostPage() {
     setTagError("");
     setEditingId(null);
     setEditingTable(null);
+    setLivePreview(false);
   };
 
   const isValidUrl = (url) => {
@@ -536,9 +554,7 @@ export default function PostPage() {
   };
 
   const handleImageUpload = async (e) => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     const files = Array.from(e.target.files);
     if (uploadedImages.length + files.length > MAX_IMAGES) {
       setImageError(`Bạn chỉ có thể tải lên tối đa ${MAX_IMAGES} hình ảnh.`);
@@ -578,9 +594,7 @@ export default function PostPage() {
   };
 
   const handleFileUpload = async (e) => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     const files = Array.from(e.target.files);
     const validFiles = files.filter(
       (file) =>
@@ -628,9 +642,7 @@ export default function PostPage() {
   };
 
   const handleVideoUpload = async (e) => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
     const files = Array.from(e.target.files);
     const validVideos = files.filter((file) => file.type.startsWith("video/"));
 
@@ -683,7 +695,7 @@ export default function PostPage() {
     setUploadedVideos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const truncateFileName = (name, maxLength = 10) => {
+  const truncateFileName = (name, maxLength = 15) => {
     if (!name) return "unnamed";
     if (name.length <= maxLength) return name;
     return name.substring(0, maxLength - 3) + "...";
@@ -693,567 +705,793 @@ export default function PostPage() {
     router.push("/auth/login");
   };
 
+  const handleSearchDrafts = (e) => {
+    const query = e.target.value.toLowerCase();
+    setSearchQuery(query);
+    filterDrafts(query, filterTag);
+  };
+
+  const handleFilterTag = (tag) => {
+    setFilterTag(tag);
+    filterDrafts(searchQuery, tag);
+  };
+
+  const filterDrafts = (query, tag) => {
+    let filtered = entries;
+    if (query) {
+      filtered = filtered.filter(
+        (entry) =>
+          entry.title?.toLowerCase().includes(query) ||
+          entry.tags?.some((t) => t.toLowerCase().includes(query))
+      );
+    }
+    if (tag) {
+      filtered = filtered.filter((entry) => entry.tags?.includes(tag));
+    }
+    setFilteredEntries(filtered);
+  };
+
+  const calculateProgress = () => {
+    let filled = 0;
+    if (title) filled++;
+    if (content) filled++;
+    if (topic || customTopic) filled++;
+    if (tags.length > 0) filled++;
+    if (
+      uploadedImages.length > 0 ||
+      uploadedFiles.length > 0 ||
+      uploadedVideos.length > 0
+    )
+      filled++;
+    return (filled / 5) * 100;
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin"></div>
       </div>
     );
   }
 
+  return (
+    <div className="mt-24 p-5 rounded-lg shadow-md text-gray-700 relative">
+      <div className="min-h-screen rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col">
+        {/* Notification and Confirm Dialogs */}
+        {notification && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        )}
+        {showConfirm && !confirmDeleteId && (
+          <Confirm
+            message="Bạn có chắc chắn muốn hủy không?"
+            onConfirm={() => {
+              resetForm();
+              setNotification({
+                message: "Đã hủy thành công!",
+                type: "success",
+              });
+              setShowConfirm(false);
+            }}
+            onCancel={() => setShowConfirm(false)}
+          />
+        )}
+        {confirmDeleteId && showConfirm && (
+          <Confirm
+            message={`Bạn có chắc chắn muốn xóa bản nháp "${
+              entries.find((e) => e.id === confirmDeleteId)?.title ||
+              "Không có tiêu đề"
+            }" không?`}
+            onConfirm={async () => {
+              try {
+                const { error } = await supabase
+                  .from("demos")
+                  .delete()
+                  .eq("id", confirmDeleteId);
+                if (error) throw error;
+                setEntries(
+                  entries.filter((entry) => entry.id !== confirmDeleteId)
+                );
+                setFilteredEntries(
+                  filteredEntries.filter((entry) => entry.id !== confirmDeleteId)
+                );
+                setNotification({
+                  message: "Bản nháp đã được xóa thành công!",
+                  type: "success",
+                });
+              } catch (err) {
+                console.error("Error in delete:", err);
+                setNotification({
+                  message: `Không thể xóa: ${err.message}`,
+                  type: "error",
+                });
+              } finally {
+                setConfirmDeleteId(null);
+                setConfirmDeleteTable(null);
+                setShowConfirm(false);
+              }
+            }}
+            onCancel={() => {
+              setShowConfirm(false);
+              setConfirmDeleteId(null);
+              setConfirmDeleteTable(null);
+            }}
+          />
+        )}
 
-  const mainContent = (
-    <div className="flex flex-col min-h-screen mt-[76px] mb-[-7px] gap-5 p-5 m-[-15px] relative">
-      <div className="flex flex-col lg:flex-row gap-5">
-        <div className="lg:flex-1">
-          <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
-            {notification && (
-              <Notification
-                message={notification.message}
-                type={notification.type}
-                onClose={() => setNotification(null)}
-              />
-            )}
-            {showConfirm && !confirmDeleteId && (
-              <Confirm
-                message="Bạn có chắc chắn muốn hủy không?"
-                onConfirm={() => {
-                  resetForm();
-                  setNotification({
-                    message: "Đã hủy thành công!",
-                    type: "success",
-                  });
-                  setShowConfirm(false);
-                }}
-                onCancel={() => setShowConfirm(false)}
-              />
-            )}
-            {confirmDeleteId && showConfirm && (
-              <Confirm
-                message={`Bạn có chắc chắn muốn xóa bản nháp "${
-                  entries.find((e) => e.id === confirmDeleteId)?.title ||
-                  "Không có tiêu đề"
-                }" không?`}
-                onConfirm={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from("demos")
-                      .delete()
-                      .eq("id", confirmDeleteId);
-                    if (error) throw error;
-                    setEntries(
-                      entries.filter((entry) => entry.id !== confirmDeleteId)
-                    );
-                    setNotification({
-                      message: "Bản nháp đã được xóa thành công!",
-                      type: "success",
-                    });
-                  } catch (err) {
-                    console.error("Error in delete:", err);
-                    setNotification({
-                      message: `Không thể xóa: ${err.message}`,
-                      type: "error",
-                    });
-                  } finally {
-                    setConfirmDeleteId(null);
-                    setConfirmDeleteTable(null);
-                    setShowConfirm(false);
-                  }
-                }}
-                onCancel={() => {
-                  setShowConfirm(false);
-                  setConfirmDeleteId(null);
-                  setConfirmDeleteTable(null);
-                }}
-              />
-            )}
+        {!isLoggedIn ? (
+          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-6rem)] p-8">
+            <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl max-w-md w-full text-center">
+              <h2 className="text-2xl font-bold text-purple-600 mb-4">
+                Vui lòng đăng nhập
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Bạn cần đăng nhập để viết bài, xem bản nháp hoặc sử dụng mẫu bài viết.
+              </p>
+              <button
+                onClick={handleLoginRedirect}
+                className="bg-indigo-500 text-white px-6 py-3 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-lg"
+              >
+                Đăng nhập ngay
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className={livePreview ? "lg:w-1/2 p-4" : "lg:w-2/3 p-4"}>
+              {/* Enhanced "Viết bài mới" Card */}
+              <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-t-xl">
+                  <h1 className="text-2xl font-bold text-white">
+                    Viết bài mới
+                  </h1>
+                  {/* Enhanced Progress Circle */}
+                  <div className="relative w-12 h-12">
+                    <svg
+                      width="48"
+                      height="48"
+                      viewBox="0 0 48 48"
+                      className="absolute"
+                    >
+                      <circle
+                        cx="24"
+                        cy="24"
+                        r="22"
+                        stroke="#e5e7eb"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <circle
+                        cx="24"
+                        cy="24"
+                        r="22"
+                        stroke="#ffffff"
+                        strokeWidth="4"
+                        fill="none"
+                        strokeDasharray="138"
+                        strokeDashoffset={
+                          138 - (calculateProgress() / 100) * 138
+                        }
+                        className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
+                      />
+                    </svg>
+                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-white">
+                      {Math.round(calculateProgress())}%
+                    </span>
+                  </div>
+                </div>
 
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 mb-8 text-center">
-              Viết bài
-            </h1>
-
-            <div className="flex flex-col mb-4 gap-4">
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="flex-1">
-                  <h2 className="text-xl text-black mb-3">Tiêu đề bài viết</h2>
+                {/* Title Input */}
+                <div className="relative mb-8">
                   <input
                     type="text"
-                    placeholder="Nhập tiêu đề bài viết"
+                    id="title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
-                    style={{ outline: "none", border: "none" }}
+                    className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 text-lg focus:outline-none focus:border-purple-500 transition-colors duration-300"
+                    placeholder=" "
                   />
-                  {titleError && (
-                    <p className="text-red-600 text-sm mb-2">{titleError}</p>
-                  )}
-                </div>
-                <div className="lg:w-1/3">
-                  <h2 className="text-xl text-black mb-3">Chủ đề bài viết</h2>
-                  <select
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
-                    style={{ outline: "none", border: "none" }}
+                  <label
+                    htmlFor="title"
+                    className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
                   >
-                    <option value="" disabled>
-                      Chọn chủ đề
-                    </option>
-                    {topicsList.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                  {topic === "Khác" && (
-                    <input
-                      type="text"
-                      placeholder="Nhập chủ đề tùy chỉnh"
-                      value={customTopic}
-                      onChange={(e) =>
-                        setCustomTopic(capitalizeFirstLetter(e.target.value))
-                      }
-                      className="w-full p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-blue-300"
-                      style={{ outline: "none", border: "none" }}
-                    />
-                  )}
-                  {topicError && (
-                    <p className="text-red-600 text-sm mb-2">{topicError}</p>
+                    Tiêu đề bài viết
+                  </label>
+                  {titleError && (
+                    <p className="text-red-500 text-sm mt-2 animate-pulse">
+                      {titleError}
+                    </p>
                   )}
                 </div>
-              </div>
 
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="flex-1">
-                  <h2 className="text-xl text-black mb-3">Nội dung bài viết</h2>
+                {/* Content Textarea */}
+                <div className="relative mb-8">
                   <textarea
-                    placeholder="Nhập nội dung bài viết"
+                    id="content"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    className="w-full h-56 p-4 rounded-xl text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(192,132,252,1)] focus:ring-2 focus:ring-purple-300"
-                    style={{ outline: "none", border: "none" }}
+                    className="peer w-full min-h-[16rem] p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md transition-colors duration-300 resize-none"
+                    placeholder=" "
+                    style={{ height: "auto" }}
+                    onInput={(e) => {
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                    }}
                   />
+                  <label
+                    htmlFor="content"
+                    className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+                  >
+                    Mô tả
+                  </label>
                   {contentError && (
-                    <p className="text-red-600 text-sm mb-2">{contentError}</p>
+                    <p className="text-red-500 text-sm mt-2 animate-pulse">
+                      {contentError}
+                    </p>
                   )}
                 </div>
-                <div className="lg:w-1/3">
-                  <h2 className="text-xl text-black mb-3">Thẻ tag</h2>
-                  <select
-                    value={selectedTag}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSelectedTag(value);
-                      if (value !== "Khác") handleAddTag(value);
-                    }}
-                    className="w-full p-4 rounded-xl mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-purple-300"
-                    style={{ outline: "none", border: "none" }}
-                  >
-                    <option value="" disabled>
-                      Chọn tag
-                    </option>
-                    {tagsList.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
+
+                {/* Topic and Tags */}
+                <div className="flex flex-col md:flex-row gap-6 mb-8">
+                  {/* Topic Select */}
+                  <div className="flex-1 relative">
+                    <select
+                      id="topic"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
+                    >
+                      <option value="" disabled className="text-gray-400">
+                        Chọn chủ đề
                       </option>
-                    ))}
-                  </select>
-                  {selectedTag === "Khác" && (
-                    <input
-                      type="text"
-                      placeholder="Nhập tag tùy chỉnh"
-                      value={customTag}
-                      onChange={(e) =>
-                        setCustomTag(capitalizeFirstLetter(e.target.value))
-                      }
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter" && customTag)
-                          handleAddTag("Khác");
-                      }}
-                      className="w-full p-4 rounded-xl mt-2 mb-1 text-gray-700 transition duration-300 bg-white shadow-[0_0_8px_rgba(147,197,253,0.8),0_0_8px_rgba(196,181,253,0.8)] focus:shadow-[0_0_12px_rgba(96,165,250,1)] focus:ring-2 focus:ring-purple-300"
-                      style={{ outline: "none", border: "none" }}
-                    />
-                  )}
-                  {tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {tags.map((tag, index) => (
-                        <span
-                          key={`${tag}-${index}`}
-                          className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center"
+                      {topicsList.map((t) => (
+                        <option
+                          key={t.value}
+                          value={t.value}
+                          className="text-gray-800"
                         >
-                          {tag}
-                          <button
-                            onClick={() => handleRemoveTag(tag)}
-                            className="ml-2 text-red-400 hover:text-red-500"
-                          >
-                            <FaTimes size={12} />
-                          </button>
-                        </span>
+                          {t.label}
+                        </option>
                       ))}
+                    </select>
+                    <label
+                      htmlFor="topic"
+                      className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+                    >
+                      Chủ đề bài viết
+                    </label>
+                    {topic === "Khác" && (
+                      <input
+                        type="text"
+                        value={customTopic}
+                        onChange={(e) =>
+                          setCustomTopic(capitalizeFirstLetter(e.target.value))
+                        }
+                        className="w-full p-4 mt-4 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md"
+                        placeholder="Nhập chủ đề tùy chỉnh"
+                      />
+                    )}
+                    {topicError && (
+                      <p className="text-red-500 text-sm mt-2 animate-pulse">
+                        {topicError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Tags Select */}
+                  <div className="flex-1">
+                    <div className="relative">
+                      <select
+                        id="tags"
+                        value={selectedTag}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setSelectedTag(value);
+                          if (value !== "Khác") handleAddTag(value);
+                        }}
+                        className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
+                      >
+                        <option value="" disabled className="text-gray-400">
+                          Chọn tag
+                        </option>
+                        {tagsList.map((t) => (
+                          <option
+                            key={t.value}
+                            value={t.value}
+                            className="text-gray-800"
+                          >
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                      <label
+                        htmlFor="tags"
+                        className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+                      >
+                        Thẻ tag
+                      </label>
+                    </div>
+                    {selectedTag === "Khác" && (
+                      <input
+                        type="text"
+                        value={customTag}
+                        onChange={(e) =>
+                          setCustomTag(capitalizeFirstLetter(e.target.value))
+                        }
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter" && customTag)
+                            handleAddTag("Khác");
+                        }}
+                        className="w-full p-4 mt-4 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md"
+                        placeholder="Nhập tag tùy chỉnh"
+                      />
+                    )}
+                    {tagSuggestions.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {tagSuggestions.map((tag) => (
+                          <button
+                            key={tag.value}
+                            onClick={() => handleAddTag(tag.value)}
+                            className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm hover:bg-purple-200 transition-colors duration-200"
+                          >
+                            {tag.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-3 mt-4">
+                        {tags.map((tag, index) => (
+                          <span
+                            key={`${tag}-${index}`}
+                            className="bg-purple-500 text-white px-4 py-2 rounded-full flex items-center text-sm transition-transform duration-200 hover:scale-105"
+                          >
+                            {tag}
+                            <button
+                              onClick={() => handleRemoveTag(tag)}
+                              className="ml-2 text-white hover:text-red-300 transition-colors"
+                            >
+                              <FaTimes size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {tagError && (
+                      <p className="text-red-500 text-sm mt-2 animate-pulse">
+                        {tagError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Media Uploads */}
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-purple-600 mb-4">
+                    Tệp đa phương tiện
+                  </h3>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="bg-purple-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md">
+                      <FileImageOutlined className="mr-2" /> Ảnh
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
+                      <FileTextOutlined className="mr-2" /> Word/PDF
+                      <input
+                        type="file"
+                        accept=".doc,.docx,.pdf"
+                        multiple
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="bg-purple-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md">
+                      <VideoCameraOutlined className="mr-2" /> Video
+                      <input
+                        type="file"
+                        accept="video/*"
+                        multiple
+                        onChange={handleVideoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {imageError && (
+                    <p className="text-red-500 text-sm mt-4 animate-pulse">
+                      {imageError}
+                    </p>
+                  )}
+
+                  {isUploadingImage && (
+                    <div className="mt-4 flex items-center">
+                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
+                      <span className="text-purple-600">Đang tải hình ảnh...</span>
                     </div>
                   )}
-                  {tagError && (
-                    <p className="text-red-600 text-sm mb-2">{tagError}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex space-x-4 text-blue-600 mb-4 mt-3">
-              <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-                <FileImageOutlined className="mr-2" /> <span>Chèn ảnh</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </label>
-              <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-                <FileTextOutlined className="mr-2" /> <span>Tệp Word/PDF</span>
-                <input
-                  type="file"
-                  accept=".doc,.docx,.pdf"
-                  multiple
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-              <label className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black py-2 px-4 rounded-md flex items-center cursor-pointer">
-                <VideoCameraOutlined className="mr-2" /> <span>Video</span>
-                <input
-                  type="file"
-                  accept="video/*"
-                  multiple
-                  onChange={handleVideoUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {imageError && (
-              <p className="text-red-600 text-sm mb-2">{imageError}</p>
-            )}
-
-            {isUploadingImage && (
-              <div className="mt-4">
-                <h3 className="font-bold mb-3">Đang tải hình ảnh...</h3>
-                <div className="flex items-center">
-                  <div className="loader mr-2"></div>
-                  <span className="text-gray-600">Vui lòng chờ...</span>
-                </div>
-              </div>
-            )}
-
-            {Array.isArray(uploadedImages) &&
-              uploadedImages.length > 0 &&
-              !isUploadingImage && (
-                <div className="mt-4">
-                  <h3 className="font-bold mb-3">Hình ảnh đã tải lên:</h3>
-                  <ul className="flex flex-wrap">
-                    {uploadedImages.map((image, index) =>
-                      image.url && isValidUrl(image.url) ? (
-                        <li
-                          key={`image-${index}`}
-                          className="flex flex-col items-center mb-4 mr-4"
-                        >
-                          <div className="relative">
+                  {uploadedImages.length > 0 && !isUploadingImage && (
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {uploadedImages.map((image, index) =>
+                        image.url && isValidUrl(image.url) ? (
+                          <div
+                            key={`image-${index}`}
+                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                          >
                             <Image
                               src={image.url}
-                              alt={`Uploaded preview ${image.name}`}
-                              className="w-20 h-20 object-cover rounded-md mb-2"
-                              width={80}
-                              height={80}
+                              alt={`Uploaded ${image.name}`}
+                              className="w-full h-24 object-cover"
+                              width={96}
+                              height={96}
                             />
+                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                              {truncateFileName(image.name)}
+                            </p>
                             <button
                               onClick={() => handleRemoveImage(index)}
-                              className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
-                              title="Xóa hình ảnh"
+                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
                             >
-                              <FaTimes />
+                              <FaTimes size={12} />
                             </button>
                           </div>
-                          <span className="text-blue-500 text-sm">
-                            {truncateFileName(image.name)}
-                          </span>
-                        </li>
-                      ) : (
-                        <li
-                          key={`image-error-${index}`}
-                          className="flex flex-col items-center mb-4 mr-4"
+                        ) : null
+                      )}
+                    </div>
+                  )}
+
+                  {isUploadingVideo && (
+                    <div className="mt-4 flex items-center">
+                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
+                      <span className="text-purple-600">Đang tải video...</span>
+                    </div>
+                  )}
+                  {uploadedVideos.length > 0 && !isUploadingVideo && (
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {uploadedVideos.map((video, index) => (
+                        <div
+                          key={`video-${index}`}
+                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
                         >
-                          <span className="text-red-500 text-sm">
-                            Hình ảnh không hợp lệ
-                          </span>
-                        </li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              )}
-
-            {isUploadingVideo && (
-              <div className="mt-4">
-                <h3 className="font-bold mb-3">Đang tải video...</h3>
-                <div className="flex items-center">
-                  <div className="loader mr-2"></div>
-                  <span className="text-gray-600">Vui lòng chờ...</span>
-                </div>
-              </div>
-            )}
-
-            {Array.isArray(uploadedVideos) &&
-              uploadedVideos.length > 0 &&
-              !isUploadingVideo && (
-                <div className="mt-4">
-                  <h3 className="font-bold mb-3">Video đã tải lên:</h3>
-                  <ul className="flex flex-wrap">
-                    {uploadedVideos.map((video, index) => (
-                      <li
-                        key={`video-${index}`}
-                        className="flex flex-col items-center mb-4 mr-4"
-                      >
-                        <div className="relative">
                           <video
                             src={video.url}
                             controls
-                            className="w-40 h-24 object-cover rounded-md mb-2"
+                            className="w-full h-28 object-cover"
                           />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(video.name)}
+                          </p>
                           <button
                             onClick={() => handleRemoveVideo(index)}
-                            className="absolute top-0 right-0 p-1 text-red-400 hover:text-red-500"
-                            title="Xóa video"
+                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
                           >
-                            <FaTimes />
+                            <FaTimes size={12} />
                           </button>
                         </div>
-                        <span className="text-blue-500 text-sm">
-                          {truncateFileName(video.name)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                      ))}
+                    </div>
+                  )}
 
-            {isUploadingFile && (
-              <div className="mt-4">
-                <h3 className="font-bold mb-3">Đang tải tệp...</h3>
-                <div className="flex items-center">
-                  <div className="loader mr-2"></div>
-                  <span className="text-gray-600">Vui lòng chờ...</span>
-                </div>
-              </div>
-            )}
-
-            {Array.isArray(uploadedFiles) &&
-              uploadedFiles.length > 0 &&
-              !isUploadingFile && (
-                <div className="mt-4">
-                  <h3 className="font-bold mb-3">Tệp đã tải lên:</h3>
-                  <ul className="mr-5">
-                    {uploadedFiles.map((file, index) => (
-                      <li key={`file-${index}`} className="mb-2">
-                        <div className="flex items-center">
+                  {isUploadingFile && (
+                    <div className="mt-4 flex items-center">
+                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
+                      <span className="text-purple-600">Đang tải tệp...</span>
+                    </div>
+                  )}
+                  {uploadedFiles.length > 0 && !isUploadingFile && (
+                    <div className="mt-4 space-y-3">
+                      {uploadedFiles.map((file, index) => (
+                        <div
+                          key={`file-${index}`}
+                          className="flex items-center justify-between bg-purple-50 p-3 rounded-lg shadow-sm hover:bg-purple-100 transition-colors duration-200"
+                        >
                           <a
                             href={file.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-500 text-sm"
+                            className="text-purple-600 text-sm font-medium hover:underline"
                           >
                             {truncateFileName(file.name)}
                           </a>
                           <button
                             onClick={() => handleRemoveFile(index)}
-                            className="ml-2 p-1 text-red-400 hover:text-red-500"
-                            title="Xóa tệp"
+                            className="text-red-500 hover:text-red-600 transition-colors"
                           >
-                            <FaTimes />
+                            <FaTimes size={14} />
                           </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-4 mt-8">
+                  <button
+                    onClick={() => setLivePreview(!livePreview)}
+                    className="bg-purple-500 text-white p-4 rounded-full hover:bg-purple-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+                    title="Xem trước trực tiếp"
+                    aria-label="Xem trước trực tiếp"
+                  >
+                    <FaEye size={18} />
+                  </button>
+                  <button
+                    onClick={handleSaveDraft}
+                    className="bg-gray-500 text-white p-4 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+                    title="Lưu bản nháp"
+                    aria-label="Lưu bản nháp"
+                  >
+                    <FaSave size={18} />
+                  </button>
+                  <button
+                    onClick={handlePublish}
+                    className="bg-indigo-500 text-white p-4 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+                    title="Đăng bài viết"
+                    aria-label="Đăng bài viết"
+                  >
+                    <FaPaperPlane size={18} />
+                  </button>
+                  <button
+                    onClick={() => setShowConfirm(true)}
+                    className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+                    title="Hủy"
+                    aria-label="Hủy"
+                  >
+                    <FaTrash size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Preview */}
+            {livePreview && (
+              <div className="lg:w-1/2 p-4">
+                <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  <h2 className="text-xl font-bold text-purple-600 mb-4">
+                    {title || "Tiêu đề"}
+                  </h2>
+                  <p className="text-gray-600 mb-2">
+                    Chủ đề: {topic || customTopic || "Chưa chọn"}
+                  </p>
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {tags.map((tag, index) => (
+                        <span
+                          key={`${tag}-${index}`}
+                          className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="text-gray-700 prose max-w-none mb-4">
+                    {content || "Mô tả bài viết..."}
+                  </div>
+                  {uploadedImages.length > 0 && (
+                    <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {uploadedImages.map((image, index) => (
+                        <div key={`image-${index}`} className="relative">
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded ${image.name}`}
+                            width={100}
+                            height={100}
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(image.name)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {uploadedVideos.length > 0 && (
+                    <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {uploadedVideos.map((video, index) => (
+                        <div key={`video-${index}`} className="relative">
+                          <video
+                            src={video.url}
+                            controls
+                            className="w-full h-28 object-cover rounded-lg"
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(video.name)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {uploadedFiles.length > 0 && (
+                    <div className="space-y-2">
+                      {uploadedFiles.map((file, index) => (
+                        <div
+                          key={`file-${index}`}
+                          className="flex items-center justify-between"
+                        >
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-600 text-sm hover:underline"
+                          >
+                            {truncateFileName(file.name)}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Enhanced "Bản nháp" Sidebar */}
+            <div
+              className={`lg:w-1/3 fixed lg:static top-0 right-0 h-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
+                showDrafts ? "translate-x-0" : "translate-x-full"
+              } lg:translate-x-0 z-40 overflow-y-hidden`}
+            >
+              <div className="sticky top-0 bg-transparent z-10 p-4">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-purple-600 flex items-center">
+                    <DiffOutlined className="mr-2 text-purple-500" /> Bản nháp
+                  </h2>
+                  <button
+                    onClick={() => setShowDrafts(!showDrafts)}
+                    className="lg:hidden text-purple-600 hover:text-purple-700 transition-colors"
+                  >
+                    <FaTimes size={24} />
+                  </button>
+                </div>
+                <div className="relative mb-4">
+                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm bản nháp..."
+                    value={searchQuery}
+                    onChange={handleSearchDrafts}
+                    className="w-full pl-12 p-3 bg-purple-50 border border-purple-200 rounded-full focus:outline-none focus:border-purple-500 text-gray-800 transition-colors duration-200"
+                  />
+                </div>
+                {tagsList.length > 0 && (
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => handleFilterTag("")}
+                      className={`text-sm px-4 py-2 rounded-full ${
+                        !filterTag
+                          ? "bg-purple-500 text-white"
+                          : "bg-purple-100 text-purple-700"
+                      } hover:bg-purple-600 hover:text-white transition-all duration-200`}
+                    >
+                      Tất cả
+                    </button>
+                    {tagsList.slice(0, 5).map((tag) => (
+                      <button
+                        key={tag.value}
+                        onClick={() => handleFilterTag(tag.value)}
+                        className={`text-sm px-4 py-2 rounded-full ${
+                          filterTag === tag.value
+                            ? "bg-purple-500 text-white"
+                            : "bg-purple-100 text-purple-700"
+                        } hover:bg-purple-600 hover:text-white transition-all duration-200`}
+                      >
+                        {tag.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-6">
+                <ul className="space-y-4">
+                  {filteredEntries.length > 0 ? (
+                    filteredEntries.map((entry) => (
+                      <li
+                        key={`draft-${entry.table}-${entry.id}`}
+                        className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                      >
+                        <div className="flex gap-4">
+                          <div className="flex-shrink-0 w-12">
+                            {Array.isArray(entry.images) &&
+                            entry.images.length > 0 &&
+                            isValidUrl(entry.images[0].url) ? (
+                              <Image
+                                src={entry.images[0].url}
+                                alt={`Entry ${entry.id} image`}
+                                width={48}
+                                height={48}
+                                className="w-12 h-12 object-cover rounded-lg"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-purple-500 text-xs font-medium">
+                                No img
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <strong className="text-purple-600 text-sm font-semibold">
+                              {entry.title || "Không có tiêu đề"}
+                            </strong>
+                            <p className="text-gray-600 text-xs mt-1 line-clamp-2">
+                              {entry.content
+                                ? entry.content.slice(0, 50) + "..."
+                                : "Không có nội dung"}
+                            </p>
+                            {Array.isArray(entry.tags) &&
+                              entry.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {entry.tags.slice(0, 3).map((tag, index) => (
+                                    <span
+                                      key={`${tag}-${index}`}
+                                      className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            <small className="text-gray-500 text-xs block mt-2">
+                              {new Date(entry.created_at).toLocaleString()}
+                            </small>
+                            <div className="flex justify-end gap-3 mt-3">
+                              <button
+                                onClick={() => handleEditDraft(entry)}
+                                className="bg-purple-500 text-white px-4 py-2 rounded-full text-xs hover:bg-purple-600 transition-all duration-200"
+                              >
+                                Chỉnh sửa
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setConfirmDeleteId(entry.id);
+                                  setConfirmDeleteTable(entry.table);
+                                  setShowConfirm(true);
+                                }}
+                                className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-            <div className="flex justify-center mt-4 space-x-4">
-              <button
-                onClick={handleSaveDraft}
-                className="bg-gray-400 text-black py-2 px-4 rounded-md transition duration-200 hover:bg-gray-500 w-full max-w-md"
-              >
-                Lưu bản nháp
-              </button>
-              <button
-                onClick={handlePublish}
-                className="bg-green-400 hover:bg-green-500 text-black py-2 px-4 rounded-md transition duration-200 w-full max-w-md"
-              >
-                {editingId !== null && editingTable === "demos"
-                  ? "Đăng từ bản nháp"
-                  : "Đăng ngay"}
-              </button>
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="bg-red-400 text-black py-2 px-4 rounded-md transition duration-200 hover:bg-red-500 w-full max-w-md"
-              >
-                Hủy
-              </button>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm text-center">
+                      Không tìm thấy bản nháp nào.
+                    </p>
+                  )}
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="lg:w-1/3 lg:max-w-sm">
-          <div className="p-4 border border-gray-300 rounded-lg bg-white h-[calc(0.61*(100vh-5px))] flex flex-col">
-            <div className="sticky top-0 bg-white z-0 pb-2 border-b border-gray-200">
-              <h2 className="font-bold text-2xl text-gray-700">
-                <DiffOutlined className="inline mr-2" /> Bản nháp
-              </h2>
-            </div>
-            <div className="flex-1 overflow-y-auto scrollbar-hidden">
-              <h3 className="font-semibold text-gray-700 mb-2">
-                Danh sách bản nháp
-              </h3>
-              <ul>
-                {entries.length > 0 ? (
-                  entries.map((entry) => (
-                    <li
-                      key={`draft-${entry.table}-${entry.id}`}
-                      className="border-2 border-gray-200 p-2 rounded-xl mb-2 flex transition duration-300 hover:shadow-lg"
-                    >
-                      <div className="flex-shrink-0 mr-2 flex flex-col gap-1 items-center">
-                        {Array.isArray(entry.images) &&
-                        entry.images.length > 0 &&
-                        isValidUrl(entry.images[0].url) ? (
-                          <div className="flex flex-col items-center">
-                            <Image
-                              src={entry.images[0].url}
-                              alt={`Entry ${entry.id} image`}
-                              width={40}
-                              height={40}
-                              className="w-10 h-10 object-cover rounded-md"
-                            />
-                            <span className="text-blue-500 text-sm">
-                              {truncateFileName(entry.images[0].name)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500 text-sm">No img</span>
-                        )}
-                        {Array.isArray(entry.files) &&
-                          entry.files.length > 0 && (
-                            <div className="flex flex-col items-center">
-                              <div className="flex items-center justify-center w-10 h-10 bg-gray-200 rounded-md">
-                                <FileTextOutlined className="text-gray-600" />
-                              </div>
-                              <span className="text-blue-500 text-sm">
-                                {truncateFileName(entry.files[0].name)}
-                              </span>
-                            </div>
-                          )}
-                        {Array.isArray(entry.videos) &&
-                          entry.videos.length > 0 && (
-                            <div className="flex flex-col items-center">
-                              <video
-                                src={entry.videos[0].url}
-                                className="w-10 h-10 object-cover rounded-md"
-                                muted
-                              />
-                              <span className="text-blue-500 text-sm">
-                                {truncateFileName(entry.videos[0].name)}
-                              </span>
-                            </div>
-                          )}
-                      </div>
-                      <div className="flex-grow flex flex-col">
-                        <strong className="text-yellow-600 text-sm">
-                          {entry.title || "Không có tiêu đề"}
-                        </strong>
-                        <p className="text-gray-700 text-sm">
-                          Nội dung:{" "}
-                          {entry.content
-                            ? entry.content.slice(0, 30) + "..."
-                            : "Không có nội dung"}
-                        </p>
-                        <p className="text-gray-700 text-sm">
-                          Chủ đề: {entry.topics || "Chưa chọn"}
-                        </p>
-                        {Array.isArray(entry.tags) && entry.tags.length > 0 && (
-                          <p className="text-gray-700 text-sm">
-                            Tags: {entry.tags.join(", ")}
-                          </p>
-                        )}
-                        <small className="text-gray-700 text-sm">
-                          {new Date(entry.created_at).toLocaleString()}
-                        </small>
-                        <div className="flex justify-end space-x-2 mt-1">
-                          <button
-                            onClick={() => handleEditDraft(entry)}
-                            className="text-green-500 text-sm hover:text-green-600 transition duration-200 underline"
-                            title="Sửa"
-                          >
-                            Chỉnh sửa
-                          </button>
-                          <button
-                            onClick={() => {
-                              setConfirmDeleteId(entry.id);
-                              setConfirmDeleteTable(entry.table);
-                              setShowConfirm(true);
-                            }}
-                            className="text-red-400 text-sm hover:text-red-500 transition duration-200 underline"
-                            title="Xóa"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  ))
-                ) : (
-                  <p className="text-gray-700 text-sm">
-                    Không tìm thấy bản nháp nào.
-                  </p>
-                )}
-              </ul>
+        {/* Available Samples */}
+        {isLoggedIn && (
+          <div className="mt-6 p-4">
+            <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <AvailableSamples onSelectSample={handleUseSample} />
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      <div className="mt-6">
-        <AvailableSamples onSelectSample={handleUseSample} />
+        {/* Toggle Drafts Button for Mobile */}
+        {isLoggedIn && !showDrafts && (
+          <button
+            onClick={() => setShowDrafts(true)}
+            className="fixed bottom-8 right-8 bg-purple-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-purple-600 transition-all duration-200 hover:scale-110"
+          >
+            <DiffOutlined className="text-xl" />
+          </button>
+        )}
       </div>
     </div>
-  );
-
-  return (
-    <>
-      {mainContent}
-      <style jsx>{`
-        .scrollbar-hidden::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hidden {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .loader {
-          border: 4px solid #f3f3f3;
-          border-top: 4px solid #3498db;
-          border-radius: 50%;
-          width: 24px;
-          height: 24px;
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          0% {
-            transform: rotate(0deg);
-          }
-          100% {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
-    </>
   );
 }

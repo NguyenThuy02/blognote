@@ -1,4 +1,3 @@
-// detail/page.js
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,8 +16,8 @@ export default function PostDetail() {
 
   useEffect(() => {
     const fetchPostDetails = async () => {
-      if (!postId || !type) {
-        setError("Thiếu thông tin bài viết hoặc loại bài viết.");
+      if (!postId || !["post", "demo"].includes(type)) {
+        setError("Thông tin bài viết hoặc loại bài viết không hợp lệ.");
         setLoading(false);
         return;
       }
@@ -29,7 +28,7 @@ export default function PostDetail() {
         const { data, error } = await supabase
           .from(table)
           .select("id, title, content, created_at, name")
-          .eq("id", postId)
+          .eq("id", parseInt(postId))
           .single();
 
         if (error) throw error;
@@ -37,7 +36,7 @@ export default function PostDetail() {
 
         setPost(data);
       } catch (err) {
-        setError(`Lỗi khi lấy dữ liệu: ${err.message}`);
+        setError(`Không thể tải bài viết: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -50,7 +49,11 @@ export default function PostDetail() {
     if (!dateString) return "-";
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "-";
-    return date.toISOString().split("T")[0];
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   };
 
   if (loading) {
@@ -68,10 +71,10 @@ export default function PostDetail() {
           <h3 className="text-xl font-semibold text-red-600 mb-4">Lỗi</h3>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/blog/report")}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center"
           >
-            <ArrowLeftOutlined className="mr-2" /> Quay lại
+            <ArrowLeftOutlined className="mr-2" /> Quay lại báo cáo
           </button>
         </div>
       </div>
@@ -83,12 +86,12 @@ export default function PostDetail() {
       <div className="min-h-screen bg-blue-200 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Không tìm thấy</h3>
-          <p className="text-gray-600 mb-6">Bài viết không tồn tại.</p>
+          <p className="text-gray-600 mb-6">Bài viết hoặc bản nháp không tồn tại.</p>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/blog/report")}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center"
           >
-            <ArrowLeftOutlined className="mr-2" /> Quay lại
+            <ArrowLeftOutlined className="mr-2" /> Quay lại báo cáo
           </button>
         </div>
       </div>
@@ -99,10 +102,10 @@ export default function PostDetail() {
     <div className="min-h-screen bg-blue-200 flex items-center justify-center p-6">
       <div className="bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/blog/report")}
           className="mb-6 text-blue-600 hover:text-blue-800 transition-colors duration-200 flex items-center"
         >
-          <ArrowLeftOutlined className="mr-2" /> Quay lại
+          <ArrowLeftOutlined className="mr-2" /> Quay lại báo cáo
         </button>
         <h3 className="text-2xl font-semibold text-gray-800 mb-4">{post.title || "Không có tiêu đề"}</h3>
         <p className="text-gray-600 mb-4">
@@ -114,9 +117,10 @@ export default function PostDetail() {
         <p className="text-gray-600 mb-4">
           <span className="font-medium">Tác giả:</span> {post.name || "Không xác định"}
         </p>
-        <p className="text-gray-600 mb-6">
-          <span className="font-medium">Nội dung:</span> {post.content || "Không có nội dung"}
-        </p>
+        <div className="text-gray-600 mb-6">
+          <span className="font-medium">Nội dung:</span>
+          <p className="mt-2 whitespace-pre-wrap">{post.content || "Không có nội dung"}</p>
+        </div>
       </div>
     </div>
   );

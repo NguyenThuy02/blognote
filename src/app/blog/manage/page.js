@@ -66,8 +66,12 @@ export default function ManageApp() {
     if (debouncedSearchQuery) {
       result = result.filter(
         (article) =>
-          article.title?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          article.summary?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+          article.title
+            ?.toLowerCase()
+            .includes(debouncedSearchQuery.toLowerCase()) ||
+          article.summary
+            ?.toLowerCase()
+            .includes(debouncedSearchQuery.toLowerCase())
       );
     }
 
@@ -91,7 +95,14 @@ export default function ManageApp() {
       }
       return 0;
     });
-  }, [debouncedSearchQuery, filterTopic, filterTag, sortBy, sortOrder, articles]);
+  }, [
+    debouncedSearchQuery,
+    filterTopic,
+    filterTag,
+    sortBy,
+    sortOrder,
+    articles,
+  ]);
 
   useEffect(() => {
     try {
@@ -159,9 +170,13 @@ export default function ManageApp() {
 
   useEffect(() => {
     try {
-      const savedFavorites = JSON.parse(localStorage.getItem("favoriteArticles") || "[]");
+      const savedFavorites = JSON.parse(
+        localStorage.getItem("favoriteArticles") || "[]"
+      );
       setFavoriteArticles(
-        savedFavorites.filter((id) => articles.some((article) => article.id === id))
+        savedFavorites.filter((id) =>
+          articles.some((article) => article.id === id)
+        )
       );
     } catch (err) {
       setNotification({
@@ -688,7 +703,7 @@ export default function ManageApp() {
 
   return (
     <div
-      className={`mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-gray-200 relative ${themes[theme]}`}
+      className={`mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-blue-200 relative ${themes[theme]}`}
     >
       <style jsx>{`
         .scrollbar-hidden::-webkit-scrollbar {
@@ -819,14 +834,17 @@ export default function ManageApp() {
           <div className="max-h-[500px] overflow-y-auto scrollbar-hidden">
             <ul>
               {filteredArticles.map((article) => (
-                <div key={article.id} className="flex items-center mb-6 flex-wrap">
+                <div key={article.id} className="flex items-center mb-6">
+                  {/* Input nằm ngoài li */}
                   <input
                     type="checkbox"
                     checked={selectedArticles.includes(article.id)}
                     onChange={() => handleSelectArticle(article.id)}
-                    className="mr-3 flex-shrink-0 self-center"
+                    className="mr-3 flex-shrink-0"
                     disabled={!isLoggedIn}
                   />
+
+                  {/* Nội dung thẻ bài viết */}
                   <li
                     className={`flex justify-between items-center w-full shadow-md border border-gray-200 rounded-lg p-3 flex-wrap ${getThemeClasses(
                       theme,
@@ -884,7 +902,7 @@ export default function ManageApp() {
         </div>
 
         <div
-          className={`w-full lg:w-1/3 p-6 rounded-lg shadow-lg border border-purple-300 bg-gradient-to-br from-purple-50 to-blue-50 overflow-x-hidden ${getThemeClasses(
+          className={`w-full lg:w-1/3 p-6 rounded-lg shadow-lg border border-gray-200 bg-gradient-to-br from-purple-50 to-blue-50 overflow-x-hidden ${getThemeClasses(
             theme,
             "editor"
           )}`}
@@ -900,11 +918,13 @@ export default function ManageApp() {
               className={`p-4 rounded border
 
  border-gray-300 mb-4 shadow-sm bg-gradient-to-br from-purple-50 to-blue-50 ${getThemeClasses(
-                theme,
-                "preview"
-              )}`}
+   theme,
+   "preview"
+ )}`}
             >
-              <h3 className="text-xl font-bold wrap-text">{newArticle.title}</h3>
+              <h3 className="text-xl font-bold wrap-text">
+                {newArticle.title}
+              </h3>
               <Image
                 src={newArticle.src || "/default-image.jpg"}
                 alt={newArticle.title || "No title"}
@@ -914,8 +934,12 @@ export default function ManageApp() {
                 onError={(e) => (e.target.src = "/default-image.jpg")}
               />
               <p className="text-gray-600 wrap-text">{newArticle.summary}</p>
-              <p className="mt-1 text-gray-500 wrap-text">Ngày: {newArticle.date}</p>
-              <p className="mt-1 text-gray-500 wrap-text">Chủ đề: {newArticle.topics}</p>
+              <p className="mt-1 text-gray-500 wrap-text">
+                Ngày: {newArticle.date}
+              </p>
+              <p className="mt-1 text-gray-500 wrap-text">
+                Chủ đề: {newArticle.topics}
+              </p>
               <p className="mt-1 text-gray-500 wrap-text">
                 Tags: {newArticle.tags?.join(", ") || "None"}
               </p>
@@ -970,7 +994,9 @@ export default function ManageApp() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block mb-1 wrap-text">Đường dẫn hình ảnh:</label>
+                <label className="block mb-1 wrap-text">
+                  Đường dẫn hình ảnh:
+                </label>
                 <input
                   type="text"
                   name="src"
@@ -1120,7 +1146,9 @@ export default function ManageApp() {
                 })}
               </ul>
             ) : (
-              <p className="text-gray-600 wrap-text">Chưa có bài viết yêu thích nào.</p>
+              <p className="text-gray-600 wrap-text">
+                Chưa có bài viết yêu thích nào.
+              </p>
             )}
           </div>
           <div
@@ -1201,7 +1229,9 @@ export default function ManageApp() {
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-600 wrap-text">Chưa có dữ liệu từ khóa.</p>
+              <p className="text-gray-600 wrap-text">
+                Chưa có dữ liệu từ khóa.
+              </p>
             )}
           </div>
           <div
@@ -1214,10 +1244,18 @@ export default function ManageApp() {
               Mẹo quản lý nội dung
             </h3>
             <ul className="list-disc pl-5 text-gray-600">
-              <li className="wrap-text">Sử dụng thẻ tag để phân loại bài viết dễ dàng hơn.</li>
-              <li className="wrap-text">Cập nhật hình ảnh thường xuyên để thu hút người xem.</li>
-              <li className="wrap-text">Lưu bài viết quan trọng vào danh sách yêu thích.</li>
-              <li className="wrap-text">Xóa bài viết không cần thiết để giữ danh sách gọn gàng.</li>
+              <li className="wrap-text">
+                Sử dụng thẻ tag để phân loại bài viết dễ dàng hơn.
+              </li>
+              <li className="wrap-text">
+                Cập nhật hình ảnh thường xuyên để thu hút người xem.
+              </li>
+              <li className="wrap-text">
+                Lưu bài viết quan trọng vào danh sách yêu thích.
+              </li>
+              <li className="wrap-text">
+                Xóa bài viết không cần thiết để giữ danh sách gọn gàng.
+              </li>
             </ul>
           </div>
           <div
@@ -1274,29 +1312,32 @@ export default function ManageApp() {
         </div>
       )}
 
-{showLoginModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
-
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Yêu cầu đăng nhập</h3>
-              <p className="text-gray-600 mb-6">Vui lòng đăng nhập để xem thống kê bài viết.</p>
-              <div className="flex justify-end gap-4">
-                <button
-                  onClick={() => setShowLoginModal(false)}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleLoginRedirect}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition duration-200"
-                >
-                  Đăng nhập
-                </button>
-              </div>
+      {showLoginModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Yêu cầu đăng nhập
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Vui lòng đăng nhập để xem thống kê bài viết.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleLoginRedirect}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition duration-200"
+              >
+                Đăng nhập
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }
