@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import Link from "next/link";
+import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
 
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -44,7 +45,33 @@ export default function ReportApp() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
+  const [theme, setTheme] = useState("light");
   const router = useRouter();
+
+  // Load theme from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("theme") || "light";
+      setTheme(savedTheme);
+    } catch (err) {
+      setNotification({
+        message: "Không thể tải giao diện: " + err.message,
+        type: "error",
+      });
+    }
+  }, []);
+
+  // Save theme to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("theme", theme);
+    } catch (err) {
+      setNotification({
+        message: "Không thể lưu giao diện: " + err.message,
+        type: "error",
+      });
+    }
+  }, [theme]);
 
   useEffect(() => {
     const checkLoginStatus = async () => {
@@ -773,17 +800,19 @@ export default function ReportApp() {
   }
 
   return (
-    <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 relative">
-      <div className="min-h-screen rounded-lg bg-blue-100 flex flex-col">
-        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 text-center my-5">
+    <div className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 relative ${themes[theme]}`}>
+      <div className={`min-h-screen rounded-lg bg-blue-100 flex flex-col ${getThemeClasses(theme, "container")}`}>
+        <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 text-center my-5 wrap-text ${getThemeClasses(theme, "title")}`}>
           Thống kê bài viết
         </h1>
         <div className="flex flex-1 pb-10 px-6">
           <main className="flex-1 space-y-8">
-            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in">
-              <h2 className="text-2xl font-semibold text-purple-600 mb-4">Tổng quan bài viết cá nhân</h2>
-              <div className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <div className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "preview")}`}>
+              <h2 className={`text-2xl font-semibold text-purple-600 mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                Tổng quan bài viết cá nhân
+              </h2>
+              <div className={`mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in ${getThemeClasses(theme, "support")}`}>
+                <h3 className={`text-lg font-semibold text-gray-800 mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   <span className="bg-blue-500 text-white rounded-full p-2 mr-2">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
@@ -792,43 +821,45 @@ export default function ReportApp() {
                   Thông tin nhanh
                 </h3>
                 <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Tổng bài viết:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Tổng bài viết:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? posts.length + demos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Bài của bạn:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Bài của bạn:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? userPosts.length + userDemos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Năm khả dụng:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Năm khả dụng:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? availableYears.length : 0}</span>
                   </li>
                 </ul>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
+                <div className={`bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200 ${getThemeClasses(theme, "preview")}`}>
                   <div className="flex items-center">
                     <CheckCircleOutlined className="text-3xl text-blue-500 mr-3" />
                     <div>
-                      <p className="text-gray-700">Đã đăng</p>
+                      <p className="text-gray-700 wrap-text">Đã đăng</p>
                       <p className="text-2xl font-bold text-blue-600">{isLoggedIn ? userPublishedCount : 0}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
+                <div className={`bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200 ${getThemeClasses(theme, "preview")}`}>
                   <div className="flex items-center">
                     <FileOutlined className="text-3xl text-gray-500 mr-3" />
                     <div>
-                      <p className="text-gray-700">Nháp</p>
+                      <p className="text-gray-700 wrap-text">Nháp</p>
                       <p className="text-2xl font-bold text-gray-600">{isLoggedIn ? userDraftCount : 0}</p>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc nhanh</h3>
-                <div className="flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
+                <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  Lọc nhanh
+                </h3>
+                <div className={`flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${getThemeClasses(theme, "support")}`}>
                   {[
                     { label: "Hôm nay", value: "today" },
                     { label: "7 ngày qua", value: "last7days" },
@@ -838,11 +869,11 @@ export default function ReportApp() {
                     <button
                       key={filter.value}
                       onClick={() => applyUserTimeFilter(filter.value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 wrap-text ${
                         userTimeFilter === filter.value
                           ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md"
                           : "bg-white text-gray-700 hover:bg-blue-100 shadow-sm"
-                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none`}
+                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none ${getThemeClasses(theme, "button")}`}
                       disabled={!isLoggedIn}
                     >
                       {filter.label}
@@ -851,12 +882,14 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc theo thời gian</h3>
-                <div className="flex flex-wrap gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm">
+                <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  Lọc theo thời gian
+                </h3>
+                <div className={`flex flex-wrap gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm ${getThemeClasses(theme, "support")}`}>
                   <select
                     value={userFilterType}
                     onChange={(e) => setUserFilterType(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                    className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                     disabled={!isLoggedIn}
                   >
                     <option value="week">Tuần</option>
@@ -869,14 +902,14 @@ export default function ReportApp() {
                         type="date"
                         value={userStartDate}
                         onChange={(e) => setUserStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                        className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "input")}`}
                         disabled={!isLoggedIn}
                       />
                       <input
                         type="date"
                         value={userEndDate}
                         onChange={(e) => setUserEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                        className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "input")}`}
                         disabled={!isLoggedIn}
                       />
                     </>
@@ -885,7 +918,7 @@ export default function ReportApp() {
                     <select
                       value={userSelectedMonth}
                       onChange={(e) => setUserSelectedMonth(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                      className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                       disabled={!isLoggedIn}
                     >
                       <option value="">Chọn tháng</option>
@@ -900,7 +933,7 @@ export default function ReportApp() {
                     <select
                       value={userSelectedYear}
                       onChange={(e) => setUserSelectedYear(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                      className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                       disabled={!isLoggedIn}
                     >
                       <option value="">Chọn năm</option>
@@ -913,7 +946,7 @@ export default function ReportApp() {
                   )}
                   <button
                     onClick={handleUserFilter}
-                    className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95"
+                    className={`bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95 wrap-text ${getThemeClasses(theme, "button")}`}
                     disabled={!isLoggedIn}
                   >
                     Lọc dữ liệu
@@ -922,16 +955,18 @@ export default function ReportApp() {
               </div>
               {isUserFiltered && isLoggedIn ? (
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Kết quả lọc</h3>
+                  <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                    Kết quả lọc
+                  </h3>
                   <div className="flex justify-center">
-                    <div className="w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto">
+                    <div className={`w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto ${getThemeClasses(theme, "table")}`}>
                       <table className="w-full border-collapse bg-white rounded-lg text-sm table-fixed">
                         <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-6 py-3 text-left font-semibold w-2/5">Tiêu đề</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Trạng thái</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Thời gian</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Hành động</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/5 wrap-text">Tiêu đề</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Trạng thái</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Thời gian</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Hành động</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -943,11 +978,11 @@ export default function ReportApp() {
                                   index % 2 === 0 ? "bg-gray-50" : "bg-white"
                                 }`}
                               >
-                                <td className="px-6 py-4 truncate max-w-0">
+                                <td className="px-6 py-4 truncate max-w-0 wrap-text">
                                   {article.title || "Không có tiêu đề"}
                                 </td>
                                 <td
-                                  className={`px-6 py-4 whitespace-nowrap ${
+                                  className={`px-6 py-4 whitespace-nowrap wrap-text ${
                                     filteredUserPosts.includes(article)
                                       ? "text-blue-600 font-medium"
                                       : "text-gray-600 font-medium"
@@ -955,10 +990,10 @@ export default function ReportApp() {
                                 >
                                   {filteredUserPosts.includes(article) ? "Đã đăng" : "Nháp"}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap wrap-text">
                                   {formatDate(article.created_at)}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap wrap-text">
                                   <Link
                                     href={`/detail?postId=${article.id}&type=${
                                       filteredUserPosts.includes(article) ? "post" : "demo"
@@ -975,7 +1010,7 @@ export default function ReportApp() {
                             <tr>
                               <td
                                 colSpan="4"
-                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap"
+                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap wrap-text"
                               >
                                 Không có dữ liệu
                               </td>
@@ -988,12 +1023,14 @@ export default function ReportApp() {
                 </div>
               ) : (
                 !isLoggedIn && (
-                  <div className="mt-6 text-gray-600 text-center">Vui lòng đăng nhập để xem kết quả lọc.</div>
+                  <div className={`mt-6 text-gray-600 text-center wrap-text ${getThemeClasses(theme, "text")}`}>
+                    Vui lòng đăng nhập để xem kết quả lọc.
+                  </div>
                 )
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-[50px]">
                 <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <h3 className={`text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <BarChartOutlined className="mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê cột
@@ -1004,7 +1041,7 @@ export default function ReportApp() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <h3 className={`text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <PieChartOutlined className="mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê vòng
@@ -1021,23 +1058,25 @@ export default function ReportApp() {
                 <div className="mt-6 flex justify-end gap-4">
                   <button
                     onClick={exportPersonalReportExcel}
-                    className="bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400"
+                    className={`bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400 wrap-text ${getThemeClasses(theme, "button")}`}
                   >
                     Xuất Excel
                   </button>
                   <button
                     onClick={exportPersonalReportWord}
-                    className="bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400"
+                    className={`bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400 wrap-text ${getThemeClasses(theme, "button")}`}
                   >
                     Xuất Word
                   </button>
                 </div>
               )}
             </div>
-            <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in">
-              <h2 className="text-2xl font-semibold text-purple-600 mb-4">Tổng quan bài viết toàn hệ thống</h2>
-              <div className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <div className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "preview")}`}>
+              <h2 className={`text-2xl font-semibold text-purple-600 mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                Tổng quan bài viết toàn hệ thống
+              </h2>
+              <div className={`mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in ${getThemeClasses(theme, "support")}`}>
+                <h3 className={`text-lg font-semibold text-gray-800 mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   <span className="bg-blue-500 text-white rounded-full p-2 mr-2">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
@@ -1046,43 +1085,45 @@ export default function ReportApp() {
                   Thông tin nhanh
                 </h3>
                 <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Tổng bài viết:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Tổng bài viết:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? posts.length + demos.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Bài đã đăng:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Bài đã đăng:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? posts.length : 0}</span>
                   </li>
-                  <li className="flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm">
-                    <span className="w-32 font-medium text-blue-600">Bản nháp:</span>
+                  <li className={`flex items-center transform transition-transform duration-300 bg-white p-3 rounded-lg shadow-sm ${getThemeClasses(theme, "preview")}`}>
+                    <span className="w-32 font-medium text-blue-600 wrap-text">Bản nháp:</span>
                     <span className="font-bold text-purple-600">{isLoggedIn ? demos.length : 0}</span>
                   </li>
                 </ul>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <div className="bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
+                <div className={`bg-blue-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200 ${getThemeClasses(theme, "preview")}`}>
                   <div className="flex items-center">
                     <CheckCircleOutlined className="text-3xl text-blue-500 mr-3" />
                     <div>
-                      <p className="text-gray-700">Đã đăng</p>
+                      <p className="text-gray-700 wrap-text">Đã đăng</p>
                       <p className="text-2xl font-bold text-blue-600">{isLoggedIn ? publishedCount : 0}</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200">
+                <div className={`bg-gray-100 p-4 rounded-lg flex items-center justify-between hover:scale-95 transition duration-200 ${getThemeClasses(theme, "preview")}`}>
                   <div className="flex items-center">
                     <FileOutlined className="text-3xl text-gray-500 mr-3" />
                     <div>
-                      <p className="text-gray-700">Nháp</p>
+                      <p className="text-gray-700 wrap-text">Nháp</p>
                       <p className="text-2xl font-bold text-gray-600">{isLoggedIn ? draftCount : 0}</p>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc nhanh</h3>
-                <div className="flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
+                <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  Lọc nhanh
+                </h3>
+                <div className={`flex justify-center flex-wrap gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${getThemeClasses(theme, "support")}`}>
                   {[
                     { label: "Hôm nay", value: "today" },
                     { label: "7 ngày qua", value: "last7days" },
@@ -1092,11 +1133,11 @@ export default function ReportApp() {
                     <button
                       key={filter.value}
                       onClick={() => applySystemTimeFilter(filter.value)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 wrap-text ${
                         systemTimeFilter === filter.value
                           ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md"
                           : "bg-white text-gray-700 hover:bg-blue-100 shadow-sm"
-                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none`}
+                      } disabled:bg-gray-300 disabled:text-gray-500 disabled:transform-none ${getThemeClasses(theme, "button")}`}
                       disabled={!isLoggedIn}
                     >
                       {filter.label}
@@ -1105,12 +1146,14 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Lọc theo thời gian</h3>
-                <div className="flex flex-wrap gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm">
+                <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  Lọc theo thời gian
+                </h3>
+                <div className={`flex flex-wrap gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg shadow-sm ${getThemeClasses(theme, "support")}`}>
                   <select
                     value={filterType}
                     onChange={(e) => setFilterType(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                    className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                     disabled={!isLoggedIn}
                   >
                     <option value="week">Tuần</option>
@@ -1123,14 +1166,14 @@ export default function ReportApp() {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                        className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "input")}`}
                         disabled={!isLoggedIn}
                       />
                       <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                        className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "input")}`}
                         disabled={!isLoggedIn}
                       />
                     </>
@@ -1139,7 +1182,7 @@ export default function ReportApp() {
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                      className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                       disabled={!isLoggedIn}
                     >
                       <option value="">Chọn tháng</option>
@@ -1154,7 +1197,7 @@ export default function ReportApp() {
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200"
+                      className={`border border-gray-300 rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 hover:shadow-md disabled:bg-gray-200 wrap-text ${getThemeClasses(theme, "select")}`}
                       disabled={!isLoggedIn}
                     >
                       <option value="">Chọn năm</option>
@@ -1167,7 +1210,7 @@ export default function ReportApp() {
                   )}
                   <button
                     onClick={handleSystemFilter}
-                    className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95"
+                    className={`bg-gradient-to-r from-blue-400 to-purple-400 text-white px-6 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition-all duration-300 disabled:bg-gray-400 transform hover:scale-95 wrap-text ${getThemeClasses(theme, "button")}`}
                     disabled={!isLoggedIn}
                   >
                     Lọc dữ liệu
@@ -1176,16 +1219,18 @@ export default function ReportApp() {
               </div>
               {isFiltered && isLoggedIn ? (
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Kết quả lọc</h3>
+                  <h3 className={`text-lg font-semibold text-gray-800 mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                    Kết quả lọc
+                  </h3>
                   <div className="flex justify-center">
-                    <div className="w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto">
+                    <div className={`w-full md:w-3/4 rounded-lg shadow-inner no-scrollbar max-h-[400px] overflow-y-auto overflow-x-auto ${getThemeClasses(theme, "table")}`}>
                       <table className="w-full border-collapse bg-white rounded-lg text-sm table-fixed">
                         <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-6 py-3 text-left font-semibold w-2/5">Tiêu đề</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Trạng thái</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Thời gian</th>
-                            <th className="px-6 py-3 text-left font-semibold w-1/5">Hành động</th>
+                            <th className="px-6 py-3 text-left font-semibold w-2/5 wrap-text">Tiêu đề</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Trạng thái</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Thời gian</th>
+                            <th className="px-6 py-3 text-left font-semibold w-1/5 wrap-text">Hành động</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1197,11 +1242,11 @@ export default function ReportApp() {
                                   index % 2 === 0 ? "bg-gray-50" : "bg-white"
                                 }`}
                               >
-                                <td className="px-6 py-4 truncate max-w-0">
+                                <td className="px-6 py-4 truncate max-w-0 wrap-text">
                                   {article.title || "Không có tiêu đề"}
                                 </td>
                                 <td
-                                  className={`px-6 py-4 whitespace-nowrap ${
+                                  className={`px-6 py-4 whitespace-nowrap wrap-text ${
                                     filteredPosts.includes(article)
                                       ? "text-blue-600 font-medium"
                                       : "text-gray-600 font-medium"
@@ -1209,10 +1254,10 @@ export default function ReportApp() {
                                 >
                                   {filteredPosts.includes(article) ? "Đã đăng" : "Nháp"}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap wrap-text">
                                   {formatDate(article.created_at)}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap wrap-text">
                                   <Link
                                     href={`/detail?postId=${article.id}&type=${
                                       filteredPosts.includes(article) ? "post" : "demo"
@@ -1229,7 +1274,7 @@ export default function ReportApp() {
                             <tr>
                               <td
                                 colSpan="4"
-                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap"
+                                className="px-6 py-4 text-center text-gray-500 whitespace-nowrap wrap-text"
                               >
                                 Không có dữ liệu
                               </td>
@@ -1242,14 +1287,14 @@ export default function ReportApp() {
                 </div>
               ) : (
                 !isLoggedIn && (
-                  <div className="mt-6 text-gray-600 text-center">
+                  <div className={`mt-6 text-gray-600 text-center wrap-text ${getThemeClasses(theme, "text")}`}>
                     Vui lòng đăng nhập để xem kết quả lọc.
                   </div>
                 )
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-[50px]">
                 <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <h3 className={`text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <BarChartOutlined className="mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê cột
@@ -1260,7 +1305,7 @@ export default function ReportApp() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <h3 className={`text-lg font-semibold mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <PieChartOutlined className="mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê vòng
@@ -1277,18 +1322,26 @@ export default function ReportApp() {
                 <div className="mt-6 flex justify-end gap-4">
                   <button
                     onClick={exportReportExcel}
-                    className="bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400"
+                    className={`bg-blue-400 text-white px-6 py-2 rounded-lg hover:bg-blue-500 transition duration-200 disabled:bg-gray-400 wrap-text ${getThemeClasses(theme, "button")}`}
                   >
                     Xuất Excel
                   </button>
                   <button
                     onClick={exportReportWord}
-                    className="bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400"
+                    className={`bg-purple-400 text-white px-6 py-2 rounded-lg hover:bg-purple-500 transition duration-200 disabled:bg-gray-400 wrap-text ${getThemeClasses(theme, "button")}`}
                   >
                     Xuất Word
                   </button>
                 </div>
               )}
+            </div>
+            <div className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "support")}`}>
+              <h2 className={`text-2xl font-semibold text-purple-600 mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                Cài đặt giao diện
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                  <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+              </div>
             </div>
           </main>
         </div>
@@ -1312,19 +1365,23 @@ export default function ReportApp() {
         )}
         {showLoginModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Yêu cầu đăng nhập</h3>
-              <p className="text-gray-600 mb-6">Vui lòng đăng nhập để xem thống kê bài viết.</p>
+            <div className={`bg-white p-6 rounded-lg shadow-lg max-w-md w-full ${getThemeClasses(theme, "modal")}`}>
+              <h3 className={`text-lg font-semibold text-gray-800 mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                Yêu cầu đăng nhập
+              </h3>
+              <p className={`text-gray-600 mb-6 wrap-text ${getThemeClasses(theme, "text")}`}>
+                Vui lòng đăng nhập để xem thống kê bài viết.
+              </p>
               <div className="flex justify-end gap-4">
                 <button
                   onClick={() => setShowLoginModal(false)}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200"
+                  className={`bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200 wrap-text ${getThemeClasses(theme, "button")}`}
                 >
                   Hủy
                 </button>
                 <button
                   onClick={handleLoginRedirect}
-                  className="bg-gradient-to-r from-blue-400 to-purple-400 text-white px-4 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition duration-200"
+                  className={`bg-gradient-to-r from-blue-400 to-purple-400 text-white px-4 py-2 rounded-lg hover:from-blue-500 hover:to-purple-500 transition duration-200 wrap-text ${getThemeClasses(theme, "button")}`}
                 >
                   Đăng nhập
                 </button>
@@ -1365,6 +1422,10 @@ export default function ReportApp() {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+          }
+          .wrap-text {
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
         `}</style>
       </div>

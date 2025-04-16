@@ -1118,7 +1118,7 @@ export default function BloglistApp() {
                         <span
                           key={tag}
                           className="bg-gray-100 text-blue-500 text-sm px-2 py-1 rounded"
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           {tag}
                         </span>
@@ -1135,7 +1135,7 @@ export default function BloglistApp() {
                             e.stopPropagation();
                             toggleComments(post.id);
                           }}
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           <MessageOutlined className="mr-1" />
                           Bình luận
@@ -1146,7 +1146,7 @@ export default function BloglistApp() {
                             e.stopPropagation();
                             toggleDiagram(post.id);
                           }}
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           <ApartmentOutlined className="mr-1" />
                           Sơ đồ
@@ -1157,7 +1157,7 @@ export default function BloglistApp() {
                             e.stopPropagation();
                             saveArticle(post);
                           }}
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           <SaveOutlined className="mr-1" />
                           Lưu bài viết
@@ -1169,7 +1169,7 @@ export default function BloglistApp() {
                             exportToWord(post.id);
                           }}
                           disabled={exportingStates[post.id]}
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           <FileWordOutlined className="mr-1" />
                           {exportingStates[post.id]
@@ -1182,7 +1182,7 @@ export default function BloglistApp() {
                             e.stopPropagation();
                             shareArticle(post.id);
                           }}
-                          style={{ fontSize: "16px" }}
+                         
                         >
                           <ShareAltOutlined className="mr-1" />
                           Chia sẻ
@@ -1191,7 +1191,7 @@ export default function BloglistApp() {
                     ) : (
                       <p
                         className="text-gray-500 flex items-center"
-                        style={{ fontSize: "16px" }}
+                       
                       >
                         Đăng nhập để Bình luận, Lưu bài viết và Chia sẻ bài viết
                       </p>
@@ -1237,7 +1237,7 @@ export default function BloglistApp() {
                         <div className="flex justify-between items-center">
                           <span
                             className="text-blue-500 break-all"
-                            style={{ fontSize: "16px" }}
+                           
                           >
                             {`${window.location.origin}/post/${post.id}`}
                           </span>
@@ -1249,7 +1249,7 @@ export default function BloglistApp() {
                             } text-white px-3 py-1 rounded flex items-center transition duration-200`}
                             onClick={() => copyLink(post.id)}
                             disabled={copiedStatus[post.id]}
-                            style={{ fontSize: "16px" }}
+                           
                           >
                             {copiedStatus[post.id] ? (
                               "Đã sao chép"
@@ -1305,7 +1305,7 @@ export default function BloglistApp() {
                           <button
                             className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
                             onClick={() => submitComment(post.id)}
-                            style={{ fontSize: "16px" }}
+                           
                           >
                             Gửi bình luận
                           </button>
@@ -1318,7 +1318,7 @@ export default function BloglistApp() {
                             <div className="flex items-start space-x-3">
                               <div
                                 className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                                style={{ fontSize: "16px" }}
+                               
                               >
                                 {comment.author[0]?.toUpperCase() || "?"}
                               </div>
@@ -1427,7 +1427,7 @@ export default function BloglistApp() {
                                   <div className="mt-2 p-2 bg-gray-100 rounded-md">
                                     <p
                                       className="font-semibold"
-                                      style={{ fontSize: "16px" }}
+                                     
                                     >
                                       Chọn nhãn:
                                     </p>
@@ -1489,7 +1489,7 @@ export default function BloglistApp() {
                                       onClick={() =>
                                         submitReply(post.id, comment.id)
                                       }
-                                      style={{ fontSize: "16px" }}
+                                     
                                     >
                                       Gửi phản hồi
                                     </button>
@@ -1514,7 +1514,7 @@ export default function BloglistApp() {
                                           <div className="flex-1">
                                             <p
                                               className="font-semibold text-blue-500"
-                                              style={{ fontSize: "16px" }}
+                                             
                                             >
                                               {reply.author}
                                             </p>
@@ -1574,7 +1574,7 @@ export default function BloglistApp() {
                       showDiagramForArticle === post.id ? (
                         <p
                           className="text-gray-600 text-lg"
-                          style={{ fontSize: "18px" }}
+                       
                         >
                           Đang tải...
                         </p>
@@ -1602,19 +1602,19 @@ export default function BloglistApp() {
         <div className="mb-6">
           <h2
             className="text-lg font-semibold text-gray-800 mb-4"
-            style={{ fontSize: "20px" }}
+
           >
             Thông tin tác giả
           </h2>
           <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm">
             <div className="space-y-2 text-gray-600">
-              <p style={{ fontSize: "18px" }}>
+              <p>
                 <strong>Tên:</strong>{" "}
                 <span className="text-blue-500">
                   {authorInfo.name || "Chưa chọn bài viết"}
                 </span>
               </p>
-              <p style={{ fontSize: "18px" }}>
+              <p>
                 <strong>Email:</strong> {authorInfo.email}
               </p>
             </div>
@@ -1624,14 +1624,13 @@ export default function BloglistApp() {
         {isLoggedIn && (
           <div className="mb-6 border-t border-gray-200 pt-6">
             <h2
-              className="text-lg font-semibold text-gray-800 mb-4"
-              style={{ fontSize: "20px" }}
+              className="text-xl font-semibold text-gray-800 mb-4"
             >
               Bài viết đã lưu
             </h2>
             <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm max-h-[400px] overflow-y-auto scrollbar-hidden">
               {savedArticles.length === 0 ? (
-                <p className="text-gray-500" style={{ fontSize: "18px" }}>
+                <p className="text-gray-500">
                   Chưa có bài viết nào được lưu.
                 </p>
               ) : (
@@ -1643,7 +1642,6 @@ export default function BloglistApp() {
                     <div className="flex justify-between items-center">
                       <p
                         className="font-medium text-gray-700 cursor-pointer hover:text-blue-500"
-                        style={{ fontSize: "18px" }}
                         onClick={() => handleSavedArticleClick(article)}
                       >
                         {article.title}
@@ -1657,20 +1655,17 @@ export default function BloglistApp() {
                     </div>
                     <p
                       className="text-sm text-blue-500"
-                      style={{ fontSize: "16px" }}
                     >
                       Được lưu bởi: {article.name}
                     </p>
                     <p
                       className="text-sm text-gray-500"
-                      style={{ fontSize: "16px" }}
                     >
                       Tác giả: {article.author}
                     </p>
                     {selectedSavedArticle === article.id && (
                       <div
                         className="mt-2 text-gray-600"
-                        style={{ fontSize: "16px" }}
                       >
                         <p>{article.content}</p>
                         {article.tags.length > 0 && (
@@ -1690,7 +1685,6 @@ export default function BloglistApp() {
         <div className="pt-6 border-t border-gray-200">
           <h2
             className="text-lg font-semibold text-gray-800 mb-4"
-            style={{ fontSize: "20px" }}
           >
             Đề xuất
           </h2>
@@ -1707,13 +1701,13 @@ export default function BloglistApp() {
                   <div>
                     <p
                       className="font-medium text-blue-500"
-                      style={{ fontSize: "18px" }}
+                   
                     >
                       {author.name || "Chưa có tên"}
                     </p>
                     <p
                       className="text-sm text-gray-500"
-                      style={{ fontSize: "16px" }}
+                    
                     >
                       Gợi ý theo dõi
                     </p>

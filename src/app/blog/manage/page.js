@@ -915,9 +915,7 @@ export default function ManageApp() {
 
           {showPreview ? (
             <div
-              className={`p-4 rounded border
-
- border-gray-300 mb-4 shadow-sm bg-gradient-to-br from-purple-50 to-blue-50 ${getThemeClasses(
+              className={`p-4 rounded border border-gray-300 mb-4 shadow-sm bg-gradient-to-br from-purple-50 to-blue-50 ${getThemeClasses(
    theme,
    "preview"
  )}`}
@@ -1117,7 +1115,7 @@ export default function ManageApp() {
         )}`}
       >
         <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
-          Công cụ phân tích nhanh
+        Hỗ trợ quản lý bài viết
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
@@ -1208,7 +1206,7 @@ export default function ManageApp() {
         )}`}
       >
         <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
-          Hỗ trợ quản lý bài viết
+          Công cụ khác
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div

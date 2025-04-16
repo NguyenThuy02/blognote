@@ -7,7 +7,7 @@ import { cloudinary } from "../../../../app.js"; // Import từ app.js ở thư 
 const execPromise = util.promisify(exec);
 
 export async function GET(request) {
-  const cacheDir = path.join(process.cwd(), "cache");
+  const cacheDir = path.join(process.cwd(), "public", "cache");
   const cacheFile = path.join(cacheDir, "sticker_urls.json");
   const imagesDir = path.join(process.cwd(), "public", "images");
   const tempDir = path.join(process.cwd(), "temp", "stickers");

@@ -139,10 +139,10 @@ if __name__ == "__main__":
     cloud_name = sys.argv[3]
     api_key = sys.argv[4]
     api_secret = sys.argv[5]
-    cache_file = 'cache/sticker_urls.json'
+    cache_file = 'public/cache/sticker_urls.json'
 
-    if not os.path.exists('cache'):
-        os.makedirs('cache')
+    if not os.path.exists('public/cache'):
+        os.makedirs('public/cache')
 
     configure_cloudinary(cloud_name, api_key, api_secret)
 

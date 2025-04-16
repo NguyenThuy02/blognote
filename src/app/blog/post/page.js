@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
   FaTimes,
@@ -9,7 +9,6 @@ import {
   FaTrash,
   FaSearch,
   FaEye,
-  FaTags,
 } from "react-icons/fa";
 import {
   FileImageOutlined,
@@ -60,9 +59,21 @@ export default function PostPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState("");
   const [livePreview, setLivePreview] = useState(false);
+  const [activeTab, setActiveTab] = useState("post");
+  const [isScrolled, setIsScrolled] = useState(false);
   const MAX_IMAGES = 5;
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Memoize searchParams to stabilize reference
+  const memoizedSearchParams = useMemo(() => {
+    return {
+      title: searchParams.get("title"),
+      content: searchParams.get("content"),
+      topic: searchParams.get("topic"),
+      tags: searchParams.get("tags"),
+    };
+  }, [searchParams]);
 
   // Handle notification auto-close
   useEffect(() => {
@@ -104,17 +115,14 @@ export default function PostPage() {
     };
 
     const initFromQuery = () => {
-      const titleParam = searchParams.get("title");
-      const contentParam = searchParams.get("content");
-      const topicParam = searchParams.get("topic");
-      const tagsParam = searchParams.get("tags");
-
-      if (titleParam) setTitle(titleParam);
-      if (contentParam) setContent(contentParam);
-      if (topicParam) setTopic(topicParam);
-      if (tagsParam)
+      if (memoizedSearchParams.title) setTitle(memoizedSearchParams.title);
+      if (memoizedSearchParams.content) setContent(memoizedSearchParams.content);
+      if (memoizedSearchParams.topic) setTopic(memoizedSearchParams.topic);
+      if (memoizedSearchParams.tags)
         setTags(
-          tagsParam.split(",").map((tag) => capitalizeFirstLetter(tag.trim()))
+          memoizedSearchParams.tags
+            .split(",")
+            .map((tag) => capitalizeFirstLetter(tag.trim()))
         );
     };
 
@@ -149,7 +157,7 @@ export default function PostPage() {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("user-logout", handleLogoutEvent);
     };
-  }, [router, searchParams]);
+  }, [memoizedSearchParams]);
 
   // Suggest tags based on content
   useEffect(() => {
@@ -164,6 +172,16 @@ export default function PostPage() {
       .slice(0, 5);
     setTagSuggestions(suggestions);
   }, [content, tagsList]);
+
+  // Handle scroll for hiding tags
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 100); // Adjust threshold as needed
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const capitalizeFirstLetter = (string) => {
     if (!string) return "";
@@ -324,6 +342,10 @@ export default function PostPage() {
     }
     if (!topic || (topic === "Khác" && !customTopic)) {
       setTopicError("Vui lòng chọn hoặc nhập chủ đề.");
+      hasError = true;
+    }
+    if (tags.length === 0) {
+      setTagError("Vui lòng chọn ít nhất một tag.");
       hasError = true;
     }
     if (!isLoggedIn) {
@@ -518,6 +540,7 @@ export default function PostPage() {
     setContentError("");
     setTopicError("");
     setTagError("");
+    setActiveTab("post"); // Chuyển sang tab "Viết bài mới" để chỉnh sửa
   };
 
   const resetForm = () => {
@@ -722,6 +745,7 @@ export default function PostPage() {
       filtered = filtered.filter(
         (entry) =>
           entry.title?.toLowerCase().includes(query) ||
+          entry.content?.toLowerCase().includes(query) ||
           entry.tags?.some((t) => t.toLowerCase().includes(query))
       );
     }
@@ -732,6 +756,7 @@ export default function PostPage() {
   };
 
   const calculateProgress = () => {
+    if (activeTab === "sample") return 0; // No inputs in sample tab
     let filled = 0;
     if (title) filled++;
     if (content) filled++;
@@ -748,17 +773,409 @@ export default function PostPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin"></div>
-      </div>
+    <div className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700`}>
+         <div className={`min-h-screen rounded-lg bg-blue-100 flex flex-col`}>
+          </div>
+          </div>
     );
   }
 
+  const renderForm = (formType) => (
+    <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+      <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-t-xl">
+        <h1 className="text-2xl font-bold text-white">
+          {formType === "post" ? "Viết bài mới" : "Tạo mẫu mới"}
+        </h1>
+        <div className="relative w-12 h-12">
+          <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
+            <circle
+              cx="24"
+              cy="24"
+              r="22"
+              stroke="#e5e7eb"
+              strokeWidth="4"
+              fill="none"
+            />
+            <circle
+              cx="24"
+              cy="24"
+              r="22"
+              stroke="#22c55e"
+              strokeWidth="4"
+              fill="none"
+              strokeDasharray="138"
+              strokeDashoffset={138 - (calculateProgress() / 100) * 138}
+              className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
+            />
+          </svg>
+          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
+            {Math.round(calculateProgress())}%
+          </span>
+        </div>
+      </div>
+
+      {formType === "post" ? (
+        <>
+          {/* Title Input */}
+          <div className="relative mb-8">
+            <input
+              type="text"
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 text-lg focus:outline-none focus:border-teal-500 transition-colors duration-300"
+              placeholder=" "
+            />
+            <label
+              htmlFor="title"
+              className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+            >
+              Tiêu đề bài viết
+            </label>
+            {titleError && (
+              <p className="text-red-500 text-sm mt-2 animate-pulse">{titleError}</p>
+            )}
+          </div>
+
+          {/* Content Textarea */}
+          <div className="relative mb-8">
+            <textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="peer w-full min-h-[16rem] p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md transition-colors duration-300 resize-none"
+              placeholder=" "
+              style={{ height: "auto" }}
+              onInput={(e) => {
+                e.target.style.height = "auto";
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
+            />
+            <label
+              htmlFor="content"
+              className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+            >
+              Mô tả
+            </label>
+            {contentError && (
+              <p className="text-red-500 text-sm mt-2 animate-pulse">
+                {contentError}
+              </p>
+            )}
+          </div>
+
+          {/* Topic and Tags */}
+          <div className="flex flex-col md:flex-row gap-6 mb-8">
+            <div className="flex-1 relative">
+              <select
+                id="topic"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
+              >
+                <option value="" disabled className="text-gray-400">
+                  Chọn chủ đề
+                </option>
+                {topicsList.map((t) => (
+                  <option key={t.value} value={t.value} className="text-teal-700">
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <label
+                htmlFor="topic"
+                className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+              >
+                Chủ đề bài viết
+              </label>
+              {topic === "Khác" && (
+                <input
+                  type="text"
+                  value={customTopic}
+                  onChange={(e) =>
+                    setCustomTopic(capitalizeFirstLetter(e.target.value))
+                  }
+                  className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
+                  placeholder="Nhập chủ đề tùy chỉnh"
+                />
+              )}
+              {topicError && (
+                <p className="text-red-500 text-sm mt-2 animate-pulse">
+                  {topicError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex-1">
+              <div className="relative">
+                <select
+                  id="tags"
+                  value={selectedTag}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedTag(value);
+                    if (value !== "Khác") handleAddTag(value);
+                  }}
+                  className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
+                >
+                  <option value="" disabled className="text-gray-400">
+                    Chọn tag
+                  </option>
+                  {tagsList.map((t) => (
+                    <option key={t.value} value={t.value} className="text-teal-700">
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  htmlFor="tags"
+                  className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+                >
+                  Thẻ tag
+                </label>
+              </div>
+              {selectedTag === "Khác" && (
+                <input
+                  type="text"
+                  value={customTag}
+                  onChange={(e) =>
+                    setCustomTag(capitalizeFirstLetter(e.target.value))
+                  }
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && customTag) handleAddTag("Khác");
+                  }}
+                  className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
+                  placeholder="Nhập tag tùy chỉnh"
+                />
+              )}
+              {tagSuggestions.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag.value}
+                      onClick={() => handleAddTag(tag.value)}
+                      className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm hover:bg-teal-200 transition-colors duration-200"
+                    >
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-4">
+                  {tags.map((tag, index) => (
+                    <span
+                      key={`${tag}-${index}`}
+                      className="bg-teal-500 text-white px-4 py-2 rounded-full flex items-center text-sm transition-transform duration-200 hover:scale-105"
+                    >
+                      {tag}
+                      <button
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-2 text-white hover:text-red-300 transition-colors"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {tagError && (
+                <p className="text-red-500 text-sm mt-2 animate-pulse">{tagError}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Media Uploads */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-teal-600 mb-4">
+              Tệp đa phương tiện
+            </h3>
+            <div className="flex flex-wrap gap-4">
+              <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                <FileImageOutlined className="mr-2" /> Ảnh
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+              <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
+                <FileTextOutlined className="mr-2" /> Word/PDF
+                <input
+                  type="file"
+                  accept=".doc,.docx,.pdf"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <label className="bg-purple-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md">
+                <VideoCameraOutlined className="mr-2" /> Video
+                <input
+                  type="file"
+                  accept="video/*"
+                  multiple
+                  onChange={handleVideoUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {imageError && (
+              <p className="text-red-500 text-sm mt-4 animate-pulse">{imageError}</p>
+            )}
+
+            {isUploadingImage && (
+              <div className="mt-4 flex items-center">
+                <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                <span className="text-teal-600">Đang tải hình ảnh...</span>
+              </div>
+            )}
+            {uploadedImages.length > 0 && !isUploadingImage && (
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {uploadedImages.map((image, index) =>
+                  image.url && isValidUrl(image.url) ? (
+                    <div
+                      key={`image-${index}`}
+                      className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                    >
+                      <Image
+                        src={image.url}
+                        alt={`Uploaded ${image.name}`}
+                        className="w-full h-24 object-cover"
+                        width={96}
+                        height={96}
+                      />
+                      <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                        {truncateFileName(image.name)}
+                      </p>
+                      <button
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )}
+
+            {isUploadingVideo && (
+              <div className="mt-4 flex items-center">
+                <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                <span className="text-teal-600">Đang tải video...</span>
+              </div>
+            )}
+            {uploadedVideos.length > 0 && !isUploadingVideo && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {uploadedVideos.map((video, index) => (
+                  <div
+                    key={`video-${index}`}
+                    className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                  >
+                    <video
+                      src={video.url}
+                      controls
+                      className="w-full h-28 object-cover"
+                    />
+                    <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                      {truncateFileName(video.name)}
+                    </p>
+                    <button
+                      onClick={() => handleRemoveVideo(index)}
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                    >
+                      <FaTimes size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isUploadingFile && (
+              <div className="mt-4 flex items-center">
+                <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                <span className="text-teal-600">Đang tải tệp...</span>
+              </div>
+            )}
+            {uploadedFiles.length > 0 && !isUploadingFile && (
+              <div className="mt-4 space-y-3">
+                {uploadedFiles.map((file, index) => (
+                  <div
+                    key={`file-${index}`}
+                    className="flex items-center justify-between bg-teal-50 p-3 rounded-lg shadow-sm hover:bg-teal-100 transition-colors duration-200"
+                  >
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-teal-600 text-sm font-medium hover:underline"
+                    >
+                      {truncateFileName(file.name)}
+                    </a>
+                    <button
+                      onClick={() => handleRemoveFile(index)}
+                      className="text-red-500 hover:text-red-600 transition-colors"
+                    >
+                      <FaTimes size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-4 mt-8">
+            <button
+              onClick={() => setLivePreview(!livePreview)}
+              className="bg-teal-500 text-white p-4 rounded-full hover:bg-teal-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+              title="Xem trước trực tiếp"
+              aria-label="Xem trước trực tiếp"
+            >
+              <FaEye size={18} />
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              className="bg-gray-500 text-white p-4 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+              title="Lưu bản nháp"
+              aria-label="Lưu bản nháp"
+            >
+              <FaSave size={18} />
+            </button>
+            <button
+              onClick={handlePublish}
+              className="bg-indigo-500 text-white p-4 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+              title="Đăng bài viết"
+              aria-label="Đăng bài viết"
+            >
+              <FaPaperPlane size={18} />
+            </button>
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
+              title="Hủy"
+              aria-label="Hủy"
+            >
+              <FaTrash size={18} />
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="mt-8">
+          <AvailableSamples onSelectSample={handleUseSample} />
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="mt-24 p-5 rounded-lg shadow-md text-gray-700 relative">
-      <div className="min-h-screen rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col">
-        {/* Notification and Confirm Dialogs */}
-        {notification && (
+     <div className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700`}>
+         <div className={`min-h-screen rounded-lg bg-blue-100 flex flex-col`}>
+          {notification && (
           <Notification
             message={notification.message}
             type={notification.type}
@@ -825,7 +1242,7 @@ export default function PostPage() {
         {!isLoggedIn ? (
           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-6rem)] p-8">
             <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl max-w-md w-full text-center">
-              <h2 className="text-2xl font-bold text-purple-600 mb-4">
+              <h2 className="text-2xl font-bold text-teal-600 mb-4">
                 Vui lòng đăng nhập
               </h2>
               <p className="text-gray-600 mb-6">
@@ -842,420 +1259,42 @@ export default function PostPage() {
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
             <div className={livePreview ? "lg:w-1/2 p-4" : "lg:w-2/3 p-4"}>
-              {/* Enhanced "Viết bài mới" Card */}
-              <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-                <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-t-xl">
-                  <h1 className="text-2xl font-bold text-white">
-                    Viết bài mới
-                  </h1>
-                  {/* Enhanced Progress Circle */}
-                  <div className="relative w-12 h-12">
-                    <svg
-                      width="48"
-                      height="48"
-                      viewBox="0 0 48 48"
-                      className="absolute"
-                    >
-                      <circle
-                        cx="24"
-                        cy="24"
-                        r="22"
-                        stroke="#e5e7eb"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <circle
-                        cx="24"
-                        cy="24"
-                        r="22"
-                        stroke="#ffffff"
-                        strokeWidth="4"
-                        fill="none"
-                        strokeDasharray="138"
-                        strokeDashoffset={
-                          138 - (calculateProgress() / 100) * 138
-                        }
-                        className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
-                      />
-                    </svg>
-                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-white">
-                      {Math.round(calculateProgress())}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Title Input */}
-                <div className="relative mb-8">
-                  <input
-                    type="text"
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 text-lg focus:outline-none focus:border-purple-500 transition-colors duration-300"
-                    placeholder=" "
-                  />
-                  <label
-                    htmlFor="title"
-                    className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-                  >
-                    Tiêu đề bài viết
-                  </label>
-                  {titleError && (
-                    <p className="text-red-500 text-sm mt-2 animate-pulse">
-                      {titleError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Content Textarea */}
-                <div className="relative mb-8">
-                  <textarea
-                    id="content"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="peer w-full min-h-[16rem] p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md transition-colors duration-300 resize-none"
-                    placeholder=" "
-                    style={{ height: "auto" }}
-                    onInput={(e) => {
-                      e.target.style.height = "auto";
-                      e.target.style.height = `${e.target.scrollHeight}px`;
-                    }}
-                  />
-                  <label
-                    htmlFor="content"
-                    className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-                  >
-                    Mô tả
-                  </label>
-                  {contentError && (
-                    <p className="text-red-500 text-sm mt-2 animate-pulse">
-                      {contentError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Topic and Tags */}
-                <div className="flex flex-col md:flex-row gap-6 mb-8">
-                  {/* Topic Select */}
-                  <div className="flex-1 relative">
-                    <select
-                      id="topic"
-                      value={topic}
-                      onChange={(e) => setTopic(e.target.value)}
-                      className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
-                    >
-                      <option value="" disabled className="text-gray-400">
-                        Chọn chủ đề
-                      </option>
-                      {topicsList.map((t) => (
-                        <option
-                          key={t.value}
-                          value={t.value}
-                          className="text-gray-800"
-                        >
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <label
-                      htmlFor="topic"
-                      className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-                    >
-                      Chủ đề bài viết
-                    </label>
-                    {topic === "Khác" && (
-                      <input
-                        type="text"
-                        value={customTopic}
-                        onChange={(e) =>
-                          setCustomTopic(capitalizeFirstLetter(e.target.value))
-                        }
-                        className="w-full p-4 mt-4 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md"
-                        placeholder="Nhập chủ đề tùy chỉnh"
-                      />
-                    )}
-                    {topicError && (
-                      <p className="text-red-500 text-sm mt-2 animate-pulse">
-                        {topicError}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Tags Select */}
-                  <div className="flex-1">
-                    <div className="relative">
-                      <select
-                        id="tags"
-                        value={selectedTag}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setSelectedTag(value);
-                          if (value !== "Khác") handleAddTag(value);
-                        }}
-                        className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
-                      >
-                        <option value="" disabled className="text-gray-400">
-                          Chọn tag
-                        </option>
-                        {tagsList.map((t) => (
-                          <option
-                            key={t.value}
-                            value={t.value}
-                            className="text-gray-800"
-                          >
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                      <label
-                        htmlFor="tags"
-                        className="absolute left-4 top-4 text-purple-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-purple-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-                      >
-                        Thẻ tag
-                      </label>
-                    </div>
-                    {selectedTag === "Khác" && (
-                      <input
-                        type="text"
-                        value={customTag}
-                        onChange={(e) =>
-                          setCustomTag(capitalizeFirstLetter(e.target.value))
-                        }
-                        onKeyPress={(e) => {
-                          if (e.key === "Enter" && customTag)
-                            handleAddTag("Khác");
-                        }}
-                        className="w-full p-4 mt-4 bg-transparent border-b-2 border-purple-300 text-gray-800 focus:outline-none focus:border-purple-500 rounded-md"
-                        placeholder="Nhập tag tùy chỉnh"
-                      />
-                    )}
-                    {tagSuggestions.length > 0 && (
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        {tagSuggestions.map((tag) => (
-                          <button
-                            key={tag.value}
-                            onClick={() => handleAddTag(tag.value)}
-                            className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm hover:bg-purple-200 transition-colors duration-200"
-                          >
-                            {tag.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {tags.length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-4">
-                        {tags.map((tag, index) => (
-                          <span
-                            key={`${tag}-${index}`}
-                            className="bg-purple-500 text-white px-4 py-2 rounded-full flex items-center text-sm transition-transform duration-200 hover:scale-105"
-                          >
-                            {tag}
-                            <button
-                              onClick={() => handleRemoveTag(tag)}
-                              className="ml-2 text-white hover:text-red-300 transition-colors"
-                            >
-                              <FaTimes size={12} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {tagError && (
-                      <p className="text-red-500 text-sm mt-2 animate-pulse">
-                        {tagError}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Media Uploads */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-purple-600 mb-4">
-                    Tệp đa phương tiện
-                  </h3>
-                  <div className="flex flex-wrap gap-4">
-                    <label className="bg-purple-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md">
-                      <FileImageOutlined className="mr-2" /> Ảnh
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
-                      <FileTextOutlined className="mr-2" /> Word/PDF
-                      <input
-                        type="file"
-                        accept=".doc,.docx,.pdf"
-                        multiple
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    <label className="bg-purple-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md">
-                      <VideoCameraOutlined className="mr-2" /> Video
-                      <input
-                        type="file"
-                        accept="video/*"
-                        multiple
-                        onChange={handleVideoUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {imageError && (
-                    <p className="text-red-500 text-sm mt-4 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-
-                  {isUploadingImage && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-purple-600">Đang tải hình ảnh...</span>
-                    </div>
-                  )}
-                  {uploadedImages.length > 0 && !isUploadingImage && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {uploadedImages.map((image, index) =>
-                        image.url && isValidUrl(image.url) ? (
-                          <div
-                            key={`image-${index}`}
-                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                          >
-                            <Image
-                              src={image.url}
-                              alt={`Uploaded ${image.name}`}
-                              className="w-full h-24 object-cover"
-                              width={96}
-                              height={96}
-                            />
-                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                              {truncateFileName(image.name)}
-                            </p>
-                            <button
-                              onClick={() => handleRemoveImage(index)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                            >
-                              <FaTimes size={12} />
-                            </button>
-                          </div>
-                        ) : null
-                      )}
-                    </div>
-                  )}
-
-                  {isUploadingVideo && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-purple-600">Đang tải video...</span>
-                    </div>
-                  )}
-                  {uploadedVideos.length > 0 && !isUploadingVideo && (
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {uploadedVideos.map((video, index) => (
-                        <div
-                          key={`video-${index}`}
-                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                        >
-                          <video
-                            src={video.url}
-                            controls
-                            className="w-full h-28 object-cover"
-                          />
-                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                            {truncateFileName(video.name)}
-                          </p>
-                          <button
-                            onClick={() => handleRemoveVideo(index)}
-                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                          >
-                            <FaTimes size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {isUploadingFile && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-purple-600">Đang tải tệp...</span>
-                    </div>
-                  )}
-                  {uploadedFiles.length > 0 && !isUploadingFile && (
-                    <div className="mt-4 space-y-3">
-                      {uploadedFiles.map((file, index) => (
-                        <div
-                          key={`file-${index}`}
-                          className="flex items-center justify-between bg-purple-50 p-3 rounded-lg shadow-sm hover:bg-purple-100 transition-colors duration-200"
-                        >
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-600 text-sm font-medium hover:underline"
-                          >
-                            {truncateFileName(file.name)}
-                          </a>
-                          <button
-                            onClick={() => handleRemoveFile(index)}
-                            className="text-red-500 hover:text-red-600 transition-colors"
-                          >
-                            <FaTimes size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-4 mt-8">
-                  <button
-                    onClick={() => setLivePreview(!livePreview)}
-                    className="bg-purple-500 text-white p-4 rounded-full hover:bg-purple-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                    title="Xem trước trực tiếp"
-                    aria-label="Xem trước trực tiếp"
-                  >
-                    <FaEye size={18} />
-                  </button>
-                  <button
-                    onClick={handleSaveDraft}
-                    className="bg-gray-500 text-white p-4 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                    title="Lưu bản nháp"
-                    aria-label="Lưu bản nháp"
-                  >
-                    <FaSave size={18} />
-                  </button>
-                  <button
-                    onClick={handlePublish}
-                    className="bg-indigo-500 text-white p-4 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                    title="Đăng bài viết"
-                    aria-label="Đăng bài viết"
-                  >
-                    <FaPaperPlane size={18} />
-                  </button>
-                  <button
-                    onClick={() => setShowConfirm(true)}
-                    className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                    title="Hủy"
-                    aria-label="Hủy"
-                  >
-                    <FaTrash size={18} />
-                  </button>
-                </div>
+              <div className="mb-4 flex border-b border-teal-200">
+                <button
+                  onClick={() => {
+                    setActiveTab("post");
+                    resetForm();
+                  }}
+                  className={`px-6 py-3 text-lg font-semibold transition-all duration-200 ${
+                    activeTab === "post"
+                      ? "border-b-2 border-teal-500 text-teal-600"
+                      : "text-gray-500 hover:text-teal-500"
+                  }`}
+                >
+                  Viết bài mới
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab("sample");
+                    resetForm();
+                  }}
+                  className={`px-6 py-3 text-lg font-semibold transition-all duration-200 ${
+                    activeTab === "sample"
+                      ? "border-b-2 border-teal-500 text-teal-600"
+                      : "text-gray-500 hover:text-teal-500"
+                  }`}
+                >
+                  Tạo mẫu mới
+                </button>
               </div>
+
+              {renderForm(activeTab)}
             </div>
 
-            {/* Live Preview */}
-            {livePreview && (
+              {livePreview && activeTab === "post" && (
               <div className="lg:w-1/2 p-4">
                 <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-                  <h2 className="text-xl font-bold text-purple-600 mb-4">
+                  <h2 className="text-xl font-bold text-teal-600 mb-4">
                     {title || "Tiêu đề"}
                   </h2>
                   <p className="text-gray-600 mb-2">
@@ -1266,7 +1305,7 @@ export default function PostPage() {
                       {tags.map((tag, index) => (
                         <span
                           key={`${tag}-${index}`}
-                          className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm"
+                          className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm"
                         >
                           {tag}
                         </span>
@@ -1321,7 +1360,7 @@ export default function PostPage() {
                             href={file.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-600 text-sm hover:underline"
+                            className="text-teal-600 text-sm hover:underline"
                           >
                             {truncateFileName(file.name)}
                           </a>
@@ -1332,44 +1371,52 @@ export default function PostPage() {
                 </div>
               </div>
             )}
-
-            {/* Enhanced "Bản nháp" Sidebar */}
             <div
-              className={`lg:w-1/3 fixed lg:static top-0 right-0 h-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
+              className={`lg:w-1/3 fixed lg:static top-0 right-0 h-[100vh] bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
                 showDrafts ? "translate-x-0" : "translate-x-full"
-              } lg:translate-x-0 z-40 overflow-y-hidden`}
+              } lg:translate-x-0 z-40 overflow-y-auto scrollbar-hidden`}
+              style={{
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
             >
+              <style jsx>{`
+                .scrollbar-hidden::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               <div className="sticky top-0 bg-transparent z-10 p-4">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-purple-600 flex items-center">
-                    <DiffOutlined className="mr-2 text-purple-500" /> Bản nháp
+                  <h2 className="text-xl font-bold text-teal-600 flex items-center">
+                    <DiffOutlined className="mr-2 text-teal-500" /> Bản nháp
                   </h2>
                   <button
                     onClick={() => setShowDrafts(!showDrafts)}
-                    className="lg:hidden text-purple-600 hover:text-purple-700 transition-colors"
+                    className="lg:hidden text-teal-600 hover:text-teal-700 transition-colors"
                   >
                     <FaTimes size={24} />
                   </button>
                 </div>
                 <div className="relative mb-4">
-                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" />
+                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" />
                   <input
                     type="text"
-                    placeholder="Tìm kiếm bản nháp..."
+                    placeholder="Tìm kiếm..."
                     value={searchQuery}
                     onChange={handleSearchDrafts}
-                    className="w-full pl-12 p-3 bg-purple-50 border border-purple-200 rounded-full focus:outline-none focus:border-purple-500 text-gray-800 transition-colors duration-200"
+                    className="w-full pl-12 p-3 bg-teal-50 border border-teal-200 rounded-full focus:outline-none focus:border-teal-500 text-teal-700 transition-colors duration-200"
                   />
                 </div>
                 {tagsList.length > 0 && (
-                  <div className="flex flex-wrap gap-3">
+                  <div className={`flex flex-wrap gap-3 transition-opacity duration-300 ${isScrolled ? 'opacity-0' : 'opacity-100'}`}>
                     <button
                       onClick={() => handleFilterTag("")}
                       className={`text-sm px-4 py-2 rounded-full ${
                         !filterTag
-                          ? "bg-purple-500 text-white"
-                          : "bg-purple-100 text-purple-700"
-                      } hover:bg-purple-600 hover:text-white transition-all duration-200`}
+                          ? "bg-teal-500 text-white"
+                          : "bg-teal-100 text-teal-700"
+                      } hover:bg-teal-600 hover:text-white transition-all duration-200`}
                     >
                       Tất cả
                     </button>
@@ -1379,9 +1426,9 @@ export default function PostPage() {
                         onClick={() => handleFilterTag(tag.value)}
                         className={`text-sm px-4 py-2 rounded-full ${
                           filterTag === tag.value
-                            ? "bg-purple-500 text-white"
-                            : "bg-purple-100 text-purple-700"
-                        } hover:bg-purple-600 hover:text-white transition-all duration-200`}
+                            ? "bg-teal-500 text-white"
+                            : "bg-teal-100 text-teal-700"
+                        } hover:bg-teal-600 hover:text-white transition-all duration-200`}
                       >
                         {tag.label}
                       </button>
@@ -1410,13 +1457,13 @@ export default function PostPage() {
                                 className="w-12 h-12 object-cover rounded-lg"
                               />
                             ) : (
-                              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-purple-500 text-xs font-medium">
+                              <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs font-medium">
                                 No img
                               </div>
                             )}
                           </div>
                           <div className="flex-1">
-                            <strong className="text-purple-600 text-sm font-semibold">
+                            <strong className="text-teal-600 text-sm font-semibold">
                               {entry.title || "Không có tiêu đề"}
                             </strong>
                             <p className="text-gray-600 text-xs mt-1 line-clamp-2">
@@ -1430,7 +1477,7 @@ export default function PostPage() {
                                   {entry.tags.slice(0, 3).map((tag, index) => (
                                     <span
                                       key={`${tag}-${index}`}
-                                      className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs"
+                                      className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
                                     >
                                       {tag}
                                     </span>
@@ -1443,7 +1490,7 @@ export default function PostPage() {
                             <div className="flex justify-end gap-3 mt-3">
                               <button
                                 onClick={() => handleEditDraft(entry)}
-                                className="bg-purple-500 text-white px-4 py-2 rounded-full text-xs hover:bg-purple-600 transition-all duration-200"
+                                className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
                               >
                                 Chỉnh sửa
                               </button>
@@ -1473,20 +1520,10 @@ export default function PostPage() {
           </div>
         )}
 
-        {/* Available Samples */}
-        {isLoggedIn && (
-          <div className="mt-6 p-4">
-            <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <AvailableSamples onSelectSample={handleUseSample} />
-            </div>
-          </div>
-        )}
-
-        {/* Toggle Drafts Button for Mobile */}
         {isLoggedIn && !showDrafts && (
           <button
             onClick={() => setShowDrafts(true)}
-            className="fixed bottom-8 right-8 bg-purple-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-purple-600 transition-all duration-200 hover:scale-110"
+            className="fixed bottom-8 right-8 bg-teal-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-teal-600 transition-all duration-200 hover:scale-110"
           >
             <DiffOutlined className="text-xl" />
           </button>
