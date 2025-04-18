@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
-export default function Sticker() {
+export default function Sticker({ onSelect }) {
   const [stickerGroups, setStickerGroups] = useState({});
   const [showStickers, setShowStickers] = useState(false);
-  const [selectedSticker, setSelectedSticker] = useState("");
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Tải danh sách sticker
   useEffect(() => {
     fetch("/cache/sticker_urls.json")
       .then((res) => {
@@ -48,18 +48,11 @@ export default function Sticker() {
 
   // Xử lý khi chọn sticker
   const handleStickerSelect = (url) => {
-    setSelectedSticker(url);
-    setShowStickers(false);
-    console.log("Selected sticker:", url);
-  };
-
-  // Xử lý khi xóa sticker
-  const handleRemoveSticker = () => {
-    setSelectedSticker("");
+    onSelect(url);
   };
 
   return (
-    <div className="mt-70 max-w-[255px] mx-auto p-6 space-y-4">
+    <div className="mt-70 max-w-[255px] mx-auto p-6 space-y-4 relative">
       <div className="flex items-center gap-2 mt-2">
         <button
           onClick={() => setShowStickers(!showStickers)}
@@ -69,35 +62,15 @@ export default function Sticker() {
         </button>
       </div>
 
-      {selectedSticker && (
-        <div className="mt-4">
-          <div className="relative w-16 h-16">
-            <Image
-              src={selectedSticker}
-              alt="selected-sticker"
-              width={64}
-              height={64}
-              style={{ objectFit: "contain" }}
-              className="rounded-sm"
-            />
-            <button
-              onClick={handleRemoveSticker}
-              className="absolute top-0 right-0 text-red-500 text-xs font-bold"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       {error && <p className="text-red-500">{error}</p>}
 
       {showStickers && (
         <div
-          className="mt-4 p-2 border border-gray-200 rounded bg-gray-50 max-h-60 overflow-y-auto"
+          className="absolute z-50 top-10 -left-64 p-2 border border-gray-200 rounded bg-gray-50 max-h-60 overflow-y-auto"
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
+            width: "250px",
           }}
         >
           <style jsx>{`
