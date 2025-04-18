@@ -6,7 +6,7 @@ import { supabase2 } from "../../../lib/supabase";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import ThemeSettings from "../../components/ThemeSettings"; // Import ThemeSettings
+import ThemeSettings from "../../components/ThemeSettings";
 
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -36,7 +36,6 @@ export default function NoteReport() {
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [tagPositions, setTagPositions] = useState([]);
   const tagContainerRef = useRef(null);
-  
   const [showFullContent, setShowFullContent] = useState(false);
 
   useEffect(() => {
@@ -241,7 +240,7 @@ export default function NoteReport() {
       :root {
         --background: #FFFFFF;
         --text-color: #000000;
-        --accent-color: #6B46C1;
+        --accent-color: linear-gradient(to right, #6B46C1, #A3BFFA); /* Matches ThemeSettings default */
         --secondary-bg: rgba(255, 255, 255, 0.8);
         --shadow-color: rgba(0, 0, 0, 0.1);
         --hover-shadow: rgba(0, 0, 0, 0.15);
@@ -266,6 +265,7 @@ export default function NoteReport() {
         box-shadow: 0 10px 30px var(--shadow-color); 
         transition: all 0.3s ease; 
         color: var(--text-color);
+        border: 2px solid var(--border-color);
       }
       .container:hover { 
         box-shadow: 0 15px 40px var(--hover-shadow); 
@@ -323,47 +323,119 @@ export default function NoteReport() {
         cursor: grabbing; 
       }
       .table-container { 
-        max-height: 300px; 
+        max-height: 400px; 
         overflow-y: auto; 
-        border-radius: 10px; 
+        border-radius: 16px; 
         background: var(--background); 
-        box-shadow: 0 5px 15px var(--shadow-color); 
-        border: 2px solid var(--accent-color);
+        box-shadow: 0 8px 24px var(--shadow-color); 
+        border: 1px solid var(--border-color);
         color: var(--text-color);
       }
       .table-container table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
         background: var(--background);
         color: var(--text-color);
       }
-      .table-container thead tr {
-        background: var(--border-color);
-        color: var(--text-color);
+      .table-container thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        color: white;
+      }
+      .table-container thead th {
+        padding: 14px 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-align: left;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+      }
+      .table-container thead th:nth-child(1) { 
+        width: 10%; 
+        padding-left: 28px; 
+      }
+      .table-container thead th:nth-child(2) { width: 50%; }
+      .table-container thead th:nth-child(3) { width: 20%; }
+      .table-container thead th:nth-child(4) { width: 20%; }
+      .table-container tbody tr {
+        transition: all 0.3s ease;
       }
       .table-container tbody tr:hover {
-        background: rgba(0, 0, 0, 0.05);
+        background: rgba(163, 191, 250, 0.1);
+        transform: translateY(-2px);
       }
-      .export-btn { 
-        background: linear-gradient(to right, var(--accent-color), var(--border-color)); 
+      .table-container tbody td {
+        padding: 14px 20px;
+        font-size: 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      .table-container tbody td:nth-child(1) { 
+        padding-left: 28px; 
+      }
+      .table-container button.detail-btn {
+        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: white;
+        border: none;
+      }
+      .table-container button.detail-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(107, 70, 193, 0.3);
+      }
+      button.export-btn { 
+        background: var(--accent-color) !important; /* Use --accent-color with high priority */
         padding: 8px 16px; 
         border-radius: 25px; 
         color: white; 
         transition: all 0.3s ease; 
         margin: 0 5px;
+        border: none;
       }
-      .export-btn:hover { 
+      button.export-btn:hover { 
         transform: scale(1.05); 
         box-shadow: 0 5px 15px var(--shadow-color); 
+      }
+      button.filter-btn {
+        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      button.filter-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px var(--shadow-color);
+      }
+      button.detail-btn {
+        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      button.detail-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px var(--shadow-color);
       }
       .search-input, .date-input, .category-select, .chart-type-select { 
         padding: 10px; 
         border-radius: 8px; 
-        border: 1px solid #ccc; 
+        border: 1px solid var(--border-color); 
         transition: all 0.3s ease; 
         background: var(--background);
         color: var(--text-color);
       }
       .search-input:focus, .date-input:focus, .category-select:focus, .chart-type-select:focus { 
-        border-color: var(--accent-color); 
+        border-color: var(--border-color); 
         box-shadow: 0 0 5px rgba(107, 70, 193, 0.5); 
         outline: none; 
       }
@@ -380,16 +452,16 @@ export default function NoteReport() {
       }
       .modal-content { 
         background: var(--background); 
-        padding: 20px; 
-        border-radius: 12px; 
-        max-width: 500px; 
+        padding: 24px; 
+        border-radius: 16px; 
+        max-width: 600px; 
         width: 100%; 
         animation: fadeIn 0.3s ease; 
         border: 2px solid var(--border-color);
         color: var(--text-color);
       }
       .show-more-btn {
-        color: var(--accent-color);
+        color: var(--border-color);
         cursor: pointer;
         font-weight: 500;
         margin-top: 8px;
@@ -397,32 +469,6 @@ export default function NoteReport() {
       }
       .show-more-btn:hover {
         text-decoration: underline;
-      }
-      .filter-btn {
-        background: var(--accent-color);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-      .filter-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 5px 15px var(--shadow-color);
-      }
-      .detail-btn {
-        background: var(--accent-color);
-        color: white;
-        padding: 5px 10px;
-        border-radius: 5px;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-      .detail-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 5px 15px var(--shadow-color);
       }
     `;
     document.head.appendChild(style);
@@ -568,8 +614,8 @@ export default function NoteReport() {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   return (
-    <div className="mt-[73px] p-5 mb-[-7px] max-w-6xl mx-auto p-6">
-      <div className="container p-6">
+    <div className="mt-[75px] p-5 mb-[-7px] min-h-screen p-6">
+      <div className="container mx-auto w-full p-6">
         <h1 className="text-4xl font-extrabold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse">
           NoteStats - 📝 Thống kê ghi chú
         </h1>
@@ -610,7 +656,7 @@ export default function NoteReport() {
             <option value="">Tất cả danh mục</option>
             {[...new Set(notesData.map((note) => note.category_id))].map((id) => (
               <option key={id} value={id}>
-                { { 1: "Personal", 2: "Study", 3: "Entertainment", 4: "Upload" }[id] || `Danh mục ${id}` }
+                { { 1: "Personal Palma", 2: "Study Palma", 3: "Entertainment Palma", 4: "Upload Palma" }[id] || `Danh mục ${id}` }
               </option>
             ))}
           </select>
@@ -673,27 +719,27 @@ export default function NoteReport() {
         </div>
 
         <div className="table-container mb-6">
-          <h2 className="text-2xl font-semibold mb-4 text-center">
+          <h2 className="text-2xl font-semibold mb-6 text-center">
             Danh sách ghi chú
           </h2>
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-[#D4C4FB]">
-                <th className="p-3">ID</th>
-                <th className="p-3">Tiêu đề</th>
-                <th className="p-3">Ngày tạo</th>
-                <th className="p-3">Hành động</th>
+              <tr>
+                <th className="p-4">ID</th>
+                <th className="p-4">Tiêu đề</th>
+                <th className="p-4">Ngày tạo</th>
+                <th className="p-4">Hành động</th>
               </tr>
             </thead>
             <tbody>
               {currentNotes.map((note) => (
-                <tr key={note.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3">{note.id}</td>
-                  <td className="p-3">{note.title || "Không có tiêu đề"}</td>
-                  <td className="p-3">
+                <tr key={note.id}>
+                  <td className="p-4">{note.id}</td>
+                  <td className="p-4">{note.title || "Không có tiêu đề"}</td>
+                  <td className="p-4">
                     {new Date(note.created_at).toLocaleDateString()}
                   </td>
-                  <td className="p-3">
+                  <td className="p-4">
                     <button
                       onClick={() => setSelectedNote(note)}
                       className="detail-btn"
@@ -705,12 +751,16 @@ export default function NoteReport() {
               ))}
             </tbody>
           </table>
-          <div className="flex justify-center mt-4 gap-2">
+          <div className="flex justify-center mt-6 gap-3">
             {Array.from({ length: totalPages }, (_, i) => (
               <button
                 key={i}
                 onClick={() => paginate(i + 1)}
-                className={`px-3 py-1 rounded ${currentPage === i + 1 ? "bg-[#6B46C1] text-white" : "bg-gray-200"}`}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  currentPage === i + 1
+                    ? "bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
               >
                 {i + 1}
               </button>
@@ -778,7 +828,7 @@ export default function NoteReport() {
                   }} 
                 />
               )}
-              <p><strong>Thể loại:</strong> { { 1: "Personal", 2: "Study", 3: "Entertainment", 4: "Upload" }[selectedNote.category_id] || "Unknown" }</p>
+              <p><strong>Thể loại:</strong> { { 1: "Personal Palma", 2: "Study Palma", 3: "Entertainment Palma", 4: "Upload Palma" }[selectedNote.category_id] || "Unknown" }</p>
               <p><strong>Loại ghi chú:</strong> { { plain: "Ghi chú văn bản thuần", rich: "Ghi chú văn bản phong phú", todo: "Ghi chú danh sách công việc", spreadsheet: "Ghi chú bảng tính" }[selectedNote.note_type] || "Không xác định" }</p>
               <p><strong>Ngày tạo:</strong> {new Date(selectedNote.created_at).toLocaleString()}</p>
               <p><strong>Phong cách chữ:</strong> {selectedNote.font_style}, {selectedNote.font_size}, {selectedNote.font_family}</p>

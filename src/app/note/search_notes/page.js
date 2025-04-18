@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase2 } from "../../../lib/supabase";
+import ThemeSettings from "../../components/ThemeSettings";
 
 export default function NotePage() {
   const [note, setNote] = useState("");
@@ -117,164 +118,420 @@ export default function NotePage() {
     setClassification(noteItem.classification);
   };
 
+  const handleSuggestionClick = (type, value) => {
+    if (type === "title") {
+      setTitle(value);
+    } else if (type === "idea" || type === "expanded" || type === "tip") {
+      setNote(value);
+    }
+  };
+
   return (
-    <div className="mt-[97px] p-5 mb-[-7px] min-h-screen bg-gradient-to-br to-gray-100 flex items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-4xl transform transition-all duration-300 hover:shadow-xl">
-        <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
-          BlogNote - Gợi ý ghi chú
-        </h1>
-        <div className="flex justify-end mb-6">
-          <Link href="/manage_note" className="text-blue-500 hover:text-purple-500 transition-colors duration-200 font-medium hover:shadow-md p-2 rounded-lg">
-            Xem danh sách ghi chú →
-          </Link>
-        </div>
-
-        <input
-          type="text"
-          className="w-full p-4 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm transition-all duration-200 hover:shadow-lg"
-          placeholder="Nhập tiêu đề ghi chú..."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <textarea
-          className="w-full p-4 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y shadow-sm transition-all duration-200 hover:shadow-lg"
-          rows="6"
-          placeholder="Viết ghi chú của bạn tại đây..."
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <div className="flex gap-4 mb-6">
-          <button
-            className={`flex-1 py-3 rounded-lg text-white font-semibold transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg ${
-              isLoading
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-blue-300 to-purple-300 hover:from-blue-400 hover:to-purple-400"
-            }`}
-            onClick={handleGenerate}
-            disabled={isLoading}
+    <div
+      className="mt-[76px] p-5 mb-[-7px] min-h-screen"
+      style={{ background: "var(--background)", color: "var(--text-color)" }}
+    >
+      <div className="container mx-auto w-full">
+        <div
+          className="rounded-3xl shadow-2xl p-8 transform transition-all duration-300"
+          style={{
+            background: "var(--background)",
+            border: "1px solid var(--border-color)",
+          }}
+        >
+          <h1
+            className="text-4xl font-extrabold text-center mb-8"
+            style={{ color: "var(--accent-color)" }}
           >
-            {isLoading ? (
-              <>
-                <svg className="animate-spin h-5 w-5 mr-2 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-16 0z" />
-                </svg>
-                Đang tạo gợi ý...
-              </>
-            ) : (
-              "Gợi ý từ AI"
-            )}
-          </button>
-          <button
-            className="flex-1 py-3 bg-gradient-to-r from-blue-300 to-purple-300 text-white rounded-lg hover:from-blue-400 hover:to-purple-400 transition-all duration-300 shadow-md hover:shadow-lg"
-            onClick={handleSave}
-          >
-            Lưu Ghi Chú
-          </button>
-        </div>
+            BlogNote - Ghi Chú Thông Minh
+          </h1>
 
-        {error && (
-          <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg animate-slide-in shadow-md hover:shadow-lg transition-all duration-200">
-            {error}
+          {/* Header Link */}
+          <div className="flex justify-end mb-6">
+            <Link
+              href="/manage_note"
+              className="inline-flex items-center px-4 py-2 font-medium rounded-lg transition-all duration-200"
+              style={{
+                color: "var(--accent-color)",
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <span>Xem danh sách ghi chú</span>
+              <svg
+                className="w-4 h-4 ml-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </Link>
           </div>
-        )}
 
-        {suggestions && (
-          <div className="mt-8 space-y-8 animate-fade-in">
-            <div className="p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-3">Tiêu đề gợi ý:</h2>
-              <ul className="list-disc pl-6 text-gray-600 space-y-2">
-                {suggestions.titles.map((title, index) => (
-                  <li key={index} className="hover:text-blue-500 transition-colors duration-200">{title}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-3">Ý tưởng phát triển:</h2>
-              <ul className="list-disc pl-6 text-gray-600 space-y-2">
-                {suggestions.ideas.map((idea, index) => (
-                  <li key={index} className="hover:text-purple-500 transition-colors duration-200">{idea}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-3">Mở rộng bài viết:</h2>
-              <p className="text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg">{suggestions.expanded}</p>
-            </div>
-            <div className="p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-3">Mẹo ghi chú hiệu quả:</h2>
-              <ul className="list-disc pl-6 text-gray-600 space-y-2">
-                {suggestions.tips.map((tip, index) => (
-                  <li key={index} className="hover:text-blue-500 transition-colors duration-200">{tip}</li>
-                ))}
-              </ul>
-            </div>
+          {/* Note Input Section */}
+          <div className="space-y-4 mb-8">
+            <input
+              type="text"
+              className="w-full p-4 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200"
+              placeholder="Tiêu đề ghi chú..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+                focusRingColor: "var(--accent-color)",
+              }}
+            />
+            <textarea
+              className="w-full p-4 rounded-xl focus:outline-none focus:ring-2 resize-y transition-all duration-200"
+              rows="6"
+              placeholder="Viết ghi chú của bạn..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+                focusRingColor: "var(--accent-color)",
+              }}
+            />
           </div>
-        )}
 
-        <div className="mt-8 text-gray-700">
-          <h1 className="text-3xl font-bold mb-4 animate-slide-in">🔍 Tìm kiếm Ghi Chú</h1>
-          <input
-            type="text"
-            placeholder="Nhập từ khóa..."
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-300 shadow-sm transition-all duration-200 hover:shadow-lg"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm transition-all duration-200 hover:shadow-lg"
-            value={classification}
-            onChange={(e) => setClassification(e.target.value)}
-          >
-            {classifications.map((cls) => (
-              <option key={cls} value={cls}>{cls}</option>
-            ))}
-          </select>
-          <div className="mt-4 p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-            {search ? (
-              <div className="animate-fade-in">
-                <p className="mb-2">
-                  🔎 Kết quả tìm kiếm cho: <strong>{search}</strong> trong phân loại: <strong>{classification}</strong>
-                </p>
-                {filteredNotes.length > 0 ? (
-                  <ul className="list-disc pl-6 space-y-2">
-                    {filteredNotes.map((note) => (
-                      <li
-                        key={note.id}
-                        className="py-1 cursor-pointer hover:text-blue-500 transition-colors duration-200 hover:shadow-md rounded-lg p-2"
-                        onClick={() => handleNoteClick(note)}
-                      >
-                        {note.title} (Phân loại: {note.classification})
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500">Không tìm thấy ghi chú nào.</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-500">Nhập từ khóa để tìm...</p>
-            )}
+          {/* Action Buttons */}
+          <div className="flex gap-4 mb-8">
+            <button
+              className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md ${
+                isLoading ? "cursor-not-allowed" : ""
+              }`}
+              onClick={handleGenerate}
+              disabled={isLoading}
+              style={{
+                background: isLoading ? "#9CA3AF" : "var(--accent-color)",
+                color: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <svg
+                    className="animate-spin h-5 w-5 mr-2"
+                    viewBox="0 0 24 24"
+                    style={{ color: "var(--background)" }}
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8h8a8 8 0 01-16 0z"
+                    />
+                  </svg>
+                  Đang tạo gợi ý...
+                </div>
+              ) : (
+                "Tạo Gợi Ý AI"
+              )}
+            </button>
+            <button
+              className="flex-1 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md"
+              onClick={handleSave}
+              style={{
+                background: "var(--accent-color)",
+                color: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              Lưu Ghi Chú
+            </button>
           </div>
-        </div>
 
-        {savedNotes.length > 0 && (
-          <div className="mt-8 animate-fade-in p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-            <h2 className="text-2xl font-semibold text-gray-700 mb-3">Ghi chú đã lưu:</h2>
-            <ul className="list-disc pl-6 text-gray-600 space-y-2">
-              {savedNotes.map((noteItem) => (
-                <li
-                  key={noteItem.id}
-                  className="cursor-pointer hover:text-purple-500 transition-colors duration-200 hover:shadow-md rounded-lg p-2"
-                  onClick={() => handleNoteClick(noteItem)}
+          {/* Error Message */}
+          {error && (
+            <div
+              className="mb-8 p-4 rounded-xl shadow-md transition-all duration-200"
+              style={{
+                background: "#FEF2F2",
+                color: "#DC2626",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Suggestions Section */}
+          {suggestions && (
+            <div className="grid gap-6 mb-8">
+              <div
+                className="p-6 rounded-xl shadow-md transition-all duration-200"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h2
+                  className="text-xl font-semibold mb-4"
+                  style={{ color: "var(--text-color)" }}
                 >
-                  {noteItem.title}: {noteItem.content} (Phân loại: {noteItem.classification}, Ngày: {new Date(noteItem.created_at).toLocaleDateString()})
-                </li>
-              ))}
-            </ul>
+                  Tiêu đề gợi ý
+                </h2>
+                <ul className="space-y-2">
+                  {suggestions.titles.map((title, index) => (
+                    <li
+                      key={index}
+                      className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                      onClick={() => handleSuggestionClick("title", title)}
+                      style={{
+                        background: "var(--background)",
+                        color: "var(--text-color)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {title}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div
+                className="p-6 rounded-xl shadow-md transition-all duration-200"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h2
+                  className="text-xl font-semibold mb-4"
+                  style={{ color: "var(--text-color)" }}
+                >
+                  Ý tưởng phát triển
+                </h2>
+                <ul className="space-y-2">
+                  {suggestions.ideas.map((idea, index) => (
+                    <li
+                      key={index}
+                      className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                      onClick={() => handleSuggestionClick("idea", idea)}
+                      style={{
+                        background: "var(--background)",
+                        color: "var(--text-color)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {idea}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div
+                className="p-6 rounded-xl shadow-md transition-all duration-200"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h2
+                  className="text-xl font-semibold mb-4"
+                  style={{ color: "var(--text-color)" }}
+                >
+                  Mở rộng bài viết
+                </h2>
+                <p
+                  className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                  onClick={() =>
+                    handleSuggestionClick("expanded", suggestions.expanded)
+                  }
+                  style={{
+                    background: "var(--background)",
+                    color: "var(--text-color)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  {suggestions.expanded}
+                </p>
+              </div>
+              <div
+                className="p-6 rounded-xl shadow-md transition-all duration-200"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <h2
+                  className="text-xl font-semibold mb-4"
+                  style={{ color: "var(--text-color)" }}
+                >
+                  Mẹo ghi chú hiệu quả
+                </h2>
+                <ul className="space-y-2">
+                  {suggestions.tips.map((tip, index) => (
+                    <li
+                      key={index}
+                      className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                      onClick={() => handleSuggestionClick("tip", tip)}
+                      style={{
+                        background: "var(--background)",
+                        color: "var(--text-color)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Search Section */}
+          <div className="mb-8">
+            <h2
+              className="text-2xl font-bold mb-4"
+              style={{ color: "var(--text-color)" }}
+            >
+              Tìm Kiếm Ghi Chú
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <input
+                type="text"
+                placeholder="Nhập từ khóa..."
+                className="w-full p-4 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  focusRingColor: "var(--accent-color)",
+                }}
+              />
+              <select
+                className="w-full p-4 rounded-xl focus:outline-none focus:ring-2 transition-all duration-200"
+                value={classification}
+                onChange={(e) => setClassification(e.target.value)}
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  focusRingColor: "var(--accent-color)",
+                }}
+              >
+                {classifications.map((cls) => (
+                  <option key={cls} value={cls}>
+                    {cls}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div
+              className="mt-4 p-6 rounded-xl shadow-md"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              {search ? (
+                <div>
+                  <p
+                    className="mb-4"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    Kết quả tìm kiếm: <strong>{search}</strong> (Phân loại:{" "}
+                    <strong>{classification}</strong>)
+                  </p>
+                  {filteredNotes.length > 0 ? (
+                    <ul className="space-y-2">
+                      {filteredNotes.map((note) => (
+                        <li
+                          key={note.id}
+                          className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                          onClick={() => handleNoteClick(note)}
+                          style={{
+                            background: "var(--background)",
+                            color: "var(--text-color)",
+                            border: "1px solid var(--border-color)",
+                          }}
+                        >
+                          {note.title}{" "}
+                          <span style={{ color: "#9CA3AF" }}>
+                            ({note.classification})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ color: "var(--text-color)" }}>
+                      Không tìm thấy ghi chú nào.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: "var(--text-color)" }}>
+                  Nhập từ khóa để tìm kiếm...
+                </p>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* Saved Notes Section */}
+          {savedNotes.length > 0 && (
+            <div
+              className="p-6 rounded-xl shadow-md"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <h2
+                className="text-xl font-semibold mb-4"
+                style={{ color: "var(--text-color)" }}
+              >
+                Ghi Chú Đã Lưu
+              </h2>
+              <ul className="space-y-2">
+                {savedNotes.map((noteItem) => (
+                  <li
+                    key={noteItem.id}
+                    className="p-3 rounded-lg cursor-pointer transition-all duration-200"
+                    onClick={() => handleNoteClick(noteItem)}
+                    style={{
+                      background: "var(--background)",
+                      color: "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <div className="flex justify-between">
+                      <span>{noteItem.title}</span>
+                      <span style={{ color: "#9CA3AF" }}>
+                        {new Date(noteItem.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-color)" }}
+                    >
+                      {noteItem.classification}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
+      <ThemeSettings />
     </div>
   );
 }

@@ -43,6 +43,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"; //
 import Editor from "@monaco-editor/react"; // Thêm monaco-editor
 import axios from 'axios';
 import CryptoJS from "crypto-js";
+import ThemeSettings from "../../components/ThemeSettings"; // Import ThemeSettings
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -1312,7 +1313,7 @@ const NoteApp = () => {
                 className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                 onClick={() => handleNoteTypeChange("voice")}
               >
-                🎙 Ghi chú bằng giọng nói
+                🎙 Đính kèm Video, âm thanh..
               </button>
               </div>
             )}
@@ -2838,6 +2839,7 @@ const NoteApp = () => {
           }
         `}</style>
       </div>
+              <ThemeSettings />
     </div>
   );
 };

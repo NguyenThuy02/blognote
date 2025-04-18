@@ -4,82 +4,187 @@ import { useState, useEffect } from "react";
 export default function ThemeSettings() {
   const [isOpen, setIsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [selectedTheme, setSelectedTheme] = useState("default");
+  const [backgroundColor, setBackgroundColor] = useState("#FFFFFF"); // Default from NoteReport
+  const [borderButtonColor, setBorderButtonColor] = useState("linear-gradient(to right, #6B46C1, #A3BFFA)"); // Default gradient for buttons
+  const [borderColor, setBorderColor] = useState("#A3BFFA"); // Default border color from NoteReport
 
-  // Các chủ đề màu sắc có sẵn
-  const themes = {
-    default: { bg: "#FFFFFF", text: "#000000", foreground: "#171717", accent: "#6B46C1" },
-    forest: { bg: "#F0F7F4", text: "#2D3A3E", foreground: "#2D3A3E", accent: "#4A7046" },
-    ocean: { bg: "#E6F0FA", text: "#1E3A8A", foreground: "#1E3A8A", accent: "#3B82F6" },
-    sunset: { bg: "#FFF7ED", text: "#431407", foreground: "#431407", accent: "#F97316" },
-    midnight: { bg: "#1E293B", text: "#F1F5F9", foreground: "#F1F5F9", accent: "#8B5CF6" },
-    pastel: { bg: "#F3E8FF", text: "#4B0082", foreground: "#4B0082", accent: "#D8B4FE" },
-    desert: { bg: "#FDF6E3", text: "#3F2A1D", foreground: "#3F2A1D", accent: "#D97706" },
-    neon: { bg: "#000000", text: "#FFFFFF", foreground: "#FFFFFF", accent: "#00FF00" },
+  // Available background colors
+  const backgroundColors = {
+    white: "#FFFFFF",
+    lightBlue: "#E6F0FA",
+    lightGreen: "#F0F7F4",
+    lightYellow: "#FFF7ED",
   };
 
-    // Áp dụng chủ đề
-    useEffect(() => {
-      const root = document.documentElement;
-      const theme = isDarkMode
-        ? { bg: "#1A202C", text: "#F7FAFC", accent: themes[selectedTheme].accent }
-        : themes[selectedTheme];
+  // Available border/button colors (gradients and solid colors) with 4 new colors
+  const borderButtonColors = {
+    purpleBlue: "linear-gradient(to right, #6B46C1, #A3BFFA)", // Default gradient
+    greenYellow: "linear-gradient(to right, #A7F3D0, #FEF9C3)",
+    pinkWhite: "linear-gradient(to right, #FBCFE8, #FFFFFF)",
+    pinkYellow: "linear-gradient(to right, #FBCFE8, #FEF9C3)",
+    bluePink: "linear-gradient(to right, #C4E4FF, #FBCFE8)",
+    grayWhite: "linear-gradient(to right, #E5E7EB, #FFFFFF)",
+    orangeRed: "linear-gradient(to right, #F97316, #EF4444)", // New color 1
+    tealPurple: "linear-gradient(to right, #14B8A6, #A855F7)", // New color 2
+    blueGreen: "linear-gradient(to right, #3B82F6, #10B981)", // New color 3
+    purplePink: "linear-gradient(to right, #9333EA, #F472B6)", // New color 4
+  };
 
-      root.style.setProperty("--background", theme.bg);
-      root.style.setProperty("--text-color", theme.text);
-      root.style.setProperty("--accent-color", theme.accent);
-    }, [isDarkMode, selectedTheme]);
+  // Available border colors (solid colors only)
+  const borderColors = {
+    blue: "#A3BFFA",
+    green: "#A7F3D0",
+    pink: "#FBCFE8",
+    yellow: "#FEF9C3",
+    gray: "#E5E7EB",
+  };
 
-      // Xử lý chuyển đổi tối/sáng
-      const toggleDarkMode = () => {
-        setIsDarkMode((prev) => !prev);
-      };
+  // Apply theme
+  useEffect(() => {
+    const root = document.documentElement;
+    const bgColor = isDarkMode ? "#1A202C" : backgroundColor;
+    const textColor = isDarkMode ? "#F7FAFC" : "#000000";
 
-  // Xử lý chọn chủ đề
-  const handleThemeChange = (theme) => {
-    setSelectedTheme(theme);
-    setIsOpen(false); // Đóng form sau khi chọn
+    root.style.setProperty("--background", bgColor);
+    root.style.setProperty("--text-color", textColor);
+    root.style.setProperty("--accent-color", borderButtonColor);
+    root.style.setProperty("--border-color", borderColor);
+  }, [isDarkMode, backgroundColor, borderButtonColor, borderColor]);
+
+  // Handle dark mode toggle
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => !prev);
+  };
+
+  // Handle background color selection
+  const handleBackgroundColorChange = (color) => {
+    setBackgroundColor(color);
+  };
+
+  // Handle border/button color selection
+  const handleBorderButtonColorChange = (color) => {
+    setBorderButtonColor(color);
+  };
+
+  // Handle border color selection
+  const handleBorderColorChange = (color) => {
+    setBorderColor(color);
+  };
+
+  // Handle custom color changes from color picker
+  const handleCustomBackgroundColor = (e) => {
+    setBackgroundColor(e.target.value);
+  };
+
+  const handleCustomBorderButtonColor = (e) => {
+    setBorderButtonColor(e.target.value);
+  };
+
+  const handleCustomBorderColor = (e) => {
+    setBorderColor(e.target.value);
   };
 
   return (
     <div className="theme-settings">
-      {/* Nút Palette */}
+      {/* Palette Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="palette-btn"
-        title="Cài đặt chủ đề"
+        title="Theme Settings"
       >
         🎨
       </button>
 
-      {/* Nút chuyển đổi tối/sáng */}
+      {/* Dark/Light Mode Toggle */}
       <button
         onClick={toggleDarkMode}
         className="toggle-btn"
-        title={isDarkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
+        title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
       >
         {isDarkMode ? "🌙" : "☀️"}
       </button>
 
-      {/* Form cài đặt chủ đề */}
+      {/* Theme Settings Form */}
       {isOpen && (
         <div className="theme-form">
-          <h3 className="form-title">Chọn chủ đề</h3>
-          <div className="theme-options">
-            {Object.entries(themes).map(([key, value]) => (
-              <div
-                key={key}
-                className={`theme-option ${selectedTheme === key ? "active" : ""}`}
-                style={{ backgroundColor: value.bg, color: value.text }}
-                onClick={() => handleThemeChange(key)}
-              >
-                <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+          <h3 className="form-title">Tùy chỉnh giao diện</h3>
+
+          {/* Predefined Background Colors */}
+          <div className="predefined-colors">
+            <h4>Màu nền</h4>
+            <div className="color-options">
+              {Object.entries(backgroundColors).map(([key, value]) => (
                 <div
-                  className="color-preview"
-                  style={{ backgroundColor: value.accent }}
+                  key={key}
+                  className={`color-option ${backgroundColor === value ? "active" : ""}`}
+                  style={{ backgroundColor: value }}
+                  onClick={() => handleBackgroundColorChange(value)}
                 />
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Predefined Border/Button Colors */}
+          <div className="predefined-colors">
+            <h4>Màu nút</h4>
+            <div className="color-options">
+              {Object.entries(borderButtonColors).map(([key, value]) => (
+                <div
+                  key={key}
+                  className={`color-option ${borderButtonColor === value ? "active" : ""}`}
+                  style={{ background: value }}
+                  onClick={() => handleBorderButtonColorChange(value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Predefined Border Colors */}
+          <div className="predefined-colors">
+            <h4>Màu viền</h4>
+            <div className="color-options">
+              {Object.entries(borderColors).map(([key, value]) => (
+                <div
+                  key={key}
+                  className={`color-option ${borderColor === value ? "active" : ""}`}
+                  style={{ backgroundColor: value }}
+                  onClick={() => handleBorderColorChange(value)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Background Color Picker */}
+          <div className="color-slider">
+            <h4>Màu nền tùy chỉnh</h4>
+            <input
+              type="color"
+              value={backgroundColor}
+              onChange={handleCustomBackgroundColor}
+              className="color-input"
+            />
+          </div>
+
+          {/* Custom Border/Button Color Picker */}
+          <div className="color-slider">
+            <h4>Màu nút tùy chỉnh</h4>
+            <input
+              type="color"
+              value={borderButtonColor.startsWith("linear-gradient") ? "#6B46C1" : borderButtonColor}
+              onChange={handleCustomBorderButtonColor}
+              className="color-input"
+            />
+          </div>
+
+          {/* Custom Border Color Picker */}
+          <div className="color-slider">
+            <h4>Màu viền tùy chỉnh</h4>
+            <input
+              type="color"
+              value={borderColor}
+              onChange={handleCustomBorderColor}
+              className="color-input"
+            />
           </div>
         </div>
       )}
@@ -96,7 +201,7 @@ export default function ThemeSettings() {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: var(--accent-color, #6B46C1);
+          background: var(--accent-color, linear-gradient(to right, #6B46C1, #A3BFFA));
           color: white;
           font-size: 20px;
           border: none;
@@ -120,14 +225,14 @@ export default function ThemeSettings() {
           background: var(--background, #FFFFFF);
           color: var(--text-color, #000000);
           font-size: 20px;
-          border: 2px solid var(--accent-color, #6B46C1);
+          border: 2px solid var(--border-color, #A3BFFA);
           cursor: pointer;
           transition: all 0.3s ease;
         }
 
         .toggle-btn:hover {
           transform: rotate(360deg);
-          background: var(--accent-color, #6B46C1);
+          background: var(--accent-color, linear-gradient(to right, #6B46C1, #A3BFFA));
           color: white;
         }
 
@@ -135,9 +240,9 @@ export default function ThemeSettings() {
           position: absolute;
           bottom: 60px;
           right: 50px;
-          width: 200px;
+          width: 250px;
           background: var(--background, #FFFFFF);
-          border: 2px solid var(--accent-color, #6B46C1);
+          border: 2px solid var(--border-color, #A3BFFA);
           border-radius: 12px;
           padding: 15px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -152,36 +257,56 @@ export default function ThemeSettings() {
           text-align: center;
         }
 
-        .theme-options {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+        .predefined-colors {
+          margin-bottom: 15px;
         }
 
-        .theme-option {
+        .predefined-colors h4,
+        .color-slider h4 {
+          font-size: 14px;
+          margin: 0 0 8px;
+          color: var(--text-color, #000000);
+        }
+
+        .color-options {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .color-option {
+          width: 30px;
+          height: 30px;
           border-radius: 8px;
           cursor: pointer;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .theme-option:hover {
-          transform: translateX(5px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .theme-option.active {
-          border: 2px solid var(--accent-color, #6B46C1);
-        }
-
-        .color-preview {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
+          transition: transform 0.2s ease;
           border: 1px solid var(--text-color, #000000);
+        }
+
+        .color-option:hover {
+          transform: scale(1.1);
+        }
+
+        .color-option.active {
+          border: 2px solid var(--border-color, #A3BFFA);
+        }
+
+        .color-slider {
+          margin-bottom: 15px;
+        }
+
+        .color-input {
+          width: 100%;
+          height: 30px;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          background: none;
+        }
+
+        .color-input::-webkit-color-swatch {
+          border: 1px solid var(--text-color, #000000);
+          border-radius: 4px;
         }
 
         @keyframes slideIn {

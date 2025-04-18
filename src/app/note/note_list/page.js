@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
 import ChiTiet from "../../components/details";
+import ThemeSettings from "../../components/ThemeSettings";
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
@@ -79,7 +80,7 @@ export default function NoteList() {
         return {
           id: note.id,
           title: note.title,
-          description: note.content || "", // Bỏ logic hiển thị "Không có nội dung"
+          description: note.content || "",
           image: note.image_url,
           note_type: note.note_type,
           todos: parsedTodos,
@@ -236,7 +237,8 @@ export default function NoteList() {
 
   return (
     <div
-      className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 text-gray-700"
+      className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6"
+      style={{ background: "var(--background)", color: "var(--text-color)" }}
       onClick={closeContextMenu}
     >
       <div
@@ -258,13 +260,17 @@ export default function NoteList() {
           </h1>
           <p className="text-gray-200 mb-6">
             Explore top note-taking apps to boost your productivity. From simple
-            text notes to rich media, find the perfect app for your needs. Start
-            organizing your ideas today!
+ Ascertain the perfect app for your needs. Start organizing your ideas today!
           </p>
           <div className="relative">
             <button
               onClick={() => setShowSearchInput(!showSearchInput)}
-              className="flex items-center bg-white text-pink-500 px-4 py-2 rounded-full shadow-md hover:bg-gray-100 transition-all"
+              className="flex items-center px-4 py-2 rounded-full shadow-md transition-all"
+              style={{
+                background: "var(--background)",
+                color: "var(--accent-color)",
+                border: "1px solid var(--border-color)",
+              }}
             >
               🔍 Search Notes
             </button>
@@ -274,7 +280,12 @@ export default function NoteList() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Enter title or description..."
-                className="absolute top-12 left-0 w-full max-w-md border border-gray-300 p-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all bg-white text-gray-700 z-20"
+                className="absolute top-12 left-0 w-full max-w-md p-2 rounded-lg shadow-sm focus:outline-none transition-all"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
               />
             )}
           </div>
@@ -366,27 +377,41 @@ export default function NoteList() {
             {">"}
           </button>
         </div>
-        <div className="absolute top-10 left-10 w-16 h-16 bg-pink-200 rounded-full opacity-50 z-0"></div>
-        <div className="absolute bottom-10 left-20 w-12 h-12 bg-pink-200 rounded-full opacity-50 z-0"></div>
-        <div className="absolute top-20 right-10 w-20 h-20 bg-pink-200 rounded-full opacity-50 z-0"></div>
+        <div className="absolute top-10 left-10 w-16 h-16 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
+        <div className="absolute bottom-10 left-20 w-12 h-12 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
+        <div className="absolute top-20 right-10 w-20 h-20 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
       </div>
 
       {/* Khung 1: Ghi chú văn bản thuần */}
-      <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h2 className="text-xl font-bold mb-4">📄 Ghi chú văn bản thuần</h2>
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+          📄 Ghi chú văn bản thuần
+        </h2>
         <div className="grid grid-cols-1 gap-4">
           {paginate(filteredTextNotes, currentTextPage)
             .slice(0, showMoreText ? filteredTextNotes.length : 2)
             .map((note) => (
               <div
                 key={note.id}
-                className={`p-4 shadow-md rounded-lg border border-purple-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out ${
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
                   pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
                 } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
                 onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
                 <div className="relative">
-                  <h3 className="font-semibold inline">{note.title}</h3>
+                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                    {note.title}
+                  </h3>
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
@@ -400,15 +425,16 @@ export default function NoteList() {
                   </button>
                 </div>
                 {note.description && !hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600">{note.description}</p>
+                  <p style={{ color: "var(--text-color)" }}>{note.description}</p>
                 )}
                 {hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600">Ghi chú này đã bị ẩn</p>
+                  <p style={{ color: "var(--text-color)" }}>Ghi chú này đã bị ẩn</p>
                 )}
                 {!hiddenNotes.has(note.id) && (
                   <button
                     onClick={() => setViewDetailNoteId(note.id)}
-                    className="text-blue-500 mt-2 block hover:text-blue-600 transition-colors duration-200"
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
                   >
                     Xem chi tiết →
                   </button>
@@ -419,7 +445,8 @@ export default function NoteList() {
 
         <button
           onClick={() => setShowMoreText(!showMoreText)}
-          className="mt-4 text-blue-500 mx-auto block hover:text-blue-600 transition-colors duration-200"
+          className="mt-4 mx-auto block transition-colors duration-200"
+          style={{ color: "var(--accent-color)" }}
         >
           {showMoreText ? "Ẩn bớt" : "Xem thêm"}
         </button>
@@ -429,7 +456,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentTextPage(currentTextPage - 1)}
               disabled={currentTextPage === 1}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {"<"}
             </button>
@@ -439,9 +471,20 @@ export default function NoteList() {
                 onClick={() => setCurrentTextPage(index + 1)}
                 className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
                   currentTextPage === index + 1
-                    ? "bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg"
-                    : "bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md hover:bg-gray-100"
+                    ? "shadow hover:shadow-lg"
+                    : "shadow-sm hover:shadow-md"
                 }`}
+                style={{
+                  background:
+                    currentTextPage === index + 1
+                      ? "var(--accent-color)"
+                      : "var(--background)",
+                  color:
+                    currentTextPage === index + 1
+                      ? "var(--background)"
+                      : "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
               >
                 {index + 1}
               </button>
@@ -449,7 +492,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentTextPage(currentTextPage + 1)}
               disabled={currentTextPage === totalTextPages}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {">"}
             </button>
@@ -458,8 +506,16 @@ export default function NoteList() {
       </div>
 
       {/* Khung 2: Ghi chú văn bản phong phú */}
-      <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h2 className="text-xl font-bold mb-4">🖼️ Ghi chú văn bản phong phú</h2>
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+          🖼️ Ghi chú văn bản phong phú
+        </h2>
 
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -468,13 +524,19 @@ export default function NoteList() {
               .map((note) => (
                 <div
                   key={note.id}
-                  className={`p-4 shadow-md rounded-lg border border-purple-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out ${
+                  className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
                     pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
                   } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                  style={{
+                    background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
                   onContextMenu={(e) => handleContextMenu(e, note.id)}
                 >
                   <div className="relative">
-                    <h3 className="font-semibold inline">{note.title}</h3>
+                    <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                      {note.title}
+                    </h3>
                     <button
                       onClick={() => togglePin(note.id)}
                       className={`absolute top-0 right-0 text-lg ${
@@ -488,15 +550,20 @@ export default function NoteList() {
                     </button>
                   </div>
                   {note.description && !hiddenNotes.has(note.id) && (
-                    <p className="text-gray-600 min-h-[40px] line-clamp-2">{note.description}</p>
+                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                      {note.description}
+                    </p>
                   )}
                   {hiddenNotes.has(note.id) && (
-                    <p className="text-gray-600 min-h-[40px] line-clamp-2">Ghi chú này đã bị ẩn</p>
+                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                      Ghi chú này đã bị ẩn
+                    </p>
                   )}
                   {!hiddenNotes.has(note.id) && (
                     <button
                       onClick={() => setViewDetailNoteId(note.id)}
-                      className="text-blue-500 mt-2 block hover:text-blue-600 transition-colors duration-200"
+                      className="mt-2 block transition-colors duration-200"
+                      style={{ color: "var(--accent-color)" }}
                     >
                       Xem chi tiết →
                     </button>
@@ -513,9 +580,13 @@ export default function NoteList() {
               .map((note) => (
                 <div
                   key={note.id}
-                  className={`p-4 shadow-md rounded-lg border border-purple-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out ${
+                  className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
                     pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
                   } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                  style={{
+                    background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
                   onContextMenu={(e) => handleContextMenu(e, note.id)}
                 >
                   <div className="relative">
@@ -526,7 +597,9 @@ export default function NoteList() {
                         className="w-full h-32 object-cover rounded mb-2 transition-opacity duration-300 hover:opacity-90"
                       />
                     )}
-                    <h3 className="font-semibold inline">{note.title}</h3>
+                    <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                      {note.title}
+                    </h3>
                     <button
                       onClick={() => togglePin(note.id)}
                       className={`absolute top-0 right-0 text-lg ${
@@ -540,15 +613,20 @@ export default function NoteList() {
                     </button>
                   </div>
                   {note.description && !hiddenNotes.has(note.id) && (
-                    <p className="text-gray-600 min-h-[40px] line-clamp-2">{note.description}</p>
+                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                      {note.description}
+                    </p>
                   )}
                   {hiddenNotes.has(note.id) && (
-                    <p className="text-gray-600 min-h-[40px] line-clamp-2">Ghi chú này đã bị ẩn</p>
+                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                      Ghi chú này đã bị ẩn
+                    </p>
                   )}
                   {!hiddenNotes.has(note.id) && (
                     <button
                       onClick={() => setViewDetailNoteId(note.id)}
-                      className="text-blue-500 mt-2 block hover:text-blue-600 transition-colors duration-200"
+                      className="mt-2 block transition-colors duration-200"
+                      style={{ color: "var(--accent-color)" }}
                     >
                       Xem chi tiết →
                     </button>
@@ -560,7 +638,8 @@ export default function NoteList() {
 
         <button
           onClick={() => setShowMoreRich(!showMoreRich)}
-          className="mt-4 text-blue-500 mx-auto block hover:text-blue-600 transition-colors duration-200"
+          className="mt-4 mx-auto block transition-colors duration-200"
+          style={{ color: "var(--accent-color)" }}
         >
           {showMoreRich ? "Ẩn bớt" : "Xem thêm"}
         </button>
@@ -570,7 +649,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentRichPage(currentRichPage - 1)}
               disabled={currentRichPage === 1}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {"<"}
             </button>
@@ -582,9 +666,20 @@ export default function NoteList() {
                   onClick={() => setCurrentRichPage(index + 1)}
                   className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
                     currentRichPage === index + 1
-                      ? "bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg"
-                      : "bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md hover:bg-gray-100"
+                      ? "shadow hover:shadow-lg"
+                      : "shadow-sm hover:shadow-md"
                   }`}
+                  style={{
+                    background:
+                      currentRichPage === index + 1
+                        ? "var(--accent-color)"
+                        : "var(--background)",
+                    color:
+                      currentRichPage === index + 1
+                        ? "var(--background)"
+                        : "var(--text-color)",
+                    border: "1px solid var(--border-color)",
+                  }}
                 >
                   {index + 1}
                 </button>
@@ -593,7 +688,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentRichPage(currentRichPage + 1)}
               disabled={currentRichPage === Math.max(totalRichWithoutImagePages, totalRichWithImagePages)}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {">"}
             </button>
@@ -602,21 +702,35 @@ export default function NoteList() {
       </div>
 
       {/* Khung 3: Ghi chú danh sách công việc */}
-      <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h2 className="text-xl font-bold mb-4">📝 Ghi chú danh sách công việc</h2>
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+          📝 Ghi chú danh sách công việc
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {paginate(filteredSketchNotes, currentSketchPage)
             .slice(0, showMoreSketch ? filteredSketchNotes.length : 4)
             .map((note) => (
               <div
                 key={note.id}
-                className={`p-4 shadow-md rounded-lg border border-purple-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out ${
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
                   pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
                 } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
                 onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
                 <div className="relative">
-                  <h3 className="font-semibold inline">{note.title}</h3>
+                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                    {note.title}
+                  </h3>
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
@@ -630,7 +744,9 @@ export default function NoteList() {
                   </button>
                 </div>
                 {note.description && !hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600 min-h-[40px] line-clamp-2">{note.description}</p>
+                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                    {note.description}
+                  </p>
                 )}
                 {note.todos && note.todos.length > 0 && !hiddenNotes.has(note.id) && (
                   <ul className="list-disc pl-5 min-h-[60px] line-clamp-3">
@@ -638,6 +754,7 @@ export default function NoteList() {
                       <li
                         key={index}
                         className={todo.completed ? "line-through text-gray-500" : ""}
+                        style={{ color: todo.completed ? "#6B7280" : "var(--text-color)" }}
                       >
                         {todo.text}
                       </li>
@@ -645,12 +762,15 @@ export default function NoteList() {
                   </ul>
                 )}
                 {hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600 min-h-[40px] line-clamp-2">Ghi chú này đã bị ẩn</p>
+                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                    Ghi chú này đã bị ẩn
+                  </p>
                 )}
                 {!hiddenNotes.has(note.id) && (
                   <button
                     onClick={() => setViewDetailNoteId(note.id)}
-                    className="text-blue-500 mt-2 block hover:text-blue-600 transition-colors duration-200"
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
                   >
                     Xem chi tiết công việc →
                   </button>
@@ -661,7 +781,8 @@ export default function NoteList() {
 
         <button
           onClick={() => setShowMoreSketch(!showMoreSketch)}
-          className="mt-4 text-blue-500 mx-auto block hover:text-blue-600 transition-colors duration-200"
+          className="mt-4 mx-auto block transition-colors duration-200"
+          style={{ color: "var(--accent-color)" }}
         >
           {showMoreSketch ? "Ẩn bớt" : "Xem thêm"}
         </button>
@@ -671,7 +792,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentSketchPage(currentSketchPage - 1)}
               disabled={currentSketchPage === 1}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {"<"}
             </button>
@@ -681,9 +807,20 @@ export default function NoteList() {
                 onClick={() => setCurrentSketchPage(index + 1)}
                 className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
                   currentSketchPage === index + 1
-                    ? "bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg"
-                    : "bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md hover:bg-gray-100"
+                    ? "shadow hover:shadow-lg"
+                    : "shadow-sm hover:shadow-md"
                 }`}
+                style={{
+                  background:
+                    currentSketchPage === index + 1
+                      ? "var(--accent-color)"
+                      : "var(--background)",
+                  color:
+                    currentSketchPage === index + 1
+                      ? "var(--background)"
+                      : "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
               >
                 {index + 1}
               </button>
@@ -691,7 +828,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentSketchPage(currentSketchPage + 1)}
               disabled={currentSketchPage === totalSketchPages}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {">"}
             </button>
@@ -700,21 +842,35 @@ export default function NoteList() {
       </div>
 
       {/* Khung 4: Ghi chú bảng tính */}
-      <div className="border border-purple-300 rounded-lg p-4 bg-white hover:bg-gray-100 transition duration-300 ease-in-out">
-        <h2 className="text-xl font-bold mb-4">📊 Ghi chú bảng tính</h2>
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+          📊 Ghi chú bảng tính
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {paginate(filteredSpreadsheetNotes, currentSpreadsheetPage)
             .slice(0, showMoreSpreadsheet ? filteredSpreadsheetNotes.length : 4)
             .map((note) => (
               <div
                 key={note.id}
-                className={`p-4 shadow-md rounded-lg border border-purple-300 hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 ease-in-out ${
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
                   pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
                 } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
                 onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
                 <div className="relative">
-                  <h3 className="font-semibold inline">{note.title}</h3>
+                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                    {note.title}
+                  </h3>
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
@@ -728,16 +884,25 @@ export default function NoteList() {
                   </button>
                 </div>
                 {note.description && !hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600 min-h-[40px] line-clamp-2">{note.description}</p>
+                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                    {note.description}
+                  </p>
                 )}
                 {note.spreadsheet_data && note.spreadsheet_data.length > 0 && !hiddenNotes.has(note.id) && (
                   <div className="overflow-x-auto min-h-[80px]">
-                    <table className="border-collapse border border-purple-300 text-sm">
+                    <table
+                      className="border-collapse text-sm"
+                      style={{ border: "1px solid var(--border-color)" }}
+                    >
                       <tbody>
                         {note.spreadsheet_data.slice(0, 3).map((row, rowIndex) => (
                           <tr key={rowIndex}>
                             {row.slice(0, 3).map((cell, colIndex) => (
-                              <td key={colIndex} className="border border-purple-300 p-1">
+                              <td
+                                key={colIndex}
+                                className="p-1"
+                                style={{ border: "1px solid var(--border-color)" }}
+                              >
                                 {cell}
                               </td>
                             ))}
@@ -745,19 +910,22 @@ export default function NoteList() {
                         ))}
                       </tbody>
                     </table>
-                    <small>
+                    <small style={{ color: "var(--text-color)" }}>
                       (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
                       {note.spreadsheet_data[0]?.length || 0})
                     </small>
                   </div>
                 )}
                 {hiddenNotes.has(note.id) && (
-                  <p className="text-gray-600 min-h-[40px] line-clamp-2">Ghi chú này đã bị ẩn</p>
+                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                    Ghi chú này đã bị ẩn
+                  </p>
                 )}
                 {!hiddenNotes.has(note.id) && (
                   <button
                     onClick={() => setViewDetailNoteId(note.id)}
-                    className="text-blue-500 mt-2 block hover:text-blue-600 transition-colors duration-200"
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
                   >
                     Đi đến bảng →
                   </button>
@@ -768,7 +936,8 @@ export default function NoteList() {
 
         <button
           onClick={() => setShowMoreSpreadsheet(!showMoreSpreadsheet)}
-          className="mt-4 text-blue-500 mx-auto block hover:text-blue-600 transition-colors duration-200"
+          className="mt-4 mx-auto block transition-colors duration-200"
+          style={{ color: "var(--accent-color)" }}
         >
           {showMoreSpreadsheet ? "Ẩn bớt" : "Xem thêm"}
         </button>
@@ -778,7 +947,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage - 1)}
               disabled={currentSpreadsheetPage === 1}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {"<"}
             </button>
@@ -788,9 +962,20 @@ export default function NoteList() {
                 onClick={() => setCurrentSpreadsheetPage(index + 1)}
                 className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
                   currentSpreadsheetPage === index + 1
-                    ? "bg-purple-200 text-white p-4 border border-gray-400 shadow hover:shadow-lg"
-                    : "bg-white text-gray-700 border border-gray-300 shadow-sm hover:shadow-md hover:bg-gray-100"
+                    ? "shadow hover:shadow-lg"
+                    : "shadow-sm hover:shadow-md"
                 }`}
+                style={{
+                  background:
+                    currentSpreadsheetPage === index + 1
+                      ? "var(--accent-color)"
+                      : "var(--background)",
+                  color:
+                    currentSpreadsheetPage === index + 1
+                      ? "var(--background)"
+                      : "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
               >
                 {index + 1}
               </button>
@@ -798,7 +983,12 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)}
               disabled={currentSpreadsheetPage === totalSpreadsheetPages}
-              className="bg-white border border-gray-300 rounded-full px-4 py-2 mx-1 hover:bg-gray-100 transition-colors duration-200"
+              className="rounded-full px-4 px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
             >
               {">"}
             </button>
@@ -808,12 +998,18 @@ export default function NoteList() {
 
       {contextMenu && (
         <div
-          className="fixed bg-white border border-gray-300 rounded-lg shadow-lg p-2 z-50"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          className="fixed rounded-lg shadow-lg p-2 z-50"
+          style={{
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: "var(--background)",
+            border: "1px solid var(--border-color)",
+          }}
         >
           <button
             onClick={() => hideNote(contextMenu.noteId)}
-            className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+            className="block w-full text-left px-4 py-2 transition-colors duration-200"
+            style={{ color: "var(--text-color)" }}
           >
             Ẩn ghi chú
           </button>
@@ -822,14 +1018,24 @@ export default function NoteList() {
 
       {showPinModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h3 className="text-lg font-semibold mb-4">Nhập mã PIN để xem ghi chú</h3>
+          <div
+            className="p-6 rounded-lg shadow-lg"
+            style={{ background: "var(--background)", border: "1px solid var(--border-color)" }}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-color)" }}>
+              Nhập mã PIN để xem ghi chú
+            </h3>
             <input
               type="text"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              className="w-full border border-gray-300 p-2 rounded mb-4"
+              className="w-full p-2 rounded mb-4"
               placeholder="Mã PIN"
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+              }}
             />
             <div className="flex justify-end gap-2">
               <button
@@ -837,13 +1043,23 @@ export default function NoteList() {
                   setShowPinModal(false);
                   setPinInput("");
                 }}
-                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors duration-200"
+                className="px-4 py-2 rounded transition-colors duration-200"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
               >
                 Hủy
               </button>
               <button
                 onClick={verifyPin}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
+                className="px-4 py-2 rounded transition-colors duration-200"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
               >
                 Xác nhận
               </button>
@@ -855,6 +1071,7 @@ export default function NoteList() {
       {viewDetailNoteId && (
         <ChiTiet noteId={viewDetailNoteId} onClose={() => setViewDetailNoteId(null)} />
       )}
+      <ThemeSettings />
     </div>
   );
 }
