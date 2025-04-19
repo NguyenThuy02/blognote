@@ -140,7 +140,7 @@ export default function ReportApp() {
   }, [notification]);
 
   useEffect(() => {
-    const today = new Date("2025-04-13");
+    const today = new Date(); // Sử dụng ngày hiện tại
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - 6);
     setStartDate(startOfWeek.toISOString().split("T")[0]);
@@ -177,6 +177,7 @@ export default function ReportApp() {
         throw postsError;
       }
       console.log("Posts Data:", postsData);
+      console.log("Post Dates:", postsData.map((post) => post.created_at));
 
       console.log("Fetching demos for user:", userName);
       const { data: demosData, error: demosError } = await supabase
@@ -187,16 +188,13 @@ export default function ReportApp() {
         throw demosError;
       }
       console.log("Demos Data:", demosData);
+      console.log("Demo Dates:", demosData.map((demo) => demo.created_at));
 
       setPosts(postsData || []);
       setDemos(demosData || []);
 
-      const userPostsData = (postsData || []).filter(
-        (post) => post.name === userName
-      );
-      const userDemosData = (demosData || []).filter(
-        (demo) => demo.name === userName
-      );
+      const userPostsData = (postsData || []).filter((post) => post.name === userName);
+      const userDemosData = (demosData || []).filter((demo) => demo.name === userName);
       setUserPosts(userPostsData);
       setUserDemos(userDemosData);
 
@@ -214,23 +212,34 @@ export default function ReportApp() {
   };
 
   const applySystemTimeFilter = (filter, postsData = posts, demosData = demos) => {
-    const today = new Date("2025-04-13");
-    let filterStartDate;
+    const today = new Date(); // Sử dụng ngày hiện tại
+    let filterStartDate, filterEndDate;
 
     switch (filter) {
       case "today":
         filterStartDate = new Date(today);
+        filterStartDate.setHours(0, 0, 0, 0); // Đầu ngày
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999); // Cuối ngày
         break;
       case "last7days":
         filterStartDate = new Date(today);
         filterStartDate.setDate(today.getDate() - 6);
+        filterStartDate.setHours(0, 0, 0, 0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "last30days":
         filterStartDate = new Date(today);
         filterStartDate.setDate(today.getDate() - 30);
+        filterStartDate.setHours(0, 0, 0, 0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "all":
         filterStartDate = new Date(0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       default:
         return;
@@ -238,12 +247,20 @@ export default function ReportApp() {
 
     const filteredPostsResult = postsData.filter((post) => {
       const createdAt = new Date(post.created_at);
-      return createdAt >= filterStartDate && createdAt <= today;
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for post ID ${post.id}: ${post.created_at}`);
+        return false;
+      }
+      return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     const filteredDemosResult = demosData.filter((demo) => {
       const createdAt = new Date(demo.created_at);
-      return createdAt >= filterStartDate && createdAt <= today;
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for demo ID ${demo.id}: ${demo.created_at}`);
+        return false;
+      }
+      return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     setFilteredPosts(filteredPostsResult);
@@ -255,27 +272,43 @@ export default function ReportApp() {
         message: "Dữ liệu hệ thống đã được lọc thành công!",
         type: "success",
       });
+    } else {
+      setNotification({
+        message: "Không tìm thấy dữ liệu cho khoảng thời gian này!",
+        type: "warning",
+      });
     }
   };
 
   const applyUserTimeFilter = (filter, postsData = userPosts, demosData = userDemos) => {
-    const today = new Date("2025-04-13");
-    let filterStartDate;
+    const today = new Date(); // Sử dụng ngày hiện tại
+    let filterStartDate, filterEndDate;
 
     switch (filter) {
       case "today":
         filterStartDate = new Date(today);
+        filterStartDate.setHours(0, 0, 0, 0); // Đầu ngày
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999); // Cuối ngày
         break;
       case "last7days":
         filterStartDate = new Date(today);
         filterStartDate.setDate(today.getDate() - 6);
+        filterStartDate.setHours(0, 0, 0, 0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "last30days":
         filterStartDate = new Date(today);
         filterStartDate.setDate(today.getDate() - 30);
+        filterStartDate.setHours(0, 0, 0, 0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "all":
         filterStartDate = new Date(0);
+        filterEndDate = new Date(today);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       default:
         return;
@@ -283,12 +316,20 @@ export default function ReportApp() {
 
     const filteredPostsResult = postsData.filter((post) => {
       const createdAt = new Date(post.created_at);
-      return createdAt >= filterStartDate && createdAt <= today;
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for post ID ${post.id}: ${post.created_at}`);
+        return false;
+      }
+      return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     const filteredDemosResult = demosData.filter((demo) => {
       const createdAt = new Date(demo.created_at);
-      return createdAt >= filterStartDate && createdAt <= today;
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for demo ID ${demo.id}: ${demo.created_at}`);
+        return false;
+      }
+      return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     setFilteredUserPosts(filteredPostsResult);
@@ -299,6 +340,11 @@ export default function ReportApp() {
       setNotification({
         message: "Dữ liệu cá nhân đã được lọc thành công!",
         type: "success",
+      });
+    } else {
+      setNotification({
+        message: "Không tìm thấy dữ liệu cho khoảng thời gian này!",
+        type: "warning",
       });
     }
   };
@@ -328,14 +374,17 @@ export default function ReportApp() {
       case "week":
         filterStartDate = new Date(startDate);
         filterEndDate = new Date(endDate);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "month":
         filterStartDate = new Date(selectedYear, parseInt(selectedMonth) - 1, 1);
         filterEndDate = new Date(selectedYear, parseInt(selectedMonth), 0);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "year":
         filterStartDate = new Date(selectedYear, 0, 1);
         filterEndDate = new Date(selectedYear, 11, 31);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       default:
         return;
@@ -343,11 +392,19 @@ export default function ReportApp() {
 
     const filteredPostsResult = posts.filter((post) => {
       const createdAt = new Date(post.created_at);
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for post ID ${post.id}: ${post.created_at}`);
+        return false;
+      }
       return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     const filteredDemosResult = demos.filter((demo) => {
       const createdAt = new Date(demo.created_at);
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for demo ID ${demo.id}: ${demo.created_at}`);
+        return false;
+      }
       return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
@@ -385,14 +442,17 @@ export default function ReportApp() {
       case "week":
         filterStartDate = new Date(userStartDate);
         filterEndDate = new Date(userEndDate);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "month":
         filterStartDate = new Date(userSelectedYear, parseInt(userSelectedMonth) - 1, 1);
         filterEndDate = new Date(userSelectedYear, parseInt(userSelectedMonth), 0);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       case "year":
         filterStartDate = new Date(userSelectedYear, 0, 1);
         filterEndDate = new Date(userSelectedYear, 11, 31);
+        filterEndDate.setHours(23, 59, 59, 999);
         break;
       default:
         return;
@@ -400,11 +460,19 @@ export default function ReportApp() {
 
     const filteredUserPostsResult = userPosts.filter((post) => {
       const createdAt = new Date(post.created_at);
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for post ID ${post.id}: ${post.created_at}`);
+        return false;
+      }
       return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
     const filteredUserDemosResult = userDemos.filter((demo) => {
       const createdAt = new Date(demo.created_at);
+      if (isNaN(createdAt.getTime())) {
+        console.warn(`Invalid date for demo ID ${demo.id}: ${demo.created_at}`);
+        return false;
+      }
       return createdAt >= filterStartDate && createdAt <= filterEndDate;
     });
 
@@ -1005,7 +1073,9 @@ export default function ReportApp() {
                                 colSpan="3"
                                 className="px-2 sm:px-3 py-1 sm:py-2 leading-tight text-center text-gray-500 whitespace-nowrap wrap-text"
                               >
-                                Không có dữ liệu
+                                {userTimeFilter === "today"
+                                  ? "Không có bài viết nào trong ngày hôm nay."
+                                  : "Không có dữ liệu"}
                               </td>
                             </tr>
                           )}
@@ -1260,7 +1330,9 @@ export default function ReportApp() {
                                 colSpan="3"
                                 className="px-2 sm:px-3 py-1 sm:py-2 leading-tight text-center text-gray-500 whitespace-nowrap wrap-text"
                               >
-                                Không có dữ liệu
+                                {systemTimeFilter === "today"
+                                  ? "Không có bài viết nào trong ngày hôm nay."
+                                  : "Không có dữ liệu"}
                               </td>
                             </tr>
                           )}

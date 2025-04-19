@@ -9,7 +9,13 @@ import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 
-const purposes = ["Đặt câu hỏi", "Tạo cuộc bình chọn", "Câu đố", "Truyện tranh", "Hành trình"];
+const purposes = [
+  "Đặt câu hỏi",
+  "Tạo cuộc bình chọn",
+  "Câu đố",
+  "Truyện tranh",
+  "Hành trình",
+];
 const MAX_IMAGES = 5;
 
 export default function CreatePost() {
@@ -32,7 +38,7 @@ export default function CreatePost() {
       title: "",
       milestones: [
         {
-          time: new Date().toISOString().split("T")[0], // Default to current date
+          time: new Date().toISOString().split("T")[0],
           description: "",
           status: "Hoàn thành",
         },
@@ -55,8 +61,61 @@ export default function CreatePost() {
   const [tagsList, setTagsList] = useState([]);
   const [tagSuggestions, setTagSuggestions] = useState([]);
   const [livePreview, setLivePreview] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  // Auto-close notifications
+  // Calculate progress based on filled required fields
+  useEffect(() => {
+    const calculateProgress = () => {
+      let totalFields = 0;
+      let filledFields = 0;
+
+      totalFields += 2;
+      if (formData.topics || formData.customTopic) filledFields++;
+      if (formData.tags.length > 0) filledFields++;
+
+      if (selectedPurpose === "Đặt câu hỏi") {
+        formData.questions.forEach((q) => {
+          totalFields += 3;
+          if (q.question) filledFields++;
+          if (q.options[0]) filledFields++;
+          if (q.options[1]) filledFields++;
+        });
+      } else if (selectedPurpose === "Tạo cuộc bình chọn") {
+        totalFields += 3;
+        if (formData.poll.title) filledFields++;
+        if (formData.poll.options[0]) filledFields++;
+        if (formData.poll.options[1]) filledFields++;
+      } else if (selectedPurpose === "Câu đố") {
+        formData.quizzes.forEach((q) => {
+          totalFields += 2;
+          if (q.question) filledFields++;
+          if (q.answer) filledFields++;
+        });
+      } else if (selectedPurpose === "Truyện tranh") {
+        totalFields += 2;
+        if (formData.storyDescription) filledFields++;
+        if (formData.storyType === "Truyện chữ" && formData.storyDoc)
+          filledFields++;
+        if (formData.storyType === "Truyện tranh" && formData.images.length > 0)
+          filledFields++;
+      } else if (selectedPurpose === "Hành trình") {
+        totalFields += 1;
+        if (formData.timeline.title) filledFields++;
+        formData.timeline.milestones.forEach((m) => {
+          totalFields += 2;
+          if (m.time) filledFields++;
+          if (m.description) filledFields++;
+        });
+      }
+
+      const percentage =
+        totalFields > 0 ? (filledFields / totalFields) * 100 : 0;
+      setProgress(Math.round(percentage));
+    };
+
+    calculateProgress();
+  }, [formData, selectedPurpose]);
+
   useEffect(() => {
     if (notifications.length > 0) {
       const timer = setTimeout(() => {
@@ -66,7 +125,6 @@ export default function CreatePost() {
     }
   }, [notifications]);
 
-  // Check login status and fetch topics/tags
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
@@ -96,7 +154,7 @@ export default function CreatePost() {
 
     const handleLogoutEvent = () => {
       setIsLoggedIn(false);
-      resetFormFully();
+      resetForm();
       addNotification("Bạn đã đăng xuất. Vui lòng đăng nhập lại.", "info");
     };
 
@@ -109,10 +167,11 @@ export default function CreatePost() {
     };
   }, []);
 
-  // Suggest tags based on questions, poll, quizzes, timeline, or story description
   useEffect(() => {
     const keywords = [
-      ...formData.questions.flatMap((q) => q.question.toLowerCase().split(/\W+/)),
+      ...formData.questions.flatMap((q) =>
+        q.question.toLowerCase().split(/\W+/)
+      ),
       ...(formData.poll.title.toLowerCase().split(/\W+/) || []),
       ...formData.quizzes.flatMap((q) => q.question.toLowerCase().split(/\W+/)),
       ...(formData.timeline.title.toLowerCase().split(/\W+/) || []),
@@ -164,7 +223,10 @@ export default function CreatePost() {
         { value: "Khác", label: "Khác" },
       ]);
     } catch (err) {
-      addNotification(`Không thể tải danh sách chủ đề: ${err.message}`, "error");
+      addNotification(
+        `Không thể tải danh sách chủ đề: ${err.message}`,
+        "error"
+      );
     }
   };
 
@@ -289,7 +351,10 @@ export default function CreatePost() {
       newQuestions[index].multipleChoice = checked;
       setFormData((prev) => ({ ...prev, questions: newQuestions }));
     } else if (name === "poll-title") {
-      setFormData((prev) => ({ ...prev, poll: { ...prev.poll, title: value } }));
+      setFormData((prev) => ({
+        ...prev,
+        poll: { ...prev.poll, title: value },
+      }));
     } else if (name.startsWith("poll-option")) {
       const index = parseInt(name.split("-")[2], 10);
       const newOptions = [...formData.poll.options];
@@ -412,7 +477,10 @@ export default function CreatePost() {
   const removePollOption = (index) => {
     setFormData((prev) => ({
       ...prev,
-      poll: { ...prev.poll, options: prev.poll.options.filter((_, i) => i !== index) },
+      poll: {
+        ...prev.poll,
+        options: prev.poll.options.filter((_, i) => i !== index),
+      },
     }));
   };
 
@@ -482,7 +550,8 @@ export default function CreatePost() {
           );
           if (!response.ok) throw new Error("Upload failed");
           const data = await response.json();
-          if (!data.secure_url) throw new Error("Không nhận được URL từ Cloudinary");
+          if (!data.secure_url)
+            throw new Error("Không nhận được URL từ Cloudinary");
           return { name: file.name, url: data.secure_url };
         })
       );
@@ -570,7 +639,10 @@ export default function CreatePost() {
     setTopicError("");
     setTagError("");
 
-    if (!formData.topics || (formData.topics === "Khác" && !formData.customTopic)) {
+    if (
+      !formData.topics ||
+      (formData.topics === "Khác" && !formData.customTopic)
+    ) {
       setTopicError("Vui lòng chọn hoặc nhập chủ đề.");
       hasError = true;
     }
@@ -581,7 +653,8 @@ export default function CreatePost() {
     if (
       selectedPurpose === "Đặt câu hỏi" &&
       formData.questions.some(
-        (q) => !q.question || q.options.some((opt) => !opt) || q.options.length < 2
+        (q) =>
+          !q.question || q.options.some((opt) => !opt) || q.options.length < 2
       )
     ) {
       addNotification(
@@ -646,7 +719,10 @@ export default function CreatePost() {
       hasError = true;
     }
     if (!isLoggedIn) {
-      addNotification("Vui lòng đăng nhập để thực hiện hành động này.", "error");
+      addNotification(
+        "Vui lòng đăng nhập để thực hiện hành động này.",
+        "error"
+      );
       hasError = true;
     }
     return hasError;
@@ -665,10 +741,12 @@ export default function CreatePost() {
           topics: finalTopic,
           tags: formData.tags.join(","),
           purpose: selectedPurpose,
-          questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+          questions:
+            selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
           poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
           quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-          storyType: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+          storyType:
+            selectedPurpose === "Truyện tranh" ? formData.storyType : "",
           storyDescription:
             selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
           storyDoc: formData.storyDoc ? formData.storyDoc.url : null,
@@ -711,10 +789,12 @@ export default function CreatePost() {
           topics: finalTopic,
           tags: formData.tags.join(","),
           purpose: selectedPurpose,
-          questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+          questions:
+            selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
           poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
           quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-          storyType: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+          storyType:
+            selectedPurpose === "Truyện tranh" ? formData.storyType : "",
           storyDescription:
             selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
           storyDoc: formData.storyDoc ? formData.storyDoc.url : null,
@@ -775,12 +855,17 @@ export default function CreatePost() {
     setIsUploadingImage(false);
     setIsUploadingFile(false);
     setLivePreview(false);
+    setProgress(0);
+    setNotifications([]);
   };
 
-  const resetFormFully = () => {
-    resetForm();
-    setShowForm(false);
-    setSelectedPurpose("");
+  const handleResetForm = () => {
+    setConfirmAction(() => async () => {
+      resetForm();
+      addNotification("Dữ liệu trong form đã được xóa!", "success");
+      setShowConfirm(false);
+    });
+    setShowConfirm(true);
   };
 
   if (loading) {
@@ -792,7 +877,7 @@ export default function CreatePost() {
   }
 
   return (
-    <div className="p-5 rounded-lg shadow-md text-gray-700 flex flex-col min-h-screen text-sm">
+    <div className="p-5 rounded-lg shadow-md text-gray-700 flex flex-col min-h-screen px-8 text-sm pt-8">
       {notifications.map((notif) => (
         <Notification
           key={notif.id}
@@ -804,7 +889,7 @@ export default function CreatePost() {
 
       {showConfirm && (
         <Confirm
-          message="Bạn có chắc muốn thực hiện hành động này?"
+          message="Bạn có chắc muốn xóa toàn bộ dữ liệu trong form?"
           onConfirm={() => {
             confirmAction();
             setShowConfirm(false);
@@ -812,6 +897,63 @@ export default function CreatePost() {
           onCancel={() => setShowConfirm(false)}
         />
       )}
+
+      {showLoginModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold text-teal-600 mb-4">
+              Vui lòng đăng nhập
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Bạn cần đăng nhập để tạo bài viết. Hãy đăng nhập ngay!
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-all duration-200"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleLoginRedirect}
+                className="bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-200"
+              >
+                Đăng nhập
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-6 flex flex-row items-center justify-between gap-4 bg-gradient-to-r from-teal-500 to-indigo-500 p-4 rounded-lg">
+        <h1 className="text-2xl font-bold text-white">Mẫu bài viết</h1>
+        <div className="relative w-12 h-12">
+          <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
+            <circle
+              cx="24"
+              cy="24"
+              r="22"
+              stroke="#e5e7eb"
+              strokeWidth="4"
+              fill="none"
+            />
+            <circle
+              cx="24"
+              cy="24"
+              r="22"
+              stroke="#22c55e"
+              strokeWidth="4"
+              fill="none"
+              strokeDasharray="138"
+              strokeDashoffset={138 - (progress / 100) * 138}
+              className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
+            />
+          </svg>
+          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
+            {Math.round(progress)}%
+          </span>
+        </div>
+      </div>
 
       <div className="mb-8 flex flex-col md:flex-row items-center justify-center gap-6">
         <div className="w-full md:w-1/3">
@@ -832,9 +974,7 @@ export default function CreatePost() {
       </div>
 
       {showForm && selectedPurpose && (
-        <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
           <form onSubmit={handlePublishPost}>
-            {/* Topic and Tags */}
             <div className="flex flex-col md:flex-row gap-6 mb-8">
               <div className="flex-1 relative">
                 <select
@@ -847,7 +987,11 @@ export default function CreatePost() {
                     Chọn chủ đề
                   </option>
                   {topicsList.map((t) => (
-                    <option key={t.value} value={t.value} className="text-teal-700">
+                    <option
+                      key={t.value}
+                      value={t.value}
+                      className="text-teal-700"
+                    >
                       {t.label}
                     </option>
                   ))}
@@ -887,9 +1031,13 @@ export default function CreatePost() {
                       Chọn tag
                     </option>
                     {tagsList.map((t) => (
-                      <option key={t.value} value={t.value} className="text-teal-700">
+                      <option
+                        key={t.value}
+                        value={t.value}
+                        className="text-teal-700"
+                      >
                         {t.label}
-                    </option>
+                      </option>
                     ))}
                   </select>
                   <label
@@ -954,7 +1102,6 @@ export default function CreatePost() {
               </div>
             </div>
 
-            {/* Questions Section */}
             {selectedPurpose === "Đặt câu hỏi" && (
               <>
                 <div className="mb-8">
@@ -981,14 +1128,16 @@ export default function CreatePost() {
                       </div>
                       <div className="mb-3">
                         <label className="block text-teal-700 font-medium">
-                          Lựa chọn đáp án:
+                          Đáp án:
                         </label>
                         {q.options.map((option, optionIndex) => (
                           <div
-                            key={`form-option-${questionIndex}-${optionIndex}`}
+                            key={`option-${questionIndex}-${optionIndex}`}
                             className="flex items-center gap-2 mb-2"
                           >
-                            <span className="text-teal-700">{optionIndex + 1}.</span>
+                            <span className="text-teal-700">
+                              {optionIndex + 1}.
+                            </span>
                             <input
                               type="text"
                               name={`option-${questionIndex}-${optionIndex}`}
@@ -999,7 +1148,9 @@ export default function CreatePost() {
                             />
                             <button
                               type="button"
-                              onClick={() => removeOption(questionIndex, optionIndex)}
+                              onClick={() =>
+                                removeOption(questionIndex, optionIndex)
+                              }
                               className="text-red-500 hover:text-red-700"
                             >
                               Xóa
@@ -1069,7 +1220,9 @@ export default function CreatePost() {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1106,7 +1259,6 @@ export default function CreatePost() {
               </>
             )}
 
-            {/* Poll Section */}
             {selectedPurpose === "Tạo cuộc bình chọn" && (
               <>
                 <div className="mb-8">
@@ -1166,7 +1318,9 @@ export default function CreatePost() {
                       onChange={handleFormChange}
                       className="mr-2"
                     />
-                    <span className="text-teal-700">Cho phép chọn nhiều đáp án</span>
+                    <span className="text-teal-700">
+                      Cho phép chọn nhiều đáp án
+                    </span>
                   </label>
                 </div>
                 <div className="mb-8">
@@ -1191,7 +1345,9 @@ export default function CreatePost() {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1228,7 +1384,6 @@ export default function CreatePost() {
               </>
             )}
 
-            {/* Quiz Section */}
             {selectedPurpose === "Câu đố" && (
               <>
                 <div className="mb-8">
@@ -1307,7 +1462,9 @@ export default function CreatePost() {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1344,7 +1501,6 @@ export default function CreatePost() {
               </>
             )}
 
-            {/* Story Section */}
             {selectedPurpose === "Truyện tranh" && (
               <>
                 <div className="mb-8">
@@ -1455,7 +1611,9 @@ export default function CreatePost() {
                       {isUploadingImage && (
                         <div className="mt-4 flex items-center">
                           <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                          <span className="text-teal-600">Đang tải hình ảnh...</span>
+                          <span className="text-teal-600">
+                            Đang tải hình ảnh...
+                          </span>
                         </div>
                       )}
                       {formData.images.length > 0 && !isUploadingImage && (
@@ -1494,7 +1652,6 @@ export default function CreatePost() {
               </>
             )}
 
-            {/* Timeline Section */}
             {selectedPurpose === "Hành trình" && (
               <>
                 <div className="mb-8">
@@ -1514,62 +1671,66 @@ export default function CreatePost() {
                   <label className="block text-teal-600 mb-2 font-semibold">
                     Các mốc thời gian:
                   </label>
-                  {formData.timeline.milestones.map((milestone, milestoneIndex) => (
-                    <div
-                      key={`milestone-${milestoneIndex}`}
-                      className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
-                    >
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Mốc thời gian {milestoneIndex + 1}:
-                        </label>
-                        <input
-                          type="date"
-                          name={`milestone-time-${milestoneIndex}`}
-                          value={milestone.time}
-                          onChange={handleFormChange}
-                          className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                        />
+                  {formData.timeline.milestones.map(
+                    (milestone, milestoneIndex) => (
+                      <div
+                        key={`milestone-${milestoneIndex}`}
+                        className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
+                      >
+                        <div className="mb-3">
+                          <label className="block text-teal-700 font-medium">
+                            Mốc thời gian {milestoneIndex + 1}:
+                          </label>
+                          <input
+                            type="date"
+                            name={`milestone-time-${milestoneIndex}`}
+                            value={milestone.time}
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="block text-teal-700 font-medium">
+                            Mô tả:
+                          </label>
+                          <textarea
+                            name={`milestone-description-${milestoneIndex}`}
+                            value={milestone.description}
+                            onChange={handleFormChange}
+                            className="h-16 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                            placeholder="Nhập mô tả mốc thời gian"
+                            rows="4"
+                          />
+                        </div>
+                        <div className="mb-3">
+                          <label className="block text-teal-700 font-medium">
+                            Trạng thái:
+                          </label>
+                          <select
+                            name={`milestone-status-${milestoneIndex}`}
+                            value={milestone.status}
+                            onChange={handleFormChange}
+                            className="h-9 p-2 rounded-lg w-full min-w-[150px] border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                          >
+                            <option value="Hoàn thành">Hoàn thành</option>
+                            <option value="Đang tiến hành">
+                              Đang tiến hành
+                            </option>
+                            <option value="Chưa">Chưa</option>
+                          </select>
+                        </div>
+                        {formData.timeline.milestones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeMilestone(milestoneIndex)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Xóa mốc thời gian
+                          </button>
+                        )}
                       </div>
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Mô tả:
-                        </label>
-                        <textarea
-                          name={`milestone-description-${milestoneIndex}`}
-                          value={milestone.description}
-                          onChange={handleFormChange}
-                          className="h-16 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          placeholder="Nhập mô tả mốc thời gian"
-                          rows="4"
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Trạng thái:
-                        </label>
-                        <select
-                          name={`milestone-status-${milestoneIndex}`}
-                          value={milestone.status}
-                          onChange={handleFormChange}
-                          className="h-9 p-2 rounded-lg w-full min-w-[150px] border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                        >
-                          <option value="Hoàn thành">Hoàn thành</option>
-                          <option value="Đang tiến hành">Đang tiến hành</option>
-                          <option value="Chưa">Chưa</option>
-                        </select>
-                      </div>
-                      {formData.timeline.milestones.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeMilestone(milestoneIndex)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Xóa mốc thời gian
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  )}
                   <button
                     type="button"
                     onClick={addMilestone}
@@ -1600,7 +1761,9 @@ export default function CreatePost() {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1637,220 +1800,41 @@ export default function CreatePost() {
               </>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-4 mt-8">
-              <button
-                type="button"
-                onClick={() => setLivePreview(!livePreview)}
-                className="bg-teal-500 text-white p-4 rounded-full hover:bg-teal-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                title="Xem trước trực tiếp"
-                aria-label="Xem trước trực tiếp"
-              >
-                <FaEye size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="bg-gray-500 text-white p-4 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                title="Lưu bản nháp"
-                aria-label="Lưu bản nháp"
-              >
-                <FaSave size={18} />
-              </button>
-              <button
-                type="submit"
-                className="bg-indigo-500 text-white p-4 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                title="Đăng bài viết"
-                aria-label="Đăng bài viết"
-              >
-                <FaPaperPlane size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmAction(() => () => {
-                    resetFormFully();
-                    addNotification("Đã hủy thành công!", "success");
-                  });
-                  setShowConfirm(true);
-                }}
-                className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-                title="Hủy"
-                aria-label="Hủy"
-              >
-                <FaTrash size={18} />
-              </button>
+            <div className="flex justify-center items-center mt-8 flex-wrap gap-4">
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all duration-200"
+                >
+                  <FaTrash /> Xóa
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                >
+                  <FaSave /> Lưu bản nháp
+                </button>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setLivePreview(!livePreview)}
+                  className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200"
+                >
+                  <FaEye /> {livePreview ? "Tắt xem trước" : "Xem trước"}
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-200"
+                >
+                  <FaPaperPlane /> Đăng bài
+                </button>
+              </div>
             </div>
           </form>
-        </div>
-      )}
-
-      {livePreview && (
-        <div className="mt-8 bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl">
-          <p className="text-gray-600 mb-2">
-            Chủ đề: {formData.topics || formData.customTopic || "Chưa chọn"}
-          </p>
-          {formData.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {formData.tags.map((tag, index) => (
-                <span
-                  key={`${tag}-${index}`}
-                  className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-          {formData.images.length > 0 && (
-            <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {formData.images.map((image, index) => (
-                <div key={`image-${index}`} className="relative">
-                  <Image
-                    src={image.url}
-                    alt={`Uploaded ${image.name}`}
-                    width={100}
-                    height={100}
-                    className="w-full h-24 object-cover rounded-lg"
-                  />
-                  <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                    {truncateFileName(image.name)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-          {selectedPurpose === "Đặt câu hỏi" && formData.questions.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-teal-600">Câu hỏi:</h3>
-              {formData.questions.map((q, index) => (
-                <div key={`preview-question-${index}`} className="mt-2">
-                  <p className="text-gray-700">{q.question}</p>
-                  <ul className="list-disc pl-5">
-                    {q.options.map((opt, optIndex) => (
-                      <li
-                        key={`preview-option-${index}-${optIndex}`}
-                        className="text-gray-600"
-                      >
-                        {opt}
-                      </li>
-                    ))}
-                  </ul>
-                  {q.multipleChoice && (
-                    <p className="text-gray-500 text-sm">
-                      Cho phép chọn nhiều đáp án
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {selectedPurpose === "Tạo cuộc bình chọn" && formData.poll.title && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-teal-600">
-                Cuộc bình chọn:
-              </h3>
-              <p className="text-gray-700">{formData.poll.title}</p>
-              <ul className="list-disc pl-5">
-                {formData.poll.options.map((opt, optIndex) => (
-                  <li
-                    key={`preview-poll-option-${optIndex}`}
-                    className="text-gray-600"
-                  >
-                    {opt}
-                  </li>
-                ))}
-              </ul>
-              {formData.poll.multipleChoice && (
-                <p className="text-gray-500 text-sm">
-                  Cho phép chọn nhiều đáp án
-                </p>
-              )}
-            </div>
-          )}
-          {selectedPurpose === "Câu đố" && formData.quizzes.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-teal-600">Câu đố:</h3>
-              {formData.quizzes.map((q, index) => (
-                <div key={`preview-quiz-${index}`} className="mt-2">
-                  <p className="text-gray-700">{q.question}</p>
-                  <p className="text-gray-600">Đáp án: {q.answer}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          {selectedPurpose === "Truyện tranh" && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-teal-600">Mô tả truyện:</h3>
-              <p className="text-gray-700">
-                {formData.storyDescription || "Chưa có mô tả"}
-              </p>
-              {formData.storyDoc && (
-                <p className="text-gray-600">
-                  <a
-                    href={formData.storyDoc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-teal-600 hover:underline"
-                  >
-                    Word/PDF: {truncateFileName(formData.storyDoc.name)}
-                  </a>
-                </p>
-              )}
-            </div>
-          )}
-          {selectedPurpose === "Hành trình" && formData.timeline.title && (
-            <div className="mt-4">
-              <h3 className="text-lg font-semibold text-teal-600">
-                {formData.timeline.title}
-              </h3>
-              {formData.timeline.milestones.map((milestone, index) => (
-                <div
-                  key={`preview-milestone-${index}`}
-                  className="mt-2 flex items-center"
-                >
-                  <span className="mr-2">
-                    {milestone.status === "Hoàn thành"
-                      ? "✅"
-                      : milestone.status === "Đang tiến hành"
-                      ? "🔄"
-                      : "⏳"}
-                  </span>
-                  <p className="text-gray-700">
-                    <strong>{milestone.time}</strong>: {milestone.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {showLoginModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Yêu cầu đăng nhập
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Vui lòng đăng nhập để tiếp tục.
-            </p>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => setShowLoginModal(false)}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-200"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleLoginRedirect}
-                className="bg-gradient-to-r from-teal-500 to-indigo-500 text-white px-4 py-2 rounded-lg hover:from-teal-600 hover:to-indigo-600 transition duration-200"
-              >
-                Đăng nhập
-              </button>
-            </div>
-          </div>
-        </div>
+      
       )}
     </div>
   );

@@ -196,7 +196,10 @@ export default function PostPage() {
   // Handle sidebar scroll for hiding title and auto-scroll to search input
   useEffect(() => {
     if (showDrafts && searchInputRef.current) {
-      searchInputRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      searchInputRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
       searchInputRef.current.focus();
     }
 
@@ -574,7 +577,6 @@ export default function PostPage() {
     setSelectedTag("");
     setUploadedImages([]);
     setUploadedFiles([]);
-    setUploadedVideos([]);
     setIsUploadingImage(false);
     setIsUploadingFile(false);
     setIsUploadingVideo(false);
@@ -914,52 +916,48 @@ export default function PostPage() {
     return (filled / 5) * 100;
   };
 
-  if (loading) {
+  const renderForm = (formType) => {
+    if (formType === "sample") {
+      return <AvailableSamples onSelectSample={handleUseSample} />;
+    }
+
     return (
-      <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-teal-200 rounded w-1/2"></div>
-          <div className="h-48 bg-teal-100 rounded"></div>
+      <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+        <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg">
+          <h1 className="text-2xl font-bold text-white">Viết bài mới</h1>
+          <div className="relative w-12 h-12">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 48 48"
+              className="absolute"
+            >
+              <circle
+                cx="24"
+                cy="24"
+                r="22"
+                stroke="#e5e7eb"
+                strokeWidth="4"
+                fill="none"
+              />
+              <circle
+                cx="24"
+                cy="24"
+                r="22"
+                stroke="#22c55e"
+                strokeWidth="4"
+                fill="none"
+                strokeDasharray="138"
+                strokeDashoffset={138 - (calculateProgress() / 100) * 138}
+                className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
+              />
+            </svg>
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
+              {Math.round(calculateProgress())}%
+            </span>
+          </div>
         </div>
-      </div>
-    );
-  }
 
-  const renderForm = (formType) => (
-    <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-      <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-t-xl">
-        <h1 className="text-2xl font-bold text-white">
-          {formType === "post" ? "Viết bài mới" : "Tạo mẫu mới"}
-        </h1>
-        <div className="relative w-12 h-12">
-          <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
-            <circle
-              cx="24"
-              cy="24"
-              r="22"
-              stroke="#e5e7eb"
-              strokeWidth="4"
-              fill="none"
-            />
-            <circle
-              cx="24"
-              cy="24"
-              r="22"
-              stroke="#22c55e"
-              strokeWidth="4"
-              fill="none"
-              strokeDasharray="138"
-              strokeDashoffset={138 - (calculateProgress() / 100) * 138}
-              className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
-            />
-          </svg>
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
-            {Math.round(calculateProgress())}%
-          </span>
-        </div>
-      </div>
-
-      {formType === "post" ? (
         <>
           {/* Title Input */}
           <div className="relative mb-8">
@@ -981,7 +979,10 @@ export default function PostPage() {
               Tiêu đề bài viết
             </label>
             {titleError && (
-              <p id="title-error" className="text-red-500 text-sm mt-2 animate-pulse">
+              <p
+                id="title-error"
+                className="text-red-500 text-sm mt-2 animate-pulse"
+              >
                 {titleError}
               </p>
             )}
@@ -1011,7 +1012,10 @@ export default function PostPage() {
               Mô tả bài viết
             </label>
             {contentError && (
-              <p id="content-error" className="text-red-500 text-sm mt-2 animate-pulse">
+              <p
+                id="content-error"
+                className="text-red-500 text-sm mt-2 animate-pulse"
+              >
                 {contentError}
               </p>
             )}
@@ -1061,7 +1065,10 @@ export default function PostPage() {
                 />
               )}
               {topicError && (
-                <p id="topic-error" className="text-red-500 text-sm mt-2 animate-pulse">
+                <p
+                  id="topic-error"
+                  className="text-red-500 text-sm mt-2 animate-pulse"
+                >
                   {topicError}
                 </p>
               )}
@@ -1150,7 +1157,10 @@ export default function PostPage() {
                 </div>
               )}
               {tagError && (
-                <p id="tag-error" className="text-red-500 text-sm mt-2 animate-pulse">
+                <p
+                  id="tag-error"
+                  className="text-red-500 text-sm mt-2 animate-pulse"
+                >
                   {tagError}
                 </p>
               )}
@@ -1224,7 +1234,9 @@ export default function PostPage() {
             )}
 
             {imageError && (
-              <p className="text-red-500 text-sm mt-4 animate-pulse">{imageError}</p>
+              <p className="text-red-500 text-sm mt-4 animate-pulse">
+                {imageError}
+              </p>
             )}
 
             {uploadedImages.length > 0 && (
@@ -1316,48 +1328,48 @@ export default function PostPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-4 mt-8">
-            <button
-              onClick={() => setLivePreview(!livePreview)}
-              className="bg-teal-500 text-white p-4 rounded-full hover:bg-teal-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-              title="Xem trước trực tiếp"
-              aria-label="Xem trước trực tiếp"
-            >
-              <FaEye size={18} />
-            </button>
-            <button
-              onClick={handleSaveDraft}
-              className="bg-gray-500 text-white p-4 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-              title="Lưu bản nháp"
-              aria-label="Lưu bản nháp"
-            >
-              <FaSave size={18} />
-            </button>
-            <button
-              onClick={handlePublish}
-              className="bg-indigo-500 text-white p-4 rounded-full hover:bg-indigo-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-              title="Đăng bài viết"
-              aria-label="Đăng bài viết"
-            >
-              <FaPaperPlane size={18} />
-            </button>
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="bg-red-500 text-white p-4 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-110 shadow-lg flex items-center justify-center"
-              title="Hủy"
-              aria-label="Hủy"
-            >
-              <FaTrash size={18} />
-            </button>
+          <div className="flex justify-center items-center mt-8 flex-wrap gap-4">
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(true)}
+                className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all duration-200"
+                aria-label="Xóa"
+              >
+                <FaTrash /> Xóa
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                aria-label="Lưu bản nháp"
+              >
+                <FaSave /> Lưu bản nháp
+              </button>
+            </div>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setLivePreview(!livePreview)}
+                className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200"
+                aria-label={livePreview ? "Tắt xem trước" : "Xem trước"}
+              >
+                <FaEye /> {livePreview ? "Tắt xem trước" : "Xem trước"}
+              </button>
+              <button
+                type="button"
+                onClick={handlePublish}
+                className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-200"
+                aria-label="Đăng bài"
+              >
+                <FaPaperPlane /> Đăng bài
+              </button>
+            </div>
           </div>
         </>
-      ) : (
-        <div className="mt-8">
-          <AvailableSamples onSelectSample={handleUseSample} />
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderLivePreview = () => (
     <div className="mt-6 w-full p-4">
@@ -1452,6 +1464,17 @@ export default function PostPage() {
       </div>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-teal-200 rounded w-1/2"></div>
+          <div className="h-48 bg-teal-100 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700">
@@ -1598,13 +1621,12 @@ export default function PostPage() {
                       ? "border-b-2 border-teal-500 text-teal-600"
                       : "text-gray-500 hover:text-teal-500"
                   }`}
-                  aria-label="Tạo mẫu mới"
+                  aria-label="Mẫu bài viết"
                 >
-                  Tạo mẫu mới
+                  Mẫu bài viết
                 </button>
               </div>
-
-              {renderForm(activeTab)}
+              <div className="bg-white/90">{renderForm(activeTab)}</div>
 
               {livePreview && activeTab === "post" && renderLivePreview()}
             </div>
@@ -1716,7 +1738,9 @@ export default function PostPage() {
                               <button
                                 onClick={() => handleEditDraft(entry)}
                                 className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
-                                aria-label={`Chỉnh sửa bản nháp ${entry.title || "Không có tiêu đề"}`}
+                                aria-label={`Chỉnh sửa bản nháp ${
+                                  entry.title || "Không có tiêu đề"
+                                }`}
                               >
                                 Chỉnh sửa
                               </button>
@@ -1727,7 +1751,9 @@ export default function PostPage() {
                                   setShowConfirm(true);
                                 }}
                                 className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
-                                aria-label={`Xóa bản nháp ${entry.title || "Không có tiêu đề"}`}
+                                aria-label={`Xóa bản nháp ${
+                                  entry.title || "Không có tiêu đề"
+                                }`}
                               >
                                 Xóa
                               </button>
