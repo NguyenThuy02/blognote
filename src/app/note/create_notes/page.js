@@ -39,11 +39,12 @@ import * as pdfjsLib from "pdfjs-dist";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"; // Dark theme for code highlighting
-import Editor from "@monaco-editor/react"; // Thêm monaco-editor
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import Editor from "@monaco-editor/react"; 
 import axios from 'axios';
 import CryptoJS from "crypto-js";
-import ThemeSettings from "../../components/ThemeSettings"; // Import ThemeSettings
+import ThemeSettings from "../../components/ThemeSettings"; 
+import Dexie from 'dexie';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -62,6 +63,7 @@ const NoteApp = () => {
   const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
   const audioRef = useRef(null);
@@ -75,7 +77,7 @@ const NoteApp = () => {
   const [isUploadingVideo, setIsUploadingVideo] = useState(false); // Trạng thái loading video
   const mediaRecorderRef = useRef(null);
   const audioInputRef = useRef(null); // Ref cho input file âm thanh
-  const recognitionRef = useRef(null); // Ref cho SpeechRecognition
+  const recognitionRef = useRef(null); 
 
   const [fontFamily, setFontFamily] = useState("Verdana");
   const [fontSize, setFontSize] = useState("14pt");
@@ -106,17 +108,13 @@ const NoteApp = () => {
   const [filterMenuVisible, setFilterMenuVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
-
   const [selectedLanguage, setSelectedLanguage] = useState("javascript");
-
+  const [isOffline, setIsOffline] = useState(false);// Thêm state và logic ngoại tuyến
+  const [pendingActions, setPendingActions] = useState([]);
   const videoInputRef = useRef(null); // tải video
-
   const [voicePublicId, setVoicePublicId] = useState("");
-
   const [codeOutput, setCodeOutput] = useState(""); // Lưu kết quả chạy code
   const [visibleNoteTypes, setVisibleNoteTypes] = useState({
-
-
     plain: true,
     rich: true,
     whiteboard: true,
@@ -133,12 +131,164 @@ const NoteApp = () => {
   const emojiPickerRef = useRef(null);
   const filterMenuRef = useRef(null);
   const sortMenuRef = useRef(null);
-
+  
+  // Thêm hàm generateLocalId tại đây
+  const generateLocalId = async () => {
+    const lastNote = await db.notes.orderBy('id').last();
+    const lastId = lastNote ? lastNote.id : 0;
+    return lastId < 0 ? lastId - 1 : -1; // Tạo ID âm tăng dần
+  };
+  
   useEffect(() => {
     fetchNotes();
   }, []);
 
-  // ghi âm 
+  //Thêm useEffect để theo dõi trạng thái mạng
+  useEffect(() => {
+    // Khởi tạo trạng thái ngoại tuyến
+    setIsOffline(!navigator.onLine);
+  
+    // Theo dõi trạng thái mạng
+    const handleOnline = async () => {
+      setIsOffline(false);
+      await syncPendingActions();
+    };
+    const handleOffline = () => setIsOffline(true);
+  
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+  
+    // Lấy ghi chú từ IndexedDB khi khởi động
+    const initOfflineNotes = async () => {
+      try {
+        const offlineNotes = await db.notes.toArray();
+        if (offlineNotes.length > 0) {
+          setNotes(
+            offlineNotes.map(note => {
+              let parsedTodos = [];
+              let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+  
+              // Xử lý parse todos
+              if (note.todos && typeof note.todos === 'string') {
+                try {
+                  parsedTodos = JSON.parse(note.todos);
+                  if (!Array.isArray(parsedTodos)) parsedTodos = [];
+                } catch (e) {
+                  console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+                  parsedTodos = [];
+                }
+              }
+  
+              // Xử lý parse spreadsheet_data
+              if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+                try {
+                  parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+                  if (!Array.isArray(parsedSpreadsheetData)) {
+                    parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                  }
+                } catch (e) {
+                  console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                }
+              }
+  
+              return {
+                ...note,
+                todos: parsedTodos,
+                spreadsheet_data: parsedSpreadsheetData,
+                isPinned: note.isPinned || false,
+                audio_url: note.audio_url || "",
+                video_url: note.video_url || "",
+              };
+            })
+          );
+        } else {
+          fetchNotes();
+        }
+      } catch (err) {
+        console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
+        setError('Không thể tải ghi chú cục bộ: ' + err.message);
+      }
+    };
+  
+    initOfflineNotes();
+  
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Hàm đồng bộ hóa các hành động đang chờ
+  const syncPendingActions = async () => {
+    try {
+      const actions = await db.pendingActions.toArray();
+      for (const action of actions) {
+        const { action: syncAction, noteId, data } = action;
+        if (syncAction === 'create') {
+          const { error } = await supabase2.from('notess').insert([data]).select().single();
+          if (error) throw error;
+          await db.notes.delete(noteId); // Xóa ghi chú tạm thời
+        } else if (syncAction === 'update') {
+          const { error } = await supabase2.from('notess').update(data).eq('id', noteId);
+          if (error) throw error;
+        } else if (syncAction === 'delete') {
+          const { error } = await supabase2.from('notess').delete().eq('id', noteId);
+          if (error) throw error;
+        }
+        await db.pendingActions.delete(action.id); // Xóa hành động đã đồng bộ
+      }
+      setPendingActions([]);
+      await fetchNotes(); // Cập nhật danh sách ghi chú
+    } catch (err) {
+      console.error('Lỗi đồng bộ hóa:', err);
+      setError('Không thể đồng bộ hóa dữ liệu: ' + err.message);
+    }
+  };
+
+      // Khởi tạo IndexedDB với Dexie
+      const db = new Dexie('NoteAppDB');
+      db.version(1).stores({
+        notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,video_url,isPending,syncAction',
+        pendingActions: '++id,action,noteId,data',
+      });
+
+      // Xử lý kéo thả
+    const handleDragStart = (e, index) => {
+      e.dataTransfer.setData("index", index);
+      e.currentTarget.classList.add("dragging");
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = (e, dropIndex) => {
+      e.preventDefault();
+      const dragIndex = e.dataTransfer.getData("index");
+      const newTodos = [...todos];
+      const [draggedTodo] = newTodos.splice(dragIndex, 1);
+      newTodos.splice(dropIndex, 0, draggedTodo);
+      setTodos(newTodos);
+      document.querySelectorAll(".dragging").forEach((el) => el.classList.remove("dragging"));
+    };
+
+    // Xử lý chỉnh sửa công việc
+    const handleEditTodo = (index) => {
+      const todo = todos[index];
+      setContent(todo.text);
+      setReminderTime(todo.reminder || "");
+      setTodos(todos.filter((_, i) => i !== index)); // Xóa tạm thời công việc để chỉnh sửa
+    };
+
+    // Xử lý xóa công việc
+    const handleDeleteTodo = (index) => {
+      if (confirm("Bạn có chắc muốn xóa công việc này không?")) {
+        setTodos(todos.filter((_, i) => i !== index));
+      }
+    };
+    
+      // ghi âm 
       useEffect(() => {
         // Khởi tạo SpeechRecognition
         if (typeof window !== "undefined" && window.SpeechRecognition) {
@@ -240,6 +390,53 @@ const NoteApp = () => {
   }, []);
 
   const fetchNotes = async () => {
+    if (isOffline) {
+      try {
+        const offlineNotes = await db.notes.toArray();
+        setNotes(
+          offlineNotes.map(note => {
+            let parsedTodos = [];
+            let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+  
+            if (note.todos && typeof note.todos === 'string') {
+              try {
+                parsedTodos = JSON.parse(note.todos);
+                if (!Array.isArray(parsedTodos)) parsedTodos = [];
+              } catch (e) {
+                console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+                parsedTodos = [];
+              }
+            }
+  
+            if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+              try {
+                parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+                if (!Array.isArray(parsedSpreadsheetData)) {
+                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                }
+              } catch (e) {
+                console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+                parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+              }
+            }
+  
+            return {
+              ...note,
+              todos: parsedTodos,
+              spreadsheet_data: parsedSpreadsheetData,
+              isPinned: note.isPinned || false,
+              audio_url: note.audio_url || "",
+              video_url: note.video_url || "",
+            };
+          }) || []
+        );
+      } catch (err) {
+        console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
+        setError('Không thể tải ghi chú cục bộ: ' + err.message);
+      }
+      return;
+    }
+  
     try {
       const { data, error } = await supabase2
         .from("notess")
@@ -252,48 +449,52 @@ const NoteApp = () => {
         throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
       }
   
-      setNotes(
-        data.map((note) => {
-          let parsedTodos = [];
-          let parsedSpreadsheetData = Array(10)
-            .fill()
-            .map(() => Array(10).fill(""));
+      const parsedNotes = data.map((note) => {
+        let parsedTodos = [];
+        let parsedSpreadsheetData = Array(10)
+          .fill()
+          .map(() => Array(10).fill(""));
   
-          if (note.todos) {
-            try {
-              parsedTodos = JSON.parse(note.todos);
-              if (!Array.isArray(parsedTodos)) parsedTodos = [];
-            } catch (e) {
-              console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
-              parsedTodos = [];
-            }
+        if (note.todos && typeof note.todos === 'string') {
+          try {
+            parsedTodos = JSON.parse(note.todos);
+            if (!Array.isArray(parsedTodos)) parsedTodos = [];
+          } catch (e) {
+            console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+            parsedTodos = [];
           }
+        }
   
-          if (note.spreadsheet_data) {
-            try {
-              parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-              if (!Array.isArray(parsedSpreadsheetData))
-                parsedSpreadsheetData = Array(10)
-                  .fill()
-                  .map(() => Array(10).fill(""));
-            } catch (e) {
-              console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+        if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+          try {
+            parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+            if (!Array.isArray(parsedSpreadsheetData))
               parsedSpreadsheetData = Array(10)
                 .fill()
                 .map(() => Array(10).fill(""));
-            }
+          } catch (e) {
+            console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+            parsedSpreadsheetData = Array(10)
+              .fill()
+              .map(() => Array(10).fill(""));
           }
+        }
   
-          return {
-            ...note,
-            todos: parsedTodos,
-            spreadsheet_data: parsedSpreadsheetData,
-            isPinned: false,
-            audio_url: note.audio_url || "",
-            video_url: note.video_url || "", // Thêm video_url
-          };
-        }) || []
-      );
+        return {
+          ...note,
+          todos: parsedTodos,
+          spreadsheet_data: parsedSpreadsheetData,
+          isPinned: false,
+          audio_url: note.audio_url || "",
+          video_url: note.video_url || "",
+        };
+      }) || [];
+  
+      setNotes(parsedNotes);
+  
+      // Lưu vào IndexedDB để sử dụng ngoại tuyến
+      await db.notes.clear();
+      await db.notes.bulkPut(parsedNotes);
     } catch (err) {
       console.error("Chi tiết lỗi khi lấy ghi chú:", err);
       setError("Không thể tải ghi chú: " + (err.message || "Lỗi không xác định"));
@@ -364,6 +565,7 @@ const NoteApp = () => {
         content: content.trim(),
         image_url: imageUrl,
         updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         note_type: currentNoteType,
         font_style: fontStyle,
         font_size: fontSize,
@@ -372,16 +574,67 @@ const NoteApp = () => {
         text_align: textAlign,
         text_color: textColor,
         background_color: backgroundColor,
-        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
+        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos || []) : null,
         spreadsheet_data:
           currentNoteType === "spreadsheet"
-            ? JSON.stringify(spreadsheetData)
+            ? JSON.stringify(spreadsheetData || Array(10).fill().map(() => Array(10).fill("")))
             : null,
         classification,
         category_id: categoryMap[category] || 1,
         audio_url: audioUrl || null,
-        video_url: videoUrl || null, // Lưu video_url cho tất cả loại ghi chú
+        video_url: videoUrl || null,
       };
+  
+      if (isOffline) {
+        // Sử dụng generateLocalId thay vì random
+        const localId = editingId !== null ? editingId : await generateLocalId();
+        await db.notes.put({
+          ...noteData,
+          id: localId,
+          isPending: true,
+          syncAction: editingId !== null ? 'update' : 'create',
+        });
+        await db.pendingActions.put({
+          action: editingId !== null ? 'update' : 'create',
+          noteId: localId,
+          data: noteData,
+        });
+        setNotes((prev) => {
+          const updatedNotes = editingId !== null
+            ? prev.map((note) =>
+                note.id === editingId
+                  ? {
+                      ...note,
+                      ...noteData,
+                      todos: noteData.todos ? JSON.parse(noteData.todos) : [],
+                      spreadsheet_data: noteData.spreadsheet_data
+                        ? JSON.parse(noteData.spreadsheet_data)
+                        : Array(10)
+                            .fill()
+                            .map(() => Array(10).fill("")),
+                    }
+                  : note
+              )
+            : [
+                {
+                  ...noteData,
+                  id: localId,
+                  isPinned: false,
+                  todos: noteData.todos ? JSON.parse(noteData.todos) : [],
+                  spreadsheet_data: noteData.spreadsheet_data
+                    ? JSON.parse(noteData.spreadsheet_data)
+                    : Array(10)
+                        .fill()
+                        .map(() => Array(10).fill("")),
+                },
+                ...prev,
+              ];
+          return updatedNotes;
+        });
+        resetForm();
+        setError('Ghi chú đã được lưu cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
   
       if (editingId !== null) {
         const { data, error } = await supabase2
@@ -396,6 +649,7 @@ const NoteApp = () => {
             note.id === editingId ? { ...note, ...data } : note
           )
         );
+        await db.notes.put({ ...data, todos: data.todos ? JSON.stringify(data.todos) : null, spreadsheet_data: data.spreadsheet_data ? JSON.stringify(data.spreadsheet_data) : null });
       } else {
         const { data, error } = await supabase2
           .from("notess")
@@ -404,6 +658,7 @@ const NoteApp = () => {
           .single();
         if (error) throw error;
         setNotes([{ ...data, isPinned: false }, ...notes]);
+        await db.notes.put({ ...data, todos: data.todos ? JSON.stringify(data.todos) : null, spreadsheet_data: data.spreadsheet_data ? JSON.stringify(data.spreadsheet_data) : null });
       }
   
       resetForm();
@@ -417,12 +672,25 @@ const NoteApp = () => {
   const handleDeleteNote = async (noteId) => {
     if (!confirm("Bạn có chắc muốn xóa ghi chú này không?")) return;
     try {
+      if (isOffline) {
+        await db.notes.delete(noteId);
+        await db.pendingActions.put({
+          action: 'delete',
+          noteId,
+          data: null,
+        });
+        setNotes(notes.filter((note) => note.id !== noteId));
+        setError('Ghi chú đã được xóa cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
+
       const { error } = await supabase2
         .from("notess")
         .delete()
         .eq("id", noteId);
       if (error) throw error;
       setNotes(notes.filter((note) => note.id !== noteId));
+      await db.notes.delete(noteId);
       setError("");
     } catch (err) {
       console.error("Error deleting note:", err);
@@ -432,60 +700,73 @@ const NoteApp = () => {
     }
   };
 
-  const handleEditNote = (note) => {
-  setTitle(note.title);
-  setContent(note.content || "");
-  setUploadedImages(note.image_url ? [note.image_url] : []);
-  setEditingId(note.id);
-  setCurrentNoteType(note.note_type || "rich");
-  setFontFamily(note.font_family || "Verdana");
-  setFontSize(note.font_size || "14pt");
-  setFontWeight(note.font_weight || "normal");
-  setFontStyle(note.font_style || "normal");
-  setTextAlign(note.text_align || "left");
-  setTextColor(note.text_color || "#000000");
-  setBackgroundColor(note.background_color || "#ffffff");
-  setTodos(note.todos || []);
-  setSpreadsheetData(
-    note.spreadsheet_data ||
-      Array(10)
-        .fill()
-        .map(() => Array(10).fill(""))
-  );
-  setSpreadsheetHistory([
-    JSON.parse(
-      JSON.stringify(
-        note.spreadsheet_data ||
-          Array(10)
-            .fill()
-            .map(() => Array(10).fill(""))
-      )
-    ),
-  ]);
-  setHistoryIndex(0);
-  setImageUploadVisible(
-    note.note_type !== "plain" &&
-      note.note_type !== "markdown" &&
-      note.note_type !== "voice"
-  );
-  setVoiceUrl(note.voice_url || "");
-  setVideoUrl(note.video_url || "");
-  setAudioUrl(note.audio_url || "");
-
-  const reverseCategoryMap = {
-    1: "Personal",
-    2: "Study",
-    3: "Entertainment",
-    4: "Upload",
-  };
-  setCategory(reverseCategoryMap[note.category_id] || "Personal");
-
-  setError("");
-
-  if (noteFormRef.current) {
-    noteFormRef.current.scrollIntoView({ behavior: "smooth" });
-  }
-};
+    const handleEditNote = (note) => {
+      setTitle(note.title);
+      setContent(note.content || "");
+      setUploadedImages(note.image_url ? [note.image_url] : []);
+      setEditingId(note.id);
+      setCurrentNoteType(note.note_type || "rich");
+      setFontFamily(note.font_family || "Verdana");
+      setFontSize(note.font_size || "14pt");
+      setFontWeight(note.font_weight || "normal");
+      setFontStyle(note.font_style || "normal");
+      setTextAlign(note.text_align || "left");
+      setTextColor(note.text_color || "#000000");
+      setBackgroundColor(note.background_color || "#ffffff");
+    
+      let parsedTodos = [];
+      if (note.todos && typeof note.todos === 'string') {
+        try {
+          parsedTodos = JSON.parse(note.todos);
+          if (!Array.isArray(parsedTodos)) parsedTodos = [];
+        } catch (e) {
+          console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+          parsedTodos = [];
+        }
+      }
+      setTodos(parsedTodos);
+    
+      let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+      if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+        try {
+          parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+          if (!Array.isArray(parsedSpreadsheetData)) {
+            parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+          }
+        } catch (e) {
+          console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+          parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+        }
+      }
+      setSpreadsheetData(parsedSpreadsheetData);
+    
+      setSpreadsheetHistory([
+        JSON.parse(JSON.stringify(parsedSpreadsheetData)),
+      ]);
+      setHistoryIndex(0);
+      setImageUploadVisible(
+        note.note_type !== "plain" &&
+        note.note_type !== "markdown" &&
+        note.note_type !== "voice"
+      );
+      setVoiceUrl(note.voice_url || "");
+      setVideoUrl(note.video_url || "");
+      setAudioUrl(note.audio_url || "");
+    
+      const reverseCategoryMap = {
+        1: "Personal",
+        2: "Study",
+        3: "Entertainment",
+        4: "Upload",
+      };
+      setCategory(reverseCategoryMap[note.category_id] || "Personal");
+    
+      setError("");
+    
+      if (noteFormRef.current) {
+        noteFormRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    };
 
     const resetForm = () => {
       setTitle("");
@@ -524,44 +805,52 @@ const NoteApp = () => {
       setVideoUrl("");
       setAudioUrl("");
       setIsUploadingVideo(false);
-      setVoicePublicId(""); // Thêm dòng này
+      setVoicePublicId("");
     };
 
-  const handleExportNotes = () => {
-    const text = notes
-      .map((note) => {
-        let contentStr = "";
-        if (note.note_type === "whiteboard" && note.todos) {
-          contentStr = note.todos
-            .map(
-              (t) =>
-                `${t.completed ? "[x]" : "[ ]"} ${t.text} ${
-                  t.reminder ? `(Nhắc nhở: ${t.reminder})` : ""
-                }`
-            )
-            .join("\n");
-        } else if (note.note_type === "spreadsheet" && note.spreadsheet_data) {
-          contentStr = note.spreadsheet_data
-            .map((row) => row.join("\t"))
-            .join("\n");
-        } else {
-          contentStr = note.content;
+    const handleExportNotes = () => {
+      if (!title.trim()) {
+        setError("Vui lòng nhập tiêu đề trước khi xuất.");
+        return;
+      }
+    
+      let contentStr = "";
+      if (currentNoteType === "whiteboard" && todos.length > 0) {
+        contentStr = todos
+          .map(
+            (t) =>
+              `${t.completed ? "[x]" : "[ ]"} ${t.text} ${
+                t.reminder ? `(Nhắc nhở: ${t.reminder})` : ""
+              }`
+          )
+          .join("\n");
+      } else if (currentNoteType === "spreadsheet" && spreadsheetData.length > 0) {
+        contentStr = spreadsheetData.map((row) => row.join("\t")).join("\n");
+      } else if (currentNoteType === "markdown" || currentNoteType === "rich" || currentNoteType === "plain" || currentNoteType === "voice") {
+        if (!content.trim() && !videoUrl && !audioUrl) {
+          setError("Vui lòng nhập nội dung, video hoặc âm thanh trước khi xuất.");
+          return;
         }
-        return `Tiêu đề: ${
-          note.title
-        }\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date(
-          note.updated_at
-        ).toLocaleString()}\n---\n`;
-      })
-      .join("\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const link = document.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = link;
-    a.download = "ghi-chu.txt";
-    a.click();
-    setExtraMenuVisible(false);
-  };
+        contentStr = content;
+        if (videoUrl) {
+          contentStr += `\nVideo URL: ${videoUrl}`;
+        }
+        if (audioUrl) {
+          contentStr += `\nAudio URL: ${audioUrl}`;
+        }
+      }
+    
+      const text = `Tiêu đề: ${title}\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date().toLocaleString()}`;
+      const blob = new Blob([text], { type: "text/plain" });
+      const link = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = link;
+      a.download = `${title || "ghi-chu"}.txt`;
+      a.click();
+      URL.revokeObjectURL(link); // Giải phóng URL
+      setExtraMenuVisible(false);
+      setError("");
+    };
 
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -825,7 +1114,7 @@ const NoteApp = () => {
     }
   };
 
-  // hàm xóa ghi âm 
+  // hàm xóa ghi âm "lỗi"
   const handleDeleteVoice = async () => {
     if (isRecording) {
       stopRecording();
@@ -881,7 +1170,6 @@ const NoteApp = () => {
         setError("Không thể xóa file: " + err.message);
       }
     } else {
-      // Xóa cục bộ nếu không có public_id
       if (editingId !== null) {
         try {
           const { error: supabaseError } = await supabase2
@@ -941,7 +1229,7 @@ const NoteApp = () => {
         "rich",
         "whiteboard",
         "spreadsheet",
-        "markdown", // Thêm markdown vào thứ tự
+        "markdown", 
       ];
       const aIndex = order.indexOf(a.note_type);
       const bIndex = order.indexOf(b.note_type);
@@ -955,8 +1243,8 @@ const NoteApp = () => {
   });
 
   const emojiList = [
-    "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓",
-    "😇", "🥳", "😂", "🤗", "😢", "😭", "😡", "😤", "😱", "😳",
+    "😃", "😄", "😊", "😂", "🤗", "😜", "😎", "😍", "🥰", "😘", 
+    "😇", "🥳", "🥲", "😢", "😭", "😡", "😤", "😱", "😳", "🥱",
     "🤔", "🙄", "😴", "🤤", "🤓", "👍", "👎", "👏", "🙌", "✋",
     "👊", "✌️", "🤝", "🙏", "💪", "👀", "👉", "❤️", "💕", "💖", 
     "💚", "💛", "💜", "🖤", "💔", "💘", "💙", "✨", "⭐", "🌟", 
@@ -972,11 +1260,24 @@ const NoteApp = () => {
     { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
     { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
     { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-    { name: "Câu Chuyện Nếu Như", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743346199/CauChuyenNeuNhu-Superluckyqi-5991519_q3a4ns.mp3" },
-    { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
-    { name: "Âm thanh của nỗi nhớ anh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345471/AmThanhCuaNoiNhoAnh-VK-6817533_r5gro0.mp3" },
-    { name: "Sự nghiệp chướng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345196/htptrtnfix_gvyo3k.mp3"},
-    { name: "Show Ra Cho Em Xem", url: ""},
+    { name: "1. Âm thanh của nỗi nhớ anh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345471/AmThanhCuaNoiNhoAnh-VK-6817533_r5gro0.mp3" },
+    { name: "2. Bất công", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375496/BatCong-TranTuTinh-6962563_iqytb7.mp3"},
+    { name: "3. Chấp mê bất ngộ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374132/ChapMeBatNgo-VuongNhiLang-7519346_jyfe2a.mp3"},
+    { name: "4. Câu Chuyện Nếu Như", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743346199/CauChuyenNeuNhu-Superluckyqi-5991519_q3a4ns.mp3" },
+    { name: "5. Nếu tình yêu đã lãng quên", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375063/qqrnzgok2q_i0bbh2.mp3"},
+    { name: "6. Trạm khí tượng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374818/TramKhiTuong-Uu-7005868_o8zuwp.mp3"},
+    { name: "7. Thôi hãy quên đi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375267/ThoiHayQuenDi-1K-7220980_mjg5mw.mp3"},
+    { name: "8. Trang giấy cuối cùng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376051/TrangGiayCuoiCung-YCCCC-7513473_xlqrkv.mp3"},
+    { name: "9. Giày cao gót màu đỏ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374688/GiayCaoGotMauDo-ChuLoi-5750670_wstchg.mp3" },
+    { name: "10. Thanh trừ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376187/ThanhTru-VuongHanThanAmandaToTinhTiep-6932215_sysstg.mp3"},
+    { name: "11. Ngu hề thán", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377421/NguHeThanDJThamNiemRemix-VanNhanThinhThuYiXiaoJiangHu-6758883_u6t9xi.mp3"},
+    { name: "12. Ngấm lạnh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376411/NgamLanh-TuyetNhiXueEr-6897488_va6kyj.mp3"},
+    { name: "13. sau khi anh đi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377091/SauKhiAnhDiCover-LuLuMauImLang-6651494_zhvsvt.mp3"},
+    { name: "14. Quên rồi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376782/QuenRoi-ChuLamPhong-8853506_f3dcha.mp3"},
+    { name: "15. không thán hề", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377259/KhongThanHe-NgaoThatGiaAoQiYe-7008255_muukkq.mp3"},
+    { name: "16. Tứ ngã", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745486436/TungaBanChoTa-NhatChiBachDuongYiZhiBaiYang-8291706_cklfkp.mp3"},
+    { name: "17. Tiếng trăng rơi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745486710/TiengTrangRoi-HuaLamTamXuLanXin-8019659_nshajo.mp3"},
+    { name: "1. Sự nghiệp chướng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345196/htptrtnfix_gvyo3k.mp3"},
   ];
 
   const languageOptions = [
@@ -1088,14 +1389,12 @@ const NoteApp = () => {
 
     let codeToRun, language;
     if (codeBlocks.length > 0) {
-      // Lấy khối code tương ứng với ngôn ngữ được chọn
       const selectedBlock = codeBlocks.find(
         (block) => block.language === selectedLanguage
-      ) || codeBlocks[codeBlocks.length - 1]; // Fallback về khối cuối
+      ) || codeBlocks[codeBlocks.length - 1];
       codeToRun = selectedBlock.code;
       language = selectedBlock.language;
     } else {
-      // Nếu không có khối code, lấy toàn bộ nội dung
       codeToRun = normalizedContent.split("\n").join("\n").trim();
       language = selectedLanguage;
       if (!codeToRun) {
@@ -1108,7 +1407,7 @@ const NoteApp = () => {
 
     let output = "";
     if (language === "javascript") {
-      // Chạy JavaScript cục bộ
+      // Chạy JavaScript cục bộ (phần markdown)
       const originalConsoleLog = console.log;
       console.log = (...args) => {
         output += args.join(" ") + "\n";
@@ -1173,7 +1472,6 @@ const NoteApp = () => {
           mediaRecorderRef.current.onstop = async () => {
             const blob = new Blob(chunks, { type: "audio/webm" });
             // Không lưu blob hay URL vì bản ghi âm sẽ bị xóa sau khi chuyển đổi
-            // Giải phóng stream
             mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
           };
       
@@ -1192,13 +1490,12 @@ const NoteApp = () => {
         if (mediaRecorderRef.current) {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
-          // Xóa các state liên quan đến ghi âm
           setVoiceBlob(null);
           setVoiceUrl("");
           setVoicePublicId("");
         }
         if (recognitionRef.current) {
-          recognitionRef.current.stop(); // Dừng Speech-to-Text
+          recognitionRef.current.stop(); 
         }
       };
 
@@ -1235,7 +1532,7 @@ const NoteApp = () => {
         if (file.size > 50 * 1024 * 1024) {
           throw new Error("Video quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
         }
-        setIsUploadingVideo(true); // Bắt đầu loading
+        setIsUploadingVideo(true); // load
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", "blognote");
@@ -1251,13 +1548,41 @@ const NoteApp = () => {
       } catch (err) {
         setError("Không thể tải lên video: " + err.message);
       } finally {
-        setIsUploadingVideo(false); // Kết thúc loading
+        setIsUploadingVideo(false); 
       }
     };
+
+        // dịch ngôn ngữ (lỗi)
+        const handleTranslate = async () => {
+          if (!content.trim()) {
+            setError("Vui lòng nhập nội dung để dịch.");
+            return;
+          }
+          if (!translateTo) {
+            setError("Vui lòng chọn ngôn ngữ để dịch.");
+            return;
+          }
       
+          try {
+            const response = await fetch(
+              `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${translateTo}&dt=t&q=${encodeURIComponent(
+                content
+              )}`
+            );
+            const data = await response.json();
+            const translatedText = data[0][0][0];
+            setContent(translatedText);
+            setError("");
+            setExtraMenuVisible(false);
+          } catch (err) {
+            console.error("Error translating text:", err);
+            setError("Không thể dịch nội dung. Vui lòng thử lại.");
+          }
+        };
+
   return (
-    <div className="text-gray-700">
-<div ref={noteFormRef} className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
+    <div className="w-full min-h-screen note-app-container" style={{ color: 'var(--text-color)' }}>
+   <div ref={noteFormRef} className="mt-[96px] p-4 w-full border border-gray-300 rounded-lg shadow-lg">
   <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
     BlogNote - Ghi chú
   </h1>
@@ -1266,7 +1591,7 @@ const NoteApp = () => {
     placeholder="Tiêu đề ghi chú"
     value={title}
     onChange={(e) => setTitle(e.target.value)}
-    className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
+    className="w-full border-2 border-gray-300 p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
         />
 
         <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
@@ -1305,7 +1630,7 @@ const NoteApp = () => {
                 </button>
                 <button
                   className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
-                  onClick={() => handleNoteTypeChange("markdown")} // Sửa thành handleNoteTypeChange
+                  onClick={() => handleNoteTypeChange("markdown")} 
                 >
                   💻 Ghi chú Markdown/Code
                 </button>
@@ -1467,12 +1792,15 @@ const NoteApp = () => {
                   <FaFileExport /> Xuất File
                 </button>
                 <div className="relative">
-                  <button
-                    onClick={handleTranslate}
-                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                <button
+                onClick={handleTranslate}
+                   className={`dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200 ${
+                       isOffline ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+                disabled={isOffline}
                   >
-                    <FaLanguage /> Dịch
-                  </button>
+                <FaLanguage /> Dịch
+              </button>
                 </div>
                 <div className="relative" ref={translateMenuRef}>
                   <button
@@ -1657,7 +1985,7 @@ const NoteApp = () => {
               placeholder="Nội dung ghi chú"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
+              className="w-full h-119 border-2 border-gray-300 p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
               style={{
                 fontFamily: currentNoteType === "rich" ? fontFamily : "Verdana",
                 fontSize: currentNoteType === "rich" ? fontSize : "14pt",
@@ -1672,7 +2000,7 @@ const NoteApp = () => {
           </>
         ) : currentNoteType === "whiteboard" ? (
           <div className="mb-4">
-            {/* Thanh công cụ định dạng cho loại ghi chú whiteboard */}
+            {/* Thanh công cụ cho loại ghi chú */}
             <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
               <select
                 value={fontFamily}
@@ -1842,7 +2170,17 @@ const NoteApp = () => {
             </div>
             <ul className="space-y-2">
               {todos.map((todo, index) => (
-                <li key={index} className="flex items-center gap-2">
+                <li
+                  key={index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition duration-200 cursor-move"
+                >
+                  <div className="flex-shrink-0">
+                  <FaBars className="text-gray-500 mr-2" /> {/* Biểu tượng kéo thả */}
+                  </div>
                   <input
                     type="checkbox"
                     checked={todo.completed}
@@ -1850,7 +2188,7 @@ const NoteApp = () => {
                     className="w-5 h-5"
                   />
                   <span
-                    className={todo.completed ? "line-through text-gray-500" : ""}
+                    className={`flex-grow ${todo.completed ? "line-through text-gray-500" : ""}`}
                     style={{
                       fontFamily: fontFamily,
                       fontSize: fontSize,
@@ -1865,10 +2203,25 @@ const NoteApp = () => {
                   </span>
                   {todo.reminder && (
                     <small className="ml-2 text-gray-500 flex items-center">
-                      <FaBell className="mr-1" /> (Nhắc nhở:{" "}
-                      {new Date(todo.reminder).toLocaleString()})
+                      <FaBell className="mr-1" /> (Nhắc nhở: {new Date(todo.reminder).toLocaleString()})
                     </small>
                   )}
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={() => handleEditTodo(index)}
+                      className="text-green-600 hover:text-green-800 transition duration-200"
+                      title="Sửa công việc"
+                    >
+                      <FaEdit />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTodo(index)}
+                      className="text-red-500 hover:text-red-700 transition duration-200"
+                      title="Xóa công việc"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -2308,7 +2661,7 @@ const NoteApp = () => {
                         placeholder="Nội dung được chuyển từ giọng nói sẽ hiển thị ở đây..."
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
+                        className="w-full h-100 border-2 border-gray-300 p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
                         style={{
                           fontFamily,
                           fontSize,
@@ -2323,7 +2676,7 @@ const NoteApp = () => {
           ) : currentNoteType === "markdown" ? (
           <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Khung bên trái: Trình chỉnh sửa Markdown với monaco-editor */}
-            <div className="border border-gray-300 rounded-xl p-4 bg-white h-56 overflow-y-auto">
+            <div className="border border-gray-300 rounded-xl p-4 bg-white h-135 overflow-y-auto">
               <div className="flex justify-between items-center mb-2">
                 <select
                   value={selectedLanguage}
@@ -2763,54 +3116,55 @@ const NoteApp = () => {
         </div>
 
         <style jsx>{`
+          :global(.note-app-container) {
+            background-color: var(--background);
+            width: 100%;
+            min-height: 100vh;
+          }
           .menu-btn {
-            background: linear-gradient(135deg, #6aa8ff, #b57edc);
-            color: white;
+            background: var(--accent-color, linear-gradient(135deg, #6aa8ff, #b57edc));
+            color: var(--text-color, white);
             font-size: 16px;
             font-weight: 500;
-            border: none;
+            border: 1px solid var(--border-color, transparent);
             outline: none;
             cursor: pointer;
           }
           .menu-btn:hover {
-            background: linear-gradient(135deg, #b57edc, #6aa8ff);
+            background: var(--accent-color, linear-gradient(135deg, #b57edc, #6aa8ff));
             transform: scale(1.05);
+            border-color: var(--border-color, #b57edc);
           }
           .menu-dropdown {
+            background: var(--background);
+            border: 1px solid var(--border-color, #e5e7eb);
             opacity: 1;
             transform: translateY(0);
           }
-        .dropdown-item {
-          background: none;
-          border: none;
-          color: #333;
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.3s ease-in-out;
-          position: relative;
-        }
-
-        .dropdown-item:hover {
-          background: linear-gradient(
-            to right,
-            #e8e1ff,
-            #d6eaff
-          ); /* Gradient từ tím nhạt sang xanh nhạt */
-          color: #6aa8ff; /* Màu chữ khi hover */
-          box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3); /* Bóng đổ với màu xanh nhạt */
-          transform: translateY(-3px) scale(1.02); /* Nâng lên và phóng to nhẹ */
-          animation: bounce 0.4s ease infinite alternate; /* Hiệu ứng nảy nhẹ */
-        }
-
-        /* Hiệu ứng nảy sinh động */
-        @keyframes bounce {
-          0% {
+          .dropdown-item {
+            background: none;
+            border: none;
+            color: var(--text-color, #333);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease-in-out;
+            position: relative;
+          }
+          .dropdown-item:hover {
+            background: var(--accent-color, linear-gradient(to right, #e8e1ff, #d6eaff));
+            color: var(--text-color, #6aa8ff);
+            box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3);
             transform: translateY(-3px) scale(1.02);
+            animation: bounce 0.4s ease infinite alternate;
           }
-          100% {
-            transform: translateY(-5px) scale(1.02);
+          @keyframes bounce {
+            0% {
+              transform: translateY(-3px) scale(1.02);
+            }
+            100% {
+              transform: translateY(-5px) scale(1.02);
+            }
           }
-        }
           @keyframes slideDown {
             from {
               opacity: 0;
@@ -2822,7 +3176,7 @@ const NoteApp = () => {
             }
           }
           .dropdown-item:hover {
-            color: #2563eb;
+            color: var(--text-color, #2563eb);
           }
           .animate-slide-in {
             animation: slideIn 0.3s ease-in-out;
@@ -2837,7 +3191,60 @@ const NoteApp = () => {
               transform: translateX(0);
             }
           }
+          /* Cập nhật các thành phần giao diện khác */
+          .text-gray-700 {
+            color: var(--text-color, #374151);
+          }
+          .border-gray-300 {
+            border-color: var(--border-color, #d1d5db);
+          }
+          .bg-white {
+            background-color: var(--background);
+          }
+          .bg-gray-100 {
+            background-color: var(--background);
+          }
+          .bg-blue-50 {
+            background-color: var(--background);
+          }
+          .bg-gray-50 {
+            background-color: var(--background);
+          }
+          .text-blue-600 {
+            color: var(--text-color, #2563eb);
+          }
+          .text-purple-600 {
+            color: var(--text-color, #7c3aed);
+          }
+          .focus\\:border-blue-400:focus {
+            border-color: var(--border-color, #3b82f6);
+          }
+          .focus\\:ring-blue-300:focus {
+            --tw-ring-color: var(--border-color, #93c5fd);
+          }
+          .hover\\:bg-blue-100:hover {
+            background-color: var(--background);
+          }
+          .bg-blue-200 {
+            background-color: var(--background);
+          }
+          .bg-gray-200 {
+            background-color: var(--background);
+          }
+
+          li[draggable]:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+          li.dragging {
+            opacity: 0.6;
+            background-color: #e0f7fa;
+          }
         `}</style>
+              {isOffline && (
+        <div className="fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-4 rounded-lg shadow-md">
+          Bạn đang ở chế độ ngoại tuyến. Các thay đổi sẽ được đồng bộ khi có mạng.
+        </div>
+      )}
       </div>
               <ThemeSettings />
     </div>

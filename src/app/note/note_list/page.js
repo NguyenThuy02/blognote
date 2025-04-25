@@ -237,7 +237,7 @@ export default function NoteList() {
 
   return (
     <div
-      className="mt-[73px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6"
+      className="mt-[97px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6"
       style={{ background: "var(--background)", color: "var(--text-color)" }}
       onClick={closeContextMenu}
     >

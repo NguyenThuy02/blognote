@@ -240,7 +240,7 @@ export default function NoteReport() {
       :root {
         --background: #FFFFFF;
         --text-color: #000000;
-        --accent-color: linear-gradient(to right, #6B46C1, #A3BFFA); /* Matches ThemeSettings default */
+        --accent-color: linear-gradient(to right, #6B46C1, #A3BFFA);
         --secondary-bg: rgba(255, 255, 255, 0.8);
         --shadow-color: rgba(0, 0, 0, 0.1);
         --hover-shadow: rgba(0, 0, 0, 0.15);
@@ -330,6 +330,8 @@ export default function NoteReport() {
         box-shadow: 0 8px 24px var(--shadow-color); 
         border: 1px solid var(--border-color);
         color: var(--text-color);
+        position: relative; /* Đảm bảo stacking context riêng */
+        z-index: 1; /* Đặt z-index thấp hơn modal */
       }
       .table-container table {
         width: 100%;
@@ -341,8 +343,8 @@ export default function NoteReport() {
       .table-container thead {
         position: sticky;
         top: 0;
-        z-index: 10;
-        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        z-index: 5; /* Giảm z-index để không đè lên modal */
+        background: var(--accent-color) !important;
         color: white;
       }
       .table-container thead th {
@@ -375,7 +377,7 @@ export default function NoteReport() {
         padding-left: 28px; 
       }
       .table-container button.detail-btn {
-        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        background: var(--accent-color) !important;
         padding: 8px 16px;
         border-radius: 8px;
         font-size: 0.95rem;
@@ -388,7 +390,7 @@ export default function NoteReport() {
         box-shadow: 0 4px 12px rgba(107, 70, 193, 0.3);
       }
       button.export-btn { 
-        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        background: var(--accent-color) !important;
         padding: 8px 16px; 
         border-radius: 25px; 
         color: white; 
@@ -401,7 +403,7 @@ export default function NoteReport() {
         box-shadow: 0 5px 15px var(--shadow-color); 
       }
       button.filter-btn {
-        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        background: var(--accent-color) !important;
         color: white;
         padding: 10px 20px;
         border-radius: 8px;
@@ -414,7 +416,7 @@ export default function NoteReport() {
         box-shadow: 0 5px 15px var(--shadow-color);
       }
       button.detail-btn {
-        background: var(--accent-color) !important; /* Use --accent-color with high priority */
+        background: var(--accent-color) !important;
         color: white;
         padding: 5px 10px;
         border-radius: 5px;
@@ -448,7 +450,8 @@ export default function NoteReport() {
         background: rgba(0, 0, 0, 0.5); 
         display: flex; 
         justify-content: center; 
-        align-items: center; 
+        align-items: center;
+        z-index: 1000; /* Đặt z-index cao để modal luôn ở trên cùng */
       }
       .modal-content { 
         background: var(--background); 
@@ -459,6 +462,8 @@ export default function NoteReport() {
         animation: fadeIn 0.3s ease; 
         border: 2px solid var(--border-color);
         color: var(--text-color);
+        position: relative;
+        z-index: 1001; /* Đảm bảo nội dung modal cũng ở trên cùng */
       }
       .show-more-btn {
         color: var(--border-color);
@@ -472,7 +477,7 @@ export default function NoteReport() {
       }
     `;
     document.head.appendChild(style);
-
+  
     return () => document.head.removeChild(style);
   }, []);
 
