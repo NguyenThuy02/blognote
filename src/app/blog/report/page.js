@@ -872,17 +872,17 @@ export default function ReportApp() {
   return (
     <div className={`mt-16 sm:mt-20 md:mt-24 p-2 sm:p-4 md:p-5 max-w-7xl mx-auto rounded-lg shadow-md border border-blue-200 text-gray-700 relative ${themes[theme]}`}>
       <div className={`min-h-screen rounded-lg bg-blue-200 flex flex-col ${getThemeClasses(theme, "container")}`}>
-        <h1 className={`text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 text-center my-4 sm:my-5 wrap-text ${getThemeClasses(theme, "title")}`}>
+        <h1 className={`text-2xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 text-center my-4 sm:my-5 wrap-text ${getThemeClasses(theme, "title")}`}>
           Thống kê bài viết
         </h1>
         <div className="flex flex-1 pb-6 sm:pb-8 md:pb-10 px-2 sm:px-4 md:px-6">
           <main className="flex-1 space-y-6 sm:space-y-8">
             <div className={`bg-white rounded-xl shadow-lg p-4 border border-blue-300 sm:p-5 md:p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "preview")}`}>
-              <h2 className={`text-xl sm:text-2xl font-semibold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+              <h2 className={`text-xl sm:text-xl font-bold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                 Tổng quan bài viết cá nhân
               </h2>
               <div className={`mb-4 sm:mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-4 sm:p-5 md:p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in ${getThemeClasses(theme, "support")}`}>
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   <span className="bg-blue-500 text-white rounded-full p-1.5 sm:p-2 mr-2">
                     <svg className="w-3 sm:w-4 h-3 sm:h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
@@ -926,7 +926,7 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-4 sm:mb-6">
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   Lọc nhanh
                 </h3>
                 <div className={`flex flex-wrap justify-center gap-2 sm:gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-4 sm:p-5 md:p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${getThemeClasses(theme, "support")}`}>
@@ -952,7 +952,7 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-4 sm:mb-6">
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   Lọc theo thời gian
                 </h3>
                 <div className={`flex flex-wrap gap-2 sm:gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-3 sm:p-4 rounded-lg shadow-sm ${getThemeClasses(theme, "support")}`}>
@@ -1025,7 +1025,7 @@ export default function ReportApp() {
               </div>
               {isUserFiltered && isLoggedIn ? (
                 <div className="mt-4 sm:mt-6">
-                  <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                     Kết quả lọc
                   </h3>
                   <div className="flex justify-center">
@@ -1033,9 +1033,9 @@ export default function ReportApp() {
                       <table className="border-collapse bg-white rounded-lg text-xs sm:text-sm w-full">
                         <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Tiêu đề</th>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Trạng thái</th>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Thời gian</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Tiêu đề</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Trạng thái</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Thời gian</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1093,7 +1093,7 @@ export default function ReportApp() {
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-8 sm:mt-[50px]">
                 <div>
-                  <h3 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <BarChartOutlined className="mr-1 sm:mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê cột
@@ -1104,7 +1104,7 @@ export default function ReportApp() {
                   </div>
                 </div>
                 <div>
-                  <h3 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <PieChartOutlined className="mr-1 sm:mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê vòng
@@ -1135,11 +1135,11 @@ export default function ReportApp() {
               )}
             </div>
             <div className={`bg-white rounded-xl shadow-lg p-4 border border-blue-300 sm:p-5 md:p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "preview")}`}>
-              <h2 className={`text-xl sm:text-2xl font-semibold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+              <h2 className={`text-xl sm:text-xl font-bold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                 Tổng quan bài viết toàn hệ thống
               </h2>
               <div className={`mb-4 sm:mb-6 bg-gradient-to-br from-blue-50 to-purple-50 p-4 sm:p-5 md:p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 animate-slide-in ${getThemeClasses(theme, "support")}`}>
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4 flex items-center wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   <span className="bg-blue-500 text-white rounded-full p-1.5 sm:p-2 mr-2">
                     <svg className="w-3 sm:w-4 h-3 sm:h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
@@ -1183,7 +1183,7 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-4 sm:mb-6">
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   Lọc nhanh
                 </h3>
                 <div className={`flex flex-wrap justify-center gap-2 sm:gap-4 bg-gradient-to-r from-blue-50 to-purple-50 p-4 sm:p-5 md:p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${getThemeClasses(theme, "support")}`}>
@@ -1209,7 +1209,7 @@ export default function ReportApp() {
                 </div>
               </div>
               <div className="mb-4 sm:mb-6">
-                <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                   Lọc theo thời gian
                 </h3>
                 <div className={`flex flex-wrap gap-2 sm:gap-4 bg-gradient-to-r from-blue-100 to-purple-100 p-3 sm:p-4 rounded-lg shadow-sm ${getThemeClasses(theme, "support")}`}>
@@ -1282,7 +1282,7 @@ export default function ReportApp() {
               </div>
               {isFiltered && isLoggedIn ? (
                 <div className="mt-4 sm:mt-6">
-                  <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                     Kết quả lọc
                   </h3>
                   <div className="flex justify-center">
@@ -1290,9 +1290,9 @@ export default function ReportApp() {
                       <table className="border-collapse bg-white rounded-lg text-xs sm:text-sm w-full">
                         <thead className="bg-gradient-to-r from-blue-400 to-purple-400 text-white sticky top-0">
                           <tr>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Tiêu đề</th>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Trạng thái</th>
-                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-semibold wrap-text">Thời gian</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Tiêu đề</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Trạng thái</th>
+                            <th className="px-2 sm:px-3 py-2 sm:py-3 text-left font-bold wrap-text">Thời gian</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1350,7 +1350,7 @@ export default function ReportApp() {
               )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-8 sm:mt-[50px]">
                 <div>
-                  <h3 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <BarChartOutlined className="mr-1 sm:mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê cột
@@ -1361,7 +1361,7 @@ export default function ReportApp() {
                   </div>
                 </div>
                 <div>
-                  <h3 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
+                  <h3 className={`text-base sm:text-lg font-bold mb-2 sm:mb-3 flex items-center bg-gradient-to-r from-blue-50 to-purple-50 p-2 sm:p-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 wrap-text ${getThemeClasses(theme, "chart")}`}>
                     <PieChartOutlined className="mr-1 sm:mr-2 text-blue-600" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
                       Thống kê vòng
@@ -1392,7 +1392,7 @@ export default function ReportApp() {
               )}
             </div>
             <div className={`bg-white rounded-xl shadow-lg p-4 border border-blue-300 sm:p-5 md:p-6 hover:shadow-xl transition duration-300 animate-fade-in ${getThemeClasses(theme, "support")}`}>
-              <h2 className={`text-xl sm:text-2xl font-semibold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+              <h2 className={`text-xl sm:text-xl font-bold text-purple-600 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                 Cài đặt giao diện
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:gap-4">
@@ -1422,7 +1422,7 @@ export default function ReportApp() {
         {showLoginModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
             <div className={`bg-white p-4 sm:p-6 rounded-lg shadow-lg max-w-sm sm:max-w-md w-full ${getThemeClasses(theme, "modal")}`}>
-              <h3 className={`text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
+              <h3 className={`text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4 wrap-text ${getThemeClasses(theme, "subtitle")}`}>
                 Yêu cầu đăng nhập
               </h3>
               <p className={`text-gray-600 mb-4 sm:mb-6 text-sm sm:text-base wrap-text ${getThemeClasses(theme, "text")}`}>

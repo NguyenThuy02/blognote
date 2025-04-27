@@ -50,8 +50,11 @@ export default function CreatePost() {
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [showConfirm, setShowConfirm] = useState({
+    isOpen: false,
+    action: null,
+    message: "",
+  });
   const [topicError, setTopicError] = useState("");
   const [tagError, setTagError] = useState("");
   const [imageError, setImageError] = useState("");
@@ -200,7 +203,7 @@ export default function CreatePost() {
   };
 
   const removeNotification = (id) => {
-    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+    setNotifications((prev) => prev.filter((notif) => notif.id !== notif.id));
   };
 
   const capitalizeFirstLetter = (string) => {
@@ -210,14 +213,25 @@ export default function CreatePost() {
 
   const fetchTopics = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: postData, error: postError } = await supabase
         .from("posts")
         .select("topics")
         .not("topics", "is", null);
-      if (error) throw error;
+      if (postError) throw postError;
+
+      const { data: demoData, error: demoError } = await supabase
+        .from("demos")
+        .select("topics")
+        .not("topics", "is", null);
+      if (demoError) throw demoError;
+
       const allTopics = [
-        ...new Set(data.map((item) => capitalizeFirstLetter(item.topics))),
-      ];
+        ...new Set([
+          ...postData.map((item) => capitalizeFirstLetter(item.topics || "")),
+          ...demoData.map((item) => capitalizeFirstLetter(item.topics || "")),
+        ]),
+      ].filter((topic) => topic !== "");
+
       setTopicsList([
         ...allTopics.map((topic) => ({ value: topic, label: topic })),
         { value: "Khác", label: "Khác" },
@@ -232,26 +246,47 @@ export default function CreatePost() {
 
   const fetchTags = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: postData, error: postError } = await supabase
         .from("posts")
         .select("tags")
         .not("tags", "is", null);
-      if (error) throw error;
+      if (postError) throw postError;
+
+      const { data: demoData, error: demoError } = await supabase
+        .from("demos")
+        .select("tags")
+        .not("tags", "is", null);
+      if (demoError) throw demoError;
+
       const allTags = [
-        ...new Set(
-          data.flatMap((item) =>
+        ...new Set([
+          ...postData.flatMap((item) =>
             item.tags
               ? typeof item.tags === "string"
-                ? item.tags.split(",").map((tag) => tag.trim())
-                : Array.isArray(item.tags)
                 ? item.tags
+                    .split(",")
+                    .map((tag) => capitalizeFirstLetter(tag.trim()))
+                : Array.isArray(item.tags)
+                ? item.tags.map((tag) => capitalizeFirstLetter(tag))
                 : []
               : []
-          )
-        ),
-      ].map((tag) => capitalizeFirstLetter(tag));
+          ),
+          ...demoData.flatMap((item) =>
+            item.tags
+              ? typeof item.tags === "string"
+                ? item.tags
+                    .split(",")
+                    .map((tag) => capitalizeFirstLetter(tag.trim()))
+                : Array.isArray(item.tags)
+                ? item.tags.map((tag) => capitalizeFirstLetter(tag))
+                : []
+              : []
+          ),
+        ]),
+      ].filter((tag) => tag !== "");
+
       setTagsList([
-        ...new Set(allTags.map((tag) => ({ value: tag, label: tag }))),
+        ...allTags.map((tag) => ({ value: tag, label: tag })),
         { value: "Khác", label: "Khác" },
       ]);
     } catch (err) {
@@ -261,7 +296,7 @@ export default function CreatePost() {
 
   const handlePurposeChange = (e) => {
     if (!isLoggedIn) {
-      setShowLoginModal(true);
+      DUTYsetShowLoginModal(true);
       return;
     }
     const newPurpose = e.target.value;
@@ -378,7 +413,7 @@ export default function CreatePost() {
       const newQuizzes = [...formData.quizzes];
       newQuizzes[index].answer = value;
       setFormData((prev) => ({ ...prev, quizzes: newQuizzes }));
-    } else if (name.startsWith("timeline-title")) {
+    } else if (name === "timeline-title") {
       setFormData((prev) => ({
         ...prev,
         timeline: { ...prev.timeline, title: value },
@@ -728,100 +763,142 @@ export default function CreatePost() {
     return hasError;
   };
 
+  const handleResetForm = () => {
+    setShowConfirm({
+      isOpen: true,
+      action: () => {
+        resetForm();
+        addNotification("Dữ liệu trong form đã được xóa!", "success");
+        setShowConfirm({ isOpen: false, action: null, message: "" });
+      },
+      message: "Bạn có chắc muốn xóa toàn bộ dữ liệu trong form?",
+    });
+  };
+
   const handleSaveDraft = async () => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {
+      addNotification("Vui lòng đăng nhập để lưu bản nháp.", "error");
+      return;
+    }
     if (validateInputs()) return;
 
-    setConfirmAction(() => async () => {
-      try {
-        const finalTopic = capitalizeFirstLetter(
-          formData.topics === "Khác" ? formData.customTopic : formData.topics
-        );
-        const draftData = {
-          topics: finalTopic,
-          tags: formData.tags.join(","),
-          purpose: selectedPurpose,
-          questions:
-            selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-          poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
-          quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-          storyType:
-            selectedPurpose === "Truyện tranh" ? formData.storyType : "",
-          storyDescription:
-            selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
-          storyDoc: formData.storyDoc ? formData.storyDoc.url : null,
-          timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
-          images: formData.images.length > 0 ? formData.images[0].url : null,
-          name:
-            JSON.parse(localStorage.getItem("user")).name ||
-            JSON.parse(localStorage.getItem("user")).email,
-        };
+    setShowConfirm({
+      isOpen: true,
+      action: async () => {
+        try {
+          const finalTopic = capitalizeFirstLetter(
+            formData.topics === "Khác" ? formData.customTopic : formData.topics
+          );
+          const draftData = {
+            topics: finalTopic,
+            tags: formData.tags.join(","),
+            purpose: selectedPurpose,
+            questions:
+              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll:
+              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
+            story_type:
+              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_description:
+              selectedPurpose === "Truyện tranh"
+                ? formData.storyDescription
+                : "",
+            story_doc: formData.storyDoc ? formData.storyDoc.url : null,
+            timeline:
+              selectedPurpose === "Hành trình" ? formData.timeline : null,
+            images:
+              formData.images.length > 0
+                ? formData.images.map((img) => img.url).join(",")
+                : null,
+            name:
+              JSON.parse(localStorage.getItem("user")).name ||
+              JSON.parse(localStorage.getItem("user")).email,
+          };
 
-        const { data, error } = await supabase
-          .from("demos")
-          .insert([draftData])
-          .select()
-          .single();
-        if (error) throw error;
+          const { data, error } = await supabase
+            .from("demopurpose")
+            .insert([draftData])
+            .select()
+            .single();
+          if (error) throw error;
 
-        addNotification("Bản nháp đã được lưu thành công!", "success");
-        resetForm();
-        await fetchTopics();
-        await fetchTags();
-      } catch (error) {
-        addNotification(`Không thể lưu bản nháp: ${error.message}`, "error");
-      }
+          addNotification("Bản nháp đã được lưu thành công!", "success");
+          resetForm();
+          await fetchTopics();
+          await fetchTags();
+        } catch (error) {
+          addNotification(`Không thể lưu bản nháp: ${error.message}`, "error");
+        } finally {
+          setShowConfirm({ isOpen: false, action: null, message: "" });
+        }
+      },
+      message: "Bạn có muốn lưu bài viết này dưới dạng bản nháp?",
     });
-    setShowConfirm(true);
   };
 
   const handlePublishPost = async (e) => {
     e.preventDefault();
-    if (!isLoggedIn) return;
+    if (!isLoggedIn) {
+      addNotification("Vui lòng đăng nhập để đăng bài.", "error");
+      return;
+    }
     if (validateInputs()) return;
 
-    setConfirmAction(() => async () => {
-      try {
-        const finalTopic = capitalizeFirstLetter(
-          formData.topics === "Khác" ? formData.customTopic : formData.topics
-        );
-        const newPost = {
-          topics: finalTopic,
-          tags: formData.tags.join(","),
-          purpose: selectedPurpose,
-          questions:
-            selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-          poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
-          quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-          storyType:
-            selectedPurpose === "Truyện tranh" ? formData.storyType : "",
-          storyDescription:
-            selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
-          storyDoc: formData.storyDoc ? formData.storyDoc.url : null,
-          timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
-          images: formData.images.length > 0 ? formData.images[0].url : null,
-          name:
-            JSON.parse(localStorage.getItem("user")).name ||
-            JSON.parse(localStorage.getItem("user")).email,
-        };
+    setShowConfirm({
+      isOpen: true,
+      action: async () => {
+        try {
+          const finalTopic = capitalizeFirstLetter(
+            formData.topics === "Khác" ? formData.customTopic : formData.topics
+          );
+          const newPost = {
+            topics: finalTopic,
+            tags: formData.tags.join(","),
+            purpose: selectedPurpose,
+            questions:
+              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll:
+              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
+            story_type:
+              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_description:
+              selectedPurpose === "Truyện tranh"
+                ? formData.storyDescription
+                : "",
+            story_doc: formData.storyDoc ? formData.storyDoc.url : null,
+            timeline:
+              selectedPurpose === "Hành trình" ? formData.timeline : null,
+            images:
+              formData.images.length > 0
+                ? formData.images.map((img) => img.url).join(",")
+                : null,
+            name:
+              JSON.parse(localStorage.getItem("user")).name ||
+              JSON.parse(localStorage.getItem("user")).email,
+          };
 
-        const { data, error } = await supabase
-          .from("posts")
-          .insert([newPost])
-          .select()
-          .single();
-        if (error) throw error;
+          const { data, error } = await supabase
+            .from("postpurpose")
+            .insert([newPost])
+            .select()
+            .single();
+          if (error) throw error;
 
-        addNotification("Bài viết đã được đăng thành công!", "success");
-        resetForm();
-        await fetchTopics();
-        await fetchTags();
-        router.push("/blog/post");
-      } catch (err) {
-        addNotification(`Không thể đăng bài viết: ${err.message}`, "error");
-      }
+          addNotification("Bài viết đã được đăng thành công!", "success");
+          resetForm();
+          await fetchTopics();
+          await fetchTags();
+          router.push("/blog/post");
+        } catch (err) {
+          addNotification(`Không thể đăng bài viết: ${err.message}`, "error");
+        } finally {
+          setShowConfirm({ isOpen: false, action: null, message: "" });
+        }
+      },
+      message: "Bạn có chắc muốn đăng bài viết này?",
     });
-    setShowConfirm(true);
   };
 
   const resetForm = () => {
@@ -859,13 +936,228 @@ export default function CreatePost() {
     setNotifications([]);
   };
 
-  const handleResetForm = () => {
-    setConfirmAction(() => async () => {
-      resetForm();
-      addNotification("Dữ liệu trong form đã được xóa!", "success");
-      setShowConfirm(false);
-    });
-    setShowConfirm(true);
+  const LivePreview = () => {
+    const renderContent = () => {
+      switch (selectedPurpose) {
+        case "Đặt câu hỏi":
+          return (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-teal-600">Câu hỏi</h3>
+              {formData.questions.map((q, index) => (
+                <div
+                  key={`preview-question-${index}`}
+                  className="p-4 bg-teal-50 rounded-lg shadow-sm"
+                >
+                  <p className="font-medium">
+                    {q.question || "Câu hỏi chưa được nhập"}
+                  </p>
+                  <ul className="list-disc pl-5 mt-2">
+                    {q.options.map((opt, i) => (
+                      <li
+                        key={`preview-option-${i}`}
+                        className={opt ? "" : "text-gray-400"}
+                      >
+                        {opt || "Đáp án chưa được nhập"}
+                      </li>
+                    ))}
+                  </ul>
+                  {q.multipleChoice && (
+                    <p className="text-sm text-teal-600 mt-2">
+                      Cho phép chọn nhiều đáp án
+                    </p>
+                  )}
+                </div>
+              ))}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                  {formData.images.map((image, index) =>
+                    image.url && isValidUrl(image.url) ? (
+                      <Image
+                        key={`preview-image-${index}`}
+                        src={image.url}
+                        alt={`Preview ${image.name}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                        width={96}
+                        height={96}
+                      />
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        case "Tạo cuộc bình chọn":
+          return (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-teal-600">
+                {formData.poll.title || "Cuộc bình chọn chưa có tiêu đề"}
+              </h3>
+              <ul className="list-disc pl-5">
+                {formData.poll.options.map((opt, i) => (
+                  <li
+                    key={`preview-poll-option-${i}`}
+                    className={opt ? "" : "text-gray-400"}
+                  >
+                    {opt || "Lựa chọn chưa được nhập"}
+                  </li>
+                ))}
+              </ul>
+              {formData.poll.multipleChoice && (
+                <p className="text-sm text-teal-600">
+                  Cho phép chọn nhiều đáp án
+                </p>
+              )}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                  {formData.images.map((image, index) =>
+                    image.url && isValidUrl(image.url) ? (
+                      <Image
+                        key={`preview-image-${index}`}
+                        src={image.url}
+                        alt={`Preview ${image.name}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                        width={96}
+                        height={96}
+                      />
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        case "Câu đố":
+          return (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-teal-600">Câu đố</h3>
+              {formData.quizzes.map((quiz, index) => (
+                <div
+                  key={`preview-quiz-${index}`}
+                  className="p-4 bg-teal-50 rounded-lg shadow-sm"
+                >
+                  <p className="font-medium">
+                    {quiz.question || "Câu đố chưa được nhập"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Đáp án: {quiz.answer || "Chưa có đáp án"}
+                  </p>
+                </div>
+              ))}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                  {formData.images.map((image, index) =>
+                    image.url && isValidUrl(image.url) ? (
+                      <Image
+                        key={`preview-image-${index}`}
+                        src={image.url}
+                        alt={`Preview ${image.name}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                        width={96}
+                        height={96}
+                      />
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        case "Truyện tranh":
+          return (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-teal-600">
+                {formData.storyType === "Truyện chữ"
+                  ? "Truyện chữ"
+                  : "Truyện tranh"}
+              </h3>
+              <p>{formData.storyDescription || "Chưa có mô tả"}</p>
+              {formData.storyType === "Truyện chữ" && formData.storyDoc && (
+                <a
+                  href={formData.storyDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-600 hover:underline"
+                >
+                  {formData.storyDoc.name}
+                </a>
+              )}
+              {formData.storyType === "Truyện tranh" &&
+                formData.images.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {formData.images.map((image, index) =>
+                      image.url && isValidUrl(image.url) ? (
+                        <Image
+                          key={`preview-image-${index}`}
+                          src={image.url}
+                          alt={`Preview ${image.name}`}
+                          className="w-full h-24 object-cover rounded-lg"
+                          width={96}
+                          height={96}
+                        />
+                      ) : null
+                    )}
+                  </div>
+                )}
+            </div>
+          );
+        case "Hành trình":
+          return (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-teal-600">
+                {formData.timeline.title || "Hành trình chưa có tiêu đề"}
+              </h3>
+              {formData.timeline.milestones.map((milestone, index) => (
+                <div
+                  key={`preview-milestone-${index}`}
+                  className="p-4 bg-teal-50 rounded-lg shadow-sm"
+                >
+                  <p className="font-medium">
+                    {milestone.time} - {milestone.status}
+                  </p>
+                  <p>{milestone.description || "Chưa có mô tả"}</p>
+                </div>
+              ))}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                  {formData.images.map((image, index) =>
+                    image.url && isValidUrl(image.url) ? (
+                      <Image
+                        key={`preview-image-${index}`}
+                        src={image.url}
+                        alt={`Preview ${image.name}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                        width={96}
+                        height={96}
+                      />
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        default:
+          return <p>Chưa có nội dung để xem trước.</p>;
+      }
+    };
+
+    return (
+      <div className="mt-8 p-6 rounded-lg shadow-lg bg-gradient-to-br from-teal-50 via-white to-teal-50 border border-teal-200">
+        <h2 className="text-xl font-bold text-teal-600 mb-4">
+          Xem trước bài viết
+        </h2>
+        <div className="bg-white p-4 rounded-lg shadow-inner">
+          <p className="text-sm text-gray-600 mb-2">
+            <span className="font-semibold">Chủ đề:</span>{" "}
+            {formData.topics === "Khác"
+              ? formData.customTopic
+              : formData.topics || "Chưa chọn"}
+          </p>
+          <p className="text-sm text-gray-600 mb-4">
+            <span className="font-semibold">Tags:</span>{" "}
+            {formData.tags.join(", ") || "Chưa có tags"}
+          </p>
+          {renderContent()}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -887,20 +1179,27 @@ export default function CreatePost() {
         />
       ))}
 
-      {showConfirm && (
+      {showConfirm.isOpen && (
         <Confirm
-          message="Bạn có chắc muốn xóa toàn bộ dữ liệu trong form?"
+          message={showConfirm.message}
           onConfirm={() => {
-            confirmAction();
-            setShowConfirm(false);
+            showConfirm.action();
           }}
-          onCancel={() => setShowConfirm(false)}
+          onCancel={() =>
+            setShowConfirm({ isOpen: false, action: null, message: "" })
+          }
         />
       )}
 
       {showLoginModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full relative">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <FaTimes size={16} />
+            </button>
             <h3 className="text-lg font-semibold text-teal-600 mb-4">
               Vui lòng đăng nhập
             </h3>
@@ -925,7 +1224,7 @@ export default function CreatePost() {
         </div>
       )}
 
-      <div className="mb-6 flex flex-row items-center justify-between gap-4 bg-gradient-to-r from-teal-500 to-indigo-500 p-4 rounded-lg">
+      <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg mb-5">
         <h1 className="text-2xl font-bold text-white">Mẫu bài viết</h1>
         <div className="relative w-12 h-12">
           <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
@@ -974,19 +1273,63 @@ export default function CreatePost() {
       </div>
 
       {showForm && selectedPurpose && (
-          <form onSubmit={handlePublishPost}>
-            <div className="flex flex-col md:flex-row gap-6 mb-8">
-              <div className="flex-1 relative">
+        <form onSubmit={handlePublishPost}>
+          <div className="flex flex-col md:flex-row gap-6 mb-8">
+            <div className="flex-1 relative">
+              <select
+                name="topics"
+                value={formData.topics}
+                onChange={handleFormChange}
+                className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
+              >
+                <option value="" disabled className="text-gray-400">
+                  Chọn chủ đề
+                </option>
+                {topicsList.map((t) => (
+                  <option
+                    key={t.value}
+                    value={t.value}
+                    className="text-teal-700"
+                  >
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <label
+                htmlFor="topics"
+                className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+              >
+                Chủ đề bài viết
+              </label>
+              {formData.topics === "Khác" && (
+                <input
+                  type="text"
+                  name="customTopic"
+                  value={formData.customTopic}
+                  onChange={handleFormChange}
+                  className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
+                  placeholder="Nhập chủ đề tùy chỉnh"
+                />
+              )}
+              {topicError && (
+                <p className="text-red-500 text-sm mt-2 animate-pulse">
+                  {topicError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex-1">
+              <div className="relative">
                 <select
-                  name="topics"
-                  value={formData.topics}
+                  name="selectedTag"
+                  value={formData.selectedTag}
                   onChange={handleFormChange}
                   className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
                 >
                   <option value="" disabled className="text-gray-400">
-                    Chọn chủ đề
+                    Chọn tag
                   </option>
-                  {topicsList.map((t) => (
+                  {tagsList.map((t) => (
                     <option
                       key={t.value}
                       value={t.value}
@@ -997,155 +1340,112 @@ export default function CreatePost() {
                   ))}
                 </select>
                 <label
-                  htmlFor="topics"
+                  htmlFor="selectedTag"
                   className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
                 >
-                  Chủ đề bài viết
+                  Thẻ tag
                 </label>
-                {formData.topics === "Khác" && (
-                  <input
-                    type="text"
-                    name="customTopic"
-                    value={formData.customTopic}
-                    onChange={handleFormChange}
-                    className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
-                    placeholder="Nhập chủ đề tùy chỉnh"
-                  />
-                )}
-                {topicError && (
-                  <p className="text-red-500 text-sm mt-2 animate-pulse">
-                    {topicError}
-                  </p>
-                )}
               </div>
-
-              <div className="flex-1">
-                <div className="relative">
-                  <select
-                    name="selectedTag"
-                    value={formData.selectedTag}
-                    onChange={handleFormChange}
-                    className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
-                  >
-                    <option value="" disabled className="text-gray-400">
-                      Chọn tag
-                    </option>
-                    {tagsList.map((t) => (
-                      <option
-                        key={t.value}
-                        value={t.value}
-                        className="text-teal-700"
-                      >
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                  <label
-                    htmlFor="selectedTag"
-                    className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-                  >
-                    Thẻ tag
-                  </label>
-                </div>
-                {formData.selectedTag === "Khác" && (
-                  <input
-                    type="text"
-                    name="customTag"
-                    value={formData.customTag}
-                    onChange={handleFormChange}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter" && formData.customTag)
-                        handleAddTag("Khác");
-                    }}
-                    className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
-                    placeholder="Nhập tag tùy chỉnh"
-                  />
-                )}
-                {tagSuggestions.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {tagSuggestions.map((tag) => (
-                      <button
-                        key={tag.value}
-                        type="button"
-                        onClick={() => handleAddTag(tag.value)}
-                        className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm hover:bg-teal-200 transition-colors duration-200"
-                      >
-                        {tag.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {formData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-3 mt-4">
-                    {formData.tags.map((tag, index) => (
-                      <span
-                        key={`${tag}-${index}`}
-                        className="bg-teal-500 text-white px-4 py-2 rounded-full flex items-center text-sm transition-transform duration-200 hover:scale-105"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-2 text-white hover:text-red-300 transition-colors"
-                        >
-                          <FaTimes size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {tagError && (
-                  <p className="text-red-500 text-sm mt-2 animate-pulse">
-                    {tagError}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {selectedPurpose === "Đặt câu hỏi" && (
-              <>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Danh sách câu hỏi:
-                  </label>
-                  {formData.questions.map((q, questionIndex) => (
-                    <div
-                      key={`form-question-${questionIndex}`}
-                      className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
+              {formData.selectedTag === "Khác" && (
+                <input
+                  type="text"
+                  name="customTag"
+                  value={formData.customTag}
+                  onChange={handleFormChange}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && formData.customTag)
+                      handleAddTag("Khác");
+                  }}
+                  className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
+                  placeholder="Nhập tag tùy chỉnh"
+                />
+              )}
+              {tagSuggestions.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {tagSuggestions.map((tag) => (
+                    <button
+                      key={tag.value}
+                      type="button"
+                      onClick={() => handleAddTag(tag.value)}
+                      className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm hover:bg-teal-200 transition-colors duration-200"
                     >
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Câu hỏi {questionIndex + 1}:
-                        </label>
-                        <input
-                          type="text"
-                          name={`question-title-${questionIndex}`}
-                          value={q.question}
-                          onChange={handleFormChange}
-                          className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          placeholder="Nhập câu hỏi"
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Đáp án:
-                        </label>
-                        {q.options.map((option, optionIndex) => (
-                          <div
-                            key={`option-${questionIndex}-${optionIndex}`}
-                            className="flex items-center gap-2 mb-2"
-                          >
-                            <span className="text-teal-700">
-                              {optionIndex + 1}.
-                            </span>
-                            <input
-                              type="text"
-                              name={`option-${questionIndex}-${optionIndex}`}
-                              value={option}
-                              onChange={handleFormChange}
-                              className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                              placeholder={`Đáp án ${optionIndex + 1}`}
-                            />
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-4">
+                  {formData.tags.map((tag, index) => (
+                    <span
+                      key={`${tag}-${index}`}
+                      className="bg-teal-500 text-white px-4 py-2 rounded-full flex items-center text-sm transition-transform duration-200 hover:scale-105"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="ml-2 text-white hover:text-red-300 transition-colors"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {tagError && (
+                <p className="text-red-500 text-sm mt-2 animate-pulse">
+                  {tagError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {selectedPurpose === "Đặt câu hỏi" && (
+            <>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Danh sách câu hỏi:
+                </label>
+                {formData.questions.map((q, questionIndex) => (
+                  <div
+                    key={`form-question-${questionIndex}`}
+                    className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
+                  >
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Câu hỏi {questionIndex + 1}:
+                      </label>
+                      <input
+                        type="text"
+                        name={`question-title-${questionIndex}`}
+                        value={q.question}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                        placeholder="Nhập câu hỏi"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Đáp án:
+                      </label>
+                      {q.options.map((option, optionIndex) => (
+                        <div
+                          key={`option-${questionIndex}-${optionIndex}`}
+                          className="flex items-center gap-2 mb-2"
+                        >
+                          <span className="text-teal-700">
+                            {optionIndex + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            name={`option-${questionIndex}-${optionIndex}`}
+                            value={option}
+                            onChange={handleFormChange}
+                            className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                            placeholder={`Đáp án ${optionIndex + 1}`}
+                          />
+                          {q.options.length > 2 && (
                             <button
                               type="button"
                               onClick={() =>
@@ -1155,143 +1455,143 @@ export default function CreatePost() {
                             >
                               Xóa
                             </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => addOption(questionIndex)}
-                          className="text-teal-500 hover:text-teal-700 mt-2"
-                        >
-                          + Thêm đáp án
-                        </button>
-                      </div>
-                      <div className="mb-3">
-                        <label className="flex items-center">
-                          <input
-                            type="checkbox"
-                            name={`multipleChoice-${questionIndex}`}
-                            checked={q.multipleChoice}
-                            onChange={handleFormChange}
-                            className="mr-2"
-                          />
-                          <span className="text-teal-700">
-                            Cho phép chọn nhiều đáp án
-                          </span>
-                        </label>
-                      </div>
-                      {formData.questions.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeQuestion(questionIndex)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Xóa câu hỏi
-                        </button>
-                      )}
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addOption(questionIndex)}
+                        className="text-teal-500 hover:text-teal-700 mt-2"
+                      >
+                        + Thêm đáp án
+                      </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addQuestion}
-                    className="text-teal-500 hover:text-teal-700"
-                  >
-                    + Thêm câu hỏi
-                  </button>
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tải lên ảnh:
-                  </label>
-                  <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
-                    <FileImageOutlined className="mr-2" /> Ảnh
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  {imageError && (
-                    <p className="text-red-500 text-sm mt-4 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-                  {isUploadingImage && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">
-                        Đang tải hình ảnh...
-                      </span>
+                    <div className="mb-3">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          name={`multipleChoice-${questionIndex}`}
+                          checked={q.multipleChoice}
+                          onChange={handleFormChange}
+                          className="mr-2"
+                        />
+                        <span className="text-teal-700">
+                          Cho phép chọn nhiều đáp án
+                        </span>
+                      </label>
                     </div>
-                  )}
-                  {formData.images.length > 0 && !isUploadingImage && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {formData.images.map((image, index) =>
-                        image.url && isValidUrl(image.url) ? (
-                          <div
-                            key={`image-${index}`}
-                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                          >
-                            <Image
-                              src={image.url}
-                              alt={`Uploaded ${image.name}`}
-                              className="w-full h-24 object-cover"
-                              width={96}
-                              height={96}
-                            />
-                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                              {truncateFileName(image.name)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(index)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                            >
-                              <FaTimes size={12} />
-                            </button>
-                          </div>
-                        ) : null
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {selectedPurpose === "Tạo cuộc bình chọn" && (
-              <>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tiêu đề cuộc bình chọn:
-                  </label>
+                    {formData.questions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(questionIndex)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Xóa câu hỏi
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  className="text-teal-500 hover:text-teal-700"
+                >
+                  + Thêm câu hỏi
+                </button>
+              </div>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tải lên ảnh:
+                </label>
+                <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                  <FileImageOutlined className="mr-2" /> Ảnh
                   <input
-                    type="text"
-                    name="poll-title"
-                    value={formData.poll.title}
-                    onChange={handleFormChange}
-                    className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                    placeholder="Nhập tiêu đề cuộc bình chọn"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
                   />
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Lựa chọn:
-                  </label>
-                  {formData.poll.options.map((option, optionIndex) => (
-                    <div
-                      key={`poll-option-${optionIndex}`}
-                      className="flex items-center gap-2 mb-2"
-                    >
-                      <span className="text-teal-700">{optionIndex + 1}.</span>
-                      <input
-                        type="text"
-                        name={`poll-option-${optionIndex}`}
-                        value={option}
-                        onChange={handleFormChange}
-                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                        placeholder={`Lựa chọn ${optionIndex + 1}`}
-                      />
+                </label>
+                {imageError && (
+                  <p className="text-red-500 text-sm mt-4 animate-pulse">
+                    {imageError}
+                  </p>
+                )}
+                {isUploadingImage && (
+                  <div className="mt-4 flex items-center">
+                    <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                    <span className="text-teal-600">Đang tải hình ảnh...</span>
+                  </div>
+                )}
+                {formData.images.length > 0 && !isUploadingImage && (
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {formData.images.map((image, index) =>
+                      image.url && isValidUrl(image.url) ? (
+                        <div
+                          key={`image-${index}`}
+                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                        >
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded ${image.name}`}
+                            className="w-full h-24 object-cover"
+                            width={96}
+                            height={96}
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(image.name)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                          >
+                            <FaTimes size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {selectedPurpose === "Tạo cuộc bình chọn" && (
+            <>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tiêu đề cuộc bình chọn:
+                </label>
+                <input
+                  type="text"
+                  name="poll-title"
+                  value={formData.poll.title}
+                  onChange={handleFormChange}
+                  className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                  placeholder="Nhập tiêu đề cuộc bình chọn"
+                />
+              </div>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Lựa chọn:
+                </label>
+                {formData.poll.options.map((option, optionIndex) => (
+                  <div
+                    key={`poll-option-${optionIndex}`}
+                    className="flex items-center gap-2 mb-2"
+                  >
+                    <span className="text-teal-700">{optionIndex + 1}.</span>
+                    <input
+                      type="text"
+                      name={`poll-option-${optionIndex}`}
+                      value={option}
+                      onChange={handleFormChange}
+                      className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                      placeholder={`Lựa chọn ${optionIndex + 1}`}
+                    />
+                    {formData.poll.options.length > 2 && (
                       <button
                         type="button"
                         onClick={() => removePollOption(optionIndex)}
@@ -1299,542 +1599,541 @@ export default function CreatePost() {
                       >
                         Xóa
                       </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addPollOption}
-                    className="text-teal-500 hover:text-teal-700 mt-2"
-                  >
-                    + Thêm lựa chọn
-                  </button>
-                </div>
-                <div className="mb-8">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="poll-multipleChoice"
-                      checked={formData.poll.multipleChoice}
-                      onChange={handleFormChange}
-                      className="mr-2"
-                    />
-                    <span className="text-teal-700">
-                      Cho phép chọn nhiều đáp án
-                    </span>
-                  </label>
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tải lên ảnh:
-                  </label>
-                  <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
-                    <FileImageOutlined className="mr-2" /> Ảnh
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  {imageError && (
-                    <p className="text-red-500 text-sm mt-4 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-                  {isUploadingImage && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">
-                        Đang tải hình ảnh...
-                      </span>
-                    </div>
-                  )}
-                  {formData.images.length > 0 && !isUploadingImage && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {formData.images.map((image, index) =>
-                        image.url && isValidUrl(image.url) ? (
-                          <div
-                            key={`image-${index}`}
-                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPollOption}
+                  className="text-teal-500 hover:text-teal-700 mt-2"
+                >
+                  + Thêm lựa chọn
+                </button>
+              </div>
+              <div className="mb-8">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="poll-multipleChoice"
+                    checked={formData.poll.multipleChoice}
+                    onChange={handleFormChange}
+                    className="mr-2"
+                  />
+                  <span className="text-teal-700">
+                    Cho phép chọn nhiều đáp án
+                  </span>
+                </label>
+              </div>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tải lên ảnh:
+                </label>
+                <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                  <FileImageOutlined className="mr-2" /> Ảnh
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                {imageError && (
+                  <p className="text-red-500 text-sm mt-4 animate-pulse">
+                    {imageError}
+                  </p>
+                )}
+                {isUploadingImage && (
+                  <div className="mt-4 flex items-center">
+                    <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                    <span className="text-teal-600">Đang tải hình ảnh...</span>
+                  </div>
+                )}
+                {formData.images.length > 0 && !isUploadingImage && (
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {formData.images.map((image, index) =>
+                      image.url && isValidUrl(image.url) ? (
+                        <div
+                          key={`image-${index}`}
+                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                        >
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded ${image.name}`}
+                            className="w-full h-24 object-cover"
+                            width={96}
+                            height={96}
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(image.name)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
                           >
-                            <Image
-                              src={image.url}
-                              alt={`Uploaded ${image.name}`}
-                              className="w-full h-24 object-cover"
-                              width={96}
-                              height={96}
-                            />
-                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                              {truncateFileName(image.name)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(index)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                            >
-                              <FaTimes size={12} />
-                            </button>
-                          </div>
-                        ) : null
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+                            <FaTimes size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
-            {selectedPurpose === "Câu đố" && (
-              <>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Danh sách câu đố:
-                  </label>
-                  {formData.quizzes.map((quiz, quizIndex) => (
-                    <div
-                      key={`form-quiz-${quizIndex}`}
-                      className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
-                    >
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Câu hỏi {quizIndex + 1}:
-                        </label>
-                        <input
-                          type="text"
-                          name={`quiz-question-${quizIndex}`}
-                          value={quiz.question}
-                          onChange={handleFormChange}
-                          className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          placeholder="Nhập câu hỏi"
-                        />
+          {selectedPurpose === "Câu đố" && (
+            <>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Danh sách câu đố:
+                </label>
+                {formData.quizzes.map((quiz, quizIndex) => (
+                  <div
+                    key={`form-quiz-${quizIndex}`}
+                    className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
+                  >
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Câu hỏi {quizIndex + 1}:
+                      </label>
+                      <input
+                        type="text"
+                        name={`quiz-question-${quizIndex}`}
+                        value={quiz.question}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                        placeholder="Nhập câu hỏi"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Đáp án:
+                      </label>
+                      <input
+                        type="text"
+                        name={`quiz-answer-${quizIndex}`}
+                        value={quiz.answer}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                        placeholder="Nhập đáp án"
+                      />
+                    </div>
+                    {formData.quizzes.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeQuiz(quizIndex)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Xóa câu đố
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addQuiz}
+                  className="text-teal-500 hover:text-teal-700"
+                >
+                  + Thêm câu đố
+                </button>
+              </div>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tải lên ảnh:
+                </label>
+                <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                  <FileImageOutlined className="mr-2" /> Ảnh
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                {imageError && (
+                  <p className="text-red-500 text-sm mt-4 animate-pulse">
+                    {imageError}
+                  </p>
+                )}
+                {isUploadingImage && (
+                  <div className="mt-4 flex items-center">
+                    <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                    <span className="text-teal-600">Đang tải hình ảnh...</span>
+                  </div>
+                )}
+                {formData.images.length > 0 && !isUploadingImage && (
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {formData.images.map((image, index) =>
+                      image.url && isValidUrl(image.url) ? (
+                        <div
+                          key={`image-${index}`}
+                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                        >
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded ${image.name}`}
+                            className="w-full h-24 object-cover"
+                            width={96}
+                            height={96}
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(image.name)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                          >
+                            <FaTimes size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {selectedPurpose === "Truyện tranh" && (
+            <>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Loại truyện:
+                </label>
+                <select
+                  name="storyType"
+                  value={formData.storyType}
+                  onChange={handleFormChange}
+                  className="h-9 p-2 rounded-lg w-full md:w-1/2 border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                >
+                  <option value="Truyện chữ">Truyện chữ</option>
+                  <option value="Truyện tranh">Truyện tranh</option>
+                </select>
+              </div>
+              {formData.storyType === "Truyện chữ" && (
+                <>
+                  <div className="mb-8">
+                    <label className="block text-teal-600 mb-2 font-semibold">
+                      Mô tả truyện:
+                    </label>
+                    <textarea
+                      name="storyDescription"
+                      value={formData.storyDescription}
+                      onChange={handleFormChange}
+                      className="h-20 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                      rows="6"
+                      placeholder="Nhập mô tả truyện chữ"
+                    />
+                  </div>
+                  <div className="mb-8">
+                    <label className="block text-teal-600 mb-2 font-semibold">
+                      Tải lên file Word/PDF truyện chữ:
+                    </label>
+                    <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
+                      <FileTextOutlined className="mr-2" /> Word/PDF
+                      <input
+                        type="file"
+                        name="storyDoc"
+                        accept=".doc,.docx,.pdf"
+                        onChange={handleDocUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {isUploadingFile && (
+                      <div className="mt-4 flex items-center">
+                        <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                        <span className="text-teal-600">Đang tải tệp...</span>
                       </div>
-                      <div className="mb-3">
-                        <label className="block text-teal-700 font-medium">
-                          Đáp án:
-                        </label>
-                        <input
-                          type="text"
-                          name={`quiz-answer-${quizIndex}`}
-                          value={quiz.answer}
-                          onChange={handleFormChange}
-                          className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          placeholder="Nhập đáp án"
-                        />
-                      </div>
-                      {formData.quizzes.length > 1 && (
+                    )}
+                    {formData.storyDoc && !isUploadingFile && (
+                      <div className="mt-4 flex items-center justify-between bg-teal-50 p-3 rounded-lg shadow-sm hover:bg-teal-100 transition-colors duration-200">
+                        <a
+                          href={formData.storyDoc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-teal-600 text-sm font-medium hover:underline"
+                        >
+                          {truncateFileName(formData.storyDoc.name)}
+                        </a>
                         <button
                           type="button"
-                          onClick={() => removeQuiz(quizIndex)}
-                          className="text-red-500 hover:text-red-700"
+                          onClick={handleRemoveDoc}
+                          className="text-red-500 hover:text-red-600 transition-colors"
                         >
-                          Xóa câu đố
+                          <FaTimes size={14} />
                         </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addQuiz}
-                    className="text-teal-500 hover:text-teal-700"
-                  >
-                    + Thêm câu đố
-                  </button>
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tải lên ảnh:
-                  </label>
-                  <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
-                    <FileImageOutlined className="mr-2" /> Ảnh
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {formData.storyType === "Truyện tranh" && (
+                <>
+                  <div className="mb-8">
+                    <label className="block text-teal-600 mb-2 font-semibold">
+                      Mô tả truyện:
+                    </label>
+                    <textarea
+                      name="storyDescription"
+                      value={formData.storyDescription}
+                      onChange={handleFormChange}
+                      className="h-20 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                      rows="6"
+                      placeholder="Nhập mô tả truyện tranh"
                     />
-                  </label>
-                  {imageError && (
-                    <p className="text-red-500 text-sm mt-4 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-                  {isUploadingImage && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">
-                        Đang tải hình ảnh...
-                      </span>
-                    </div>
-                  )}
-                  {formData.images.length > 0 && !isUploadingImage && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {formData.images.map((image, index) =>
-                        image.url && isValidUrl(image.url) ? (
-                          <div
-                            key={`image-${index}`}
-                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                          >
-                            <Image
-                              src={image.url}
-                              alt={`Uploaded ${image.name}`}
-                              className="w-full h-24 object-cover"
-                              width={96}
-                              height={96}
-                            />
-                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                              {truncateFileName(image.name)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(index)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                  </div>
+                  <div className="mb-8">
+                    <label className="block text-teal-600 mb-2 font-semibold">
+                      Tải lên ảnh truyện tranh:
+                    </label>
+                    <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                      <FileImageOutlined className="mr-2" /> Ảnh
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {imageError && (
+                      <p className="text-red-500 text-sm mt-4 animate-pulse">
+                        {imageError}
+                      </p>
+                    )}
+                    {isUploadingImage && (
+                      <div className="mt-4 flex items-center">
+                        <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                        <span className="text-teal-600">
+                          Đang tải hình ảnh...
+                        </span>
+                      </div>
+                    )}
+                    {formData.images.length > 0 && !isUploadingImage && (
+                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {formData.images.map((image, index) =>
+                          image.url && isValidUrl(image.url) ? (
+                            <div
+                              key={`image-${index}`}
+                              className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
                             >
-                              <FaTimes size={12} />
-                            </button>
-                          </div>
-                        ) : null
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {selectedPurpose === "Truyện tranh" && (
-              <>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Loại truyện:
-                  </label>
-                  <select
-                    name="storyType"
-                    value={formData.storyType}
-                    onChange={handleFormChange}
-                    className="h-9 p-2 rounded-lg w-full md:w-1/2 border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                  >
-                    <option value="Truyện chữ">Truyện chữ</option>
-                    <option value="Truyện tranh">Truyện tranh</option>
-                  </select>
-                </div>
-                {formData.storyType === "Truyện chữ" && (
-                  <>
-                    <div className="mb-8">
-                      <label className="block text-teal-600 mb-2 font-semibold">
-                        Mô tả truyện:
-                      </label>
-                      <textarea
-                        name="storyDescription"
-                        value={formData.storyDescription}
-                        onChange={handleFormChange}
-                        className="h-20 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                        rows="6"
-                        placeholder="Nhập mô tả truyện chữ"
-                      />
-                    </div>
-                    <div className="mb-8">
-                      <label className="block text-teal-600 mb-2 font-semibold">
-                        Tải lên file Word/PDF truyện chữ:
-                      </label>
-                      <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
-                        <FileTextOutlined className="mr-2" /> Word/PDF
-                        <input
-                          type="file"
-                          name="storyDoc"
-                          accept=".doc,.docx,.pdf"
-                          onChange={handleDocUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      {isUploadingFile && (
-                        <div className="mt-4 flex items-center">
-                          <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                          <span className="text-teal-600">Đang tải tệp...</span>
-                        </div>
-                      )}
-                      {formData.storyDoc && !isUploadingFile && (
-                        <div className="mt-4 flex items-center justify-between bg-teal-50 p-3 rounded-lg shadow-sm hover:bg-teal-100 transition-colors duration-200">
-                          <a
-                            href={formData.storyDoc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-teal-600 text-sm font-medium hover:underline"
-                          >
-                            {truncateFileName(formData.storyDoc.name)}
-                          </a>
-                          <button
-                            type="button"
-                            onClick={handleRemoveDoc}
-                            className="text-red-500 hover:text-red-600 transition-colors"
-                          >
-                            <FaTimes size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-                {formData.storyType === "Truyện tranh" && (
-                  <>
-                    <div className="mb-8">
-                      <label className="block text-teal-600 mb-2 font-semibold">
-                        Mô tả truyện:
-                      </label>
-                      <textarea
-                        name="storyDescription"
-                        value={formData.storyDescription}
-                        onChange={handleFormChange}
-                        className="h-20 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                        rows="6"
-                        placeholder="Nhập mô tả truyện tranh"
-                      />
-                    </div>
-                    <div className="mb-8">
-                      <label className="block text-teal-600 mb-2 font-semibold">
-                        Tải lên ảnh truyện tranh:
-                      </label>
-                      <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
-                        <FileImageOutlined className="mr-2" /> Ảnh
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      {imageError && (
-                        <p className="text-red-500 text-sm mt-4 animate-pulse">
-                          {imageError}
-                        </p>
-                      )}
-                      {isUploadingImage && (
-                        <div className="mt-4 flex items-center">
-                          <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                          <span className="text-teal-600">
-                            Đang tải hình ảnh...
-                          </span>
-                        </div>
-                      )}
-                      {formData.images.length > 0 && !isUploadingImage && (
-                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                          {formData.images.map((image, index) =>
-                            image.url && isValidUrl(image.url) ? (
-                              <div
-                                key={`image-${index}`}
-                                className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                              <Image
+                                src={image.url}
+                                alt={`Uploaded ${image.name}`}
+                                className="w-full h-24 object-cover"
+                                width={96}
+                                height={96}
+                              />
+                              <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                                {truncateFileName(image.name)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImage(index)}
+                                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
                               >
-                                <Image
-                                  src={image.url}
-                                  alt={`Uploaded ${image.name}`}
-                                  className="w-full h-24 object-cover"
-                                  width={96}
-                                  height={96}
-                                />
-                                <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                                  {truncateFileName(image.name)}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveImage(index)}
-                                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                                >
-                                  <FaTimes size={12} />
-                                </button>
-                              </div>
-                            ) : null
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
-            {selectedPurpose === "Hành trình" && (
-              <>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tiêu đề hành trình:
-                  </label>
-                  <input
-                    type="text"
-                    name="timeline-title"
-                    value={formData.timeline.title}
-                    onChange={handleFormChange}
-                    className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                    placeholder="Nhập tiêu đề hành trình"
-                  />
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Các mốc thời gian:
-                  </label>
-                  {formData.timeline.milestones.map(
-                    (milestone, milestoneIndex) => (
-                      <div
-                        key={`milestone-${milestoneIndex}`}
-                        className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
-                      >
-                        <div className="mb-3">
-                          <label className="block text-teal-700 font-medium">
-                            Mốc thời gian {milestoneIndex + 1}:
-                          </label>
-                          <input
-                            type="date"
-                            name={`milestone-time-${milestoneIndex}`}
-                            value={milestone.time}
-                            onChange={handleFormChange}
-                            className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label className="block text-teal-700 font-medium">
-                            Mô tả:
-                          </label>
-                          <textarea
-                            name={`milestone-description-${milestoneIndex}`}
-                            value={milestone.description}
-                            onChange={handleFormChange}
-                            className="h-16 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                            placeholder="Nhập mô tả mốc thời gian"
-                            rows="4"
-                          />
-                        </div>
-                        <div className="mb-3">
-                          <label className="block text-teal-700 font-medium">
-                            Trạng thái:
-                          </label>
-                          <select
-                            name={`milestone-status-${milestoneIndex}`}
-                            value={milestone.status}
-                            onChange={handleFormChange}
-                            className="h-9 p-2 rounded-lg w-full min-w-[150px] border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
-                          >
-                            <option value="Hoàn thành">Hoàn thành</option>
-                            <option value="Đang tiến hành">
-                              Đang tiến hành
-                            </option>
-                            <option value="Chưa">Chưa</option>
-                          </select>
-                        </div>
-                        {formData.timeline.milestones.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeMilestone(milestoneIndex)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            Xóa mốc thời gian
-                          </button>
+                                <FaTimes size={12} />
+                              </button>
+                            </div>
+                          ) : null
                         )}
                       </div>
-                    )
-                  )}
-                  <button
-                    type="button"
-                    onClick={addMilestone}
-                    className="text-teal-500 hover:text-teal-700"
-                  >
-                    + Thêm mốc thời gian
-                  </button>
-                </div>
-                <div className="mb-8">
-                  <label className="block text-teal-600 mb-2 font-semibold">
-                    Tải lên ảnh:
-                  </label>
-                  <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
-                    <FileImageOutlined className="mr-2" /> Ảnh
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  {imageError && (
-                    <p className="text-red-500 text-sm mt-4 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-                  {isUploadingImage && (
-                    <div className="mt-4 flex items-center">
-                      <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">
-                        Đang tải hình ảnh...
-                      </span>
-                    </div>
-                  )}
-                  {formData.images.length > 0 && !isUploadingImage && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {formData.images.map((image, index) =>
-                        image.url && isValidUrl(image.url) ? (
-                          <div
-                            key={`image-${index}`}
-                            className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                          >
-                            <Image
-                              src={image.url}
-                              alt={`Uploaded ${image.name}`}
-                              className="w-full h-24 object-cover"
-                              width={96}
-                              height={96}
-                            />
-                            <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                              {truncateFileName(image.name)}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(index)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
-                            >
-                              <FaTimes size={12} />
-                            </button>
-                          </div>
-                        ) : null
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
-            <div className="flex justify-center items-center mt-8 flex-wrap gap-4">
-              <div className="flex gap-4">
+          {selectedPurpose === "Hành trình" && (
+            <>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tiêu đề hành trình:
+                </label>
+                <input
+                  type="text"
+                  name="timeline-title"
+                  value={formData.timeline.title}
+                  onChange={handleFormChange}
+                  className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                  placeholder="Nhập tiêu đề hành trình"
+                />
+              </div>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Các mốc thời gian:
+                </label>
+                {formData.timeline.milestones.map((milestone, index) => (
+                  <div
+                    key={`milestone-${index}`}
+                    className="mb-6 p-4 rounded-lg bg-teal-50 shadow-sm"
+                  >
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Thời gian:
+                      </label>
+                      <input
+                        type="date"
+                        name={`milestone-time-${index}`}
+                        value={milestone.time}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Mô tả:
+                      </label>
+                      <textarea
+                        name={`milestone-description-${index}`}
+                        value={milestone.description}
+                        onChange={handleFormChange}
+                        className="h-16 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                        placeholder="Nhập mô tả cho mốc thời gian"
+                        rows="4"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-teal-700 font-medium">
+                        Trạng thái:
+                      </label>
+                      <select
+                        name={`milestone-status-${index}`}
+                        value={milestone.status}
+                        onChange={handleFormChange}
+                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                      >
+                        <option value="Hoàn thành">Hoàn thành</option>
+                        <option value="Đang thực hiện">Đang thực hiện</option>
+                        <option value="Chưa bắt đầu">Chưa bắt đầu</option>
+                      </select>
+                    </div>
+                    {formData.timeline.milestones.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMilestone(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Xóa mốc thời gian
+                      </button>
+                    )}
+                  </div>
+                ))}
                 <button
                   type="button"
-                  onClick={handleResetForm}
-                  className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all duration-200"
+                  onClick={addMilestone}
+                  className="text-teal-500 hover:text-teal-700"
                 >
-                  <FaTrash /> Xóa
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-200"
-                >
-                  <FaSave /> Lưu bản nháp
+                  + Thêm mốc thời gian
                 </button>
               </div>
-              <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => setLivePreview(!livePreview)}
-                  className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200"
-                >
-                  <FaEye /> {livePreview ? "Tắt xem trước" : "Xem trước"}
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-200"
-                >
-                  <FaPaperPlane /> Đăng bài
-                </button>
+              <div className="mb-8">
+                <label className="block text-teal-600 mb-2 font-semibold">
+                  Tải lên ảnh minh họa:
+                </label>
+                <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
+                  <FileImageOutlined className="mr-2" /> Ảnh
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+                {imageError && (
+                  <p className="text-red-500 text-sm mt-4 animate-pulse">
+                    {imageError}
+                  </p>
+                )}
+                {isUploadingImage && (
+                  <div className="mt-4 flex items-center">
+                    <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
+                    <span className="text-teal-600">Đang tải hình ảnh...</span>
+                  </div>
+                )}
+                {formData.images.length > 0 && !isUploadingImage && (
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {formData.images.map((image, index) =>
+                      image.url && isValidUrl(image.url) ? (
+                        <div
+                          key={`image-${index}`}
+                          className="relative group rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                        >
+                          <Image
+                            src={image.url}
+                            alt={`Uploaded ${image.name}`}
+                            className="w-full h-24 object-cover"
+                            width={96}
+                            height={96}
+                          />
+                          <p className="text-xs text-gray-600 mt-1 text-center truncate">
+                            {truncateFileName(image.name)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                          >
+                            <FaTimes size={12} />
+                          </button>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
               </div>
+            </>
+          )}
+
+          {/* Form control buttons */}
+          <div className="flex justify-center items-center mt-8 flex-wrap gap-4">
+            <div className="flex gap-4">  
+             
+              {/* Reset form button */}
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="flex items-center gap-2 bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600 transition-all duration-200 hover:scale-105 shadow-md"
+              >
+                <FaTrash /> Xóa
+              </button>
             </div>
-          </form>
-      
+            <div className="flex gap-4">
+              {/* Save draft button */}
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="flex items-center gap-2 bg-blue-500 text-white px-6 py-3 rounded-full hover:bg-blue-600 transition-all duration-200 hover:scale-105 shadow-md"
+              >
+                <FaSave /> Lưu bản nháp
+              </button>
+               {/* Preview button */}
+               <button
+                type="button"
+                onClick={() => setLivePreview(!livePreview)}
+                className="flex items-center gap-2 bg-gray-500 text-white px-6 py-3 rounded-full hover:bg-gray-600 transition-all duration-200 hover:scale-105 shadow-md"
+              >
+                <FaEye /> {livePreview ? "Ẩn xem trước" : "Xem trước"}
+              </button>
+              {/* Publish post button */}
+              <button
+                type="submit"
+                className="flex items-center gap-2 bg-teal-500 text-white px-6 py-3 rounded-full hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md"
+              >
+                <FaPaperPlane /> Đăng bài
+              </button>
+            </div>
+          </div>
+
+          {/* Live preview section */}
+          {livePreview && <LivePreview />}
+        </form>
       )}
     </div>
   );

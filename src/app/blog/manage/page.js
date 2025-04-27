@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
@@ -7,22 +6,87 @@ import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import {
+  FileOutlined,
+  FileTextOutlined,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
+import { FaTimes } from "react-icons/fa";
 
-// Debounce hook to limit frequent updates
+// Debounce hook
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
-
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
   }, [value, delay]);
-
   return debouncedValue;
+};
+
+// Hàm kiểm tra URL hợp lệ
+const isValidUrl = (url) => {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Hàm rút gọn tên file
+const truncateFileName = (name, maxLength = 20) => {
+  if (!name) return "Unknown";
+  if (name.length <= maxLength) return name;
+  return `${name.slice(0, maxLength - 3)}...`;
+};
+
+// Hàm xác định loại media từ phần mở rộng file
+const getMediaType = (url) => {
+  const extension = url.split(".").pop()?.toLowerCase();
+  const imageExt = ["jpg", "jpeg", "png", "gif", "webp"];
+  const videoExt = ["mp4", "webm", "ogg", "mov"];
+  const fileExt = ["doc", "docx", "pdf"];
+  if (imageExt.includes(extension)) return "image";
+  if (videoExt.includes(extension)) return "video";
+  if (fileExt.includes(extension)) return "file";
+  return "file";
+};
+
+// Hàm kiểm tra bucket tồn tại
+const checkBucketExists = async () => {
+  try {
+    const { data: buckets, error } = await supabase.storage.listBuckets();
+    if (error) throw error;
+    return buckets.some((b) => b.name === "posts");
+  } catch (err) {
+    console.error("Check bucket error:", err);
+    return false;
+  }
+};
+
+// Hàm hiển thị media
+const renderMedia = (url, index) => {
+  const type = getMediaType(url);
+  if (type === "image") {
+    return (
+      <Image
+        src={url || "/default-image.jpg"}
+        alt={truncateFileName(url.split("/").pop())}
+        width={50}
+        height={50}
+        className="rounded-md mr-2"
+        onError={(e) => (e.target.src = "/default-image.jpg")}
+      />
+    );
+  } else if (type === "video") {
+    return <video src={url} controls className="w-16 h-16 rounded-md mr-2" />;
+  } else {
+    return (
+      <span className="text-sm flex items-center truncate max-w-[100px]">
+        📄 {truncateFileName(url.split("/").pop())}
+      </span>
+    );
+  }
 };
 
 export default function ManageApp() {
@@ -30,9 +94,11 @@ export default function ManageApp() {
   const [newArticle, setNewArticle] = useState({
     id: null,
     title: "",
-    summary: "",
-    date: "",
-    media: [], // Lưu danh sách { url, type, name }
+    content: "",
+    created_at: "",
+    images: [],
+    videos: [],
+    files: [],
     topics: "",
     tags: [],
   });
@@ -57,12 +123,24 @@ export default function ManageApp() {
   const [recentActions, setRecentActions] = useState([]);
   const [theme, setTheme] = useState("light");
   const [error, setError] = useState(null);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [uploadedVideos, setUploadedVideos] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploadingCount, setUploadingCount] = useState({
+    images: 0,
+    videos: 0,
+    files: 0,
+  });
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [imageError, setImageError] = useState(null);
   const router = useRouter();
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const filteredArticles = useMemo(() => {
-    let result = articles;
+    let result = articles || [];
 
     if (debouncedSearchQuery) {
       result = result.filter(
@@ -70,7 +148,7 @@ export default function ManageApp() {
           article.title
             ?.toLowerCase()
             .includes(debouncedSearchQuery.toLowerCase()) ||
-          article.summary
+          article.content
             ?.toLowerCase()
             .includes(debouncedSearchQuery.toLowerCase())
       );
@@ -87,8 +165,8 @@ export default function ManageApp() {
     return [...result].sort((a, b) => {
       if (sortBy === "created_at") {
         return sortOrder === "desc"
-          ? new Date(b.date) - new Date(a.date)
-          : new Date(a.date) - new Date(b.date);
+          ? new Date(b.created_at) - new Date(a.created_at)
+          : new Date(a.created_at) - new Date(b.created_at);
       } else if (sortBy === "title") {
         return sortOrder === "desc"
           ? b.title.localeCompare(a.title)
@@ -119,7 +197,7 @@ export default function ManageApp() {
 
   useEffect(() => {
     if (notification) {
-      const timer = setTimeout(() => setNotification(null), 3000);
+      const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [notification]);
@@ -128,6 +206,7 @@ export default function ManageApp() {
     const checkLoginStatus = async () => {
       try {
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        console.log("User data:", userData);
         if (userData && (userData.name || userData.email)) {
           setIsLoggedIn(true);
           setShowLoginModal(false);
@@ -140,6 +219,7 @@ export default function ManageApp() {
           resetForm();
         }
       } catch (err) {
+        console.error("Login check error:", err);
         setError("Lỗi khi kiểm tra trạng thái đăng nhập: " + err.message);
         setNotification({
           message: "Lỗi khi kiểm tra đăng nhập: " + err.message,
@@ -191,51 +271,51 @@ export default function ManageApp() {
     try {
       const { data, error } = await supabase
         .from("posts")
-        .select("id, title, content, topics, tags, images, created_at, name")
+        .select("id, title, content, topics, tags, images, videos, files, created_at, name")
         .eq("name", userData.name || userData.email)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const formattedArticles = data.map((post) => {
-        let media = [];
-        if (post.images) {
-          if (Array.isArray(post.images)) {
-            media = post.images.map((item) => ({
-              url: item.url || item,
-              type: item.type || (item.url?.match(/\.(mp4|webm|ogg)$/i) ? "video" : item.url?.match(/\.(jpg|jpeg|png|gif)$/i) ? "image" : "file"),
-              name: item.name || item.url?.split("/").pop() || "Unknown",
-            }));
-          } else if (typeof post.images === "string") {
-            try {
-              const parsedImages = JSON.parse(post.images);
-              media = parsedImages.map((item) => ({
-                url: item.url || item,
-                type: item.type || (item.url?.match(/\.(mp4|webm|ogg)$/i) ? "video" : item.url?.match(/\.(jpg|jpeg|png|gif)$/i) ? "image" : "file"),
-                name: item.name || item.url?.split("/").pop() || "Unknown",
-              }));
-            } catch (e) {
-              media = [
-                {
-                  url: post.images,
-                  type: post.images.match(/\.(mp4|webm|ogg)$/i) ? "video" : post.images.match(/\.(jpg|jpeg|png|gif)$/i) ? "image" : "file",
-                  name: post.images.split("/").pop() || "Unknown",
-                },
-              ];
-            }
+        let images = [];
+        let videos = [];
+        let files = [];
+        try {
+          if (post.images) {
+            images = post.images
+              .split(",")
+              .filter((url) => url.trim() && isValidUrl(url));
           }
+          if (post.videos) {
+            videos = post.videos
+              .split(",")
+              .filter((url) => url.trim() && isValidUrl(url));
+          }
+          if (post.files) {
+            files = post.files
+              .split(",")
+              .filter((url) => url.trim() && isValidUrl(url));
+          }
+        } catch (e) {
+          console.warn(`Invalid media format for post ${post.id}:`, e);
         }
 
         return {
           id: post.id,
           title: post.title || "Không có tiêu đề",
-          summary: post.content?.slice(0, 100) + "..." || "Không có nội dung",
-          date: new Date(post.created_at).toISOString().split("T")[0],
-          media,
+          content: post.content?.slice(0, 100) + "..." || "Không có nội dung",
+          created_at: new Date(post.created_at).toISOString().split("T")[0],
+          images,
+          videos,
+          files,
           topics: post.topics || "Chưa chọn",
           tags: post.tags
             ? typeof post.tags === "string"
-              ? post.tags.split(",").map((tag) => tag.trim())
+              ? post.tags
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter(Boolean)
               : Array.isArray(post.tags)
               ? post.tags
               : []
@@ -245,6 +325,7 @@ export default function ManageApp() {
 
       setArticles(formattedArticles);
     } catch (err) {
+      console.error("Fetch articles error:", err);
       setError("Lỗi khi tải bài viết: " + err.message);
       setNotification({
         message: `Không thể tải dữ liệu: ${err.message}`,
@@ -254,50 +335,201 @@ export default function ManageApp() {
   };
 
   const handleFileUpload = async (files, type) => {
+    console.log("Bắt đầu tải lên:", { type, fileCount: files?.length });
+
     if (!isLoggedIn) {
+      console.warn("Người dùng chưa đăng nhập");
       setShowLoginModal(true);
+      setNotification({
+        message: "Vui lòng đăng nhập để tải lên!",
+        type: "error",
+      });
       return;
     }
 
+    if (
+      !files ||
+      files.length === 0 ||
+      !(files instanceof FileList || Array.isArray(files))
+    ) {
+      console.warn("Danh sách tệp không hợp lệ hoặc rỗng:", files);
+      setNotification({
+        message: "Vui lòng chọn tệp hợp lệ để tải lên!",
+        type: "error",
+      });
+      return;
+    }
+
+    const bucketExists = await checkBucketExists();
+    if (!bucketExists) {
+      setNotification({
+        message: "Bucket 'posts' không tồn tại. Vui lòng liên hệ quản trị viên!",
+        type: "error",
+      });
+      return;
+    }
+
+    const validTypes = ["image", "video", "file"];
+    if (!validTypes.includes(type)) {
+      console.error("Loại tệp không hợp lệ:", type);
+      setNotification({
+        message: `Loại tệp không hợp lệ: ${type}`,
+        type: "error",
+      });
+      return;
+    }
+
+    const validImageExt = ["jpg", "jpeg", "png", "gif", "webp"];
+    const validVideoExt = ["mp4", "webm", "ogg", "mov"];
+    const validFileExt = ["doc", "docx", "pdf"];
+    const validExts =
+      type === "image"
+        ? validImageExt
+        : type === "video"
+        ? validVideoExt
+        : validFileExt;
+    const maxFileSize = 50 * 1024 * 1024; // 50MB
+
+    const stateSetters = {
+      image: setIsUploadingImage,
+      video: setIsUploadingVideo,
+      file: setIsUploadingFile,
+    };
+    const mediaSetters = {
+      image: setUploadedImages,
+      video: setUploadedVideos,
+      file: setUploadedFiles,
+    };
+    const mediaFields = {
+      image: "images",
+      video: "videos",
+      file: "files",
+    };
+
+    const setUploadingState = stateSetters[type];
+    const updateMediaState = mediaSetters[type];
+    const mediaField = mediaFields[type];
+
     try {
-      const uploadedFiles = [];
-      for (const file of files) {
-        const fileExt = file.name.split(".").pop().toLowerCase();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
-        const fileType = type; // Sử dụng type được truyền vào (image, video, file)
+      setImageError(null);
+      setUploadingState(true);
+      setUploadingCount((prev) => ({ ...prev, [type + "s"]: files.length }));
+
+      const uploadPromises = Array.from(files).map(async (file) => {
+        if (!(file instanceof File)) {
+          throw new Error(`Tệp không hợp lệ: ${file.name || "Unknown"}`);
+        }
+
+        const fileExt = file.name.split(".").pop()?.toLowerCase();
+        if (!fileExt || !validExts.includes(fileExt)) {
+          throw new Error(
+            `Định dạng tệp không hợp lệ cho ${file.name}: ${fileExt}`
+          );
+        }
+
+        if (file.size > maxFileSize) {
+          throw new Error(`Tệp ${file.name} vượt quá giới hạn 50MB`);
+        }
+
+        if (file.size === 0) {
+          throw new Error(`Tệp ${file.name} rỗng`);
+        }
+
+        const fileName = `${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExt}`;
+        console.log("Đang tải lên tệp:", fileName);
 
         const { data, error } = await supabase.storage
           .from("posts")
-          .upload(fileName, file);
+          .upload(fileName, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Lỗi tải lên Supabase:", {
+            message: error.message,
+            status: error.statusCode,
+            details: error,
+            file: fileName,
+          });
+          throw new Error(`Lỗi tải lên tệp ${file.name}: ${error.message}`);
+        }
 
         const { data: publicData } = supabase.storage
           .from("posts")
           .getPublicUrl(fileName);
 
-        uploadedFiles.push({
-          url: publicData.publicUrl,
-          type: fileType,
-          name: file.name,
-        });
-      }
+        if (!publicData?.publicUrl) {
+          throw new Error(`Không lấy được URL công khai cho ${file.name}`);
+        }
 
-      setNewArticle({
-        ...newArticle,
-        media: [...newArticle.media, ...uploadedFiles],
+        console.log("Đã tải lên tệp:", fileName, "URL:", publicData.publicUrl);
+        return publicData.publicUrl;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      setNewArticle((prev) => {
+        const updatedMedia = [...prev[mediaField], ...uploadedUrls];
+        console.log(`Đã cập nhật ${mediaField}:`, updatedMedia);
+        return { ...prev, [mediaField]: updatedMedia };
+      });
+
+      updateMediaState((prev) => {
+        const updatedMedia = [...prev, ...uploadedUrls];
+        console.log(`Đã cập nhật trạng thái ${type}:`, updatedMedia);
+        return updatedMedia;
       });
 
       setNotification({
-        message: "Tệp đã được tải lên thành công!",
+        message: `Đã tải lên ${uploadedUrls.length} ${type} thành công!`,
         type: "success",
       });
     } catch (err) {
+      console.error(`Lỗi khi tải lên ${type}:`, {
+        message: err.message,
+        stack: err.stack,
+        details: err,
+      });
+      const errorMessage = `Lỗi tải lên ${type}: ${err.message}`;
       setNotification({
-        message: `Lỗi khi tải lên tệp: ${err.message}`,
+        message: errorMessage,
         type: "error",
       });
+      setImageError(errorMessage);
+    } finally {
+      setUploadingCount((prev) => ({ ...prev, [type + "s"]: 0 }));
+      setUploadingState(false);
+      console.log("Quá trình tải lên hoàn tất");
     }
+  };
+
+  const handleUpload = (e, type) => {
+    const files = e.target.files;
+    handleFileUpload(files, type);
+  };
+
+  const handleRemoveMedia = (index, type) => {
+    const mediaFields = {
+      image: "images",
+      video: "videos",
+      file: "files",
+    };
+    const mediaSetters = {
+      image: setUploadedImages,
+      video: setUploadedVideos,
+      file: setUploadedFiles,
+    };
+    const mediaField = mediaFields[type];
+    const updateMediaState = mediaSetters[type];
+
+    setNewArticle((prev) => {
+      const updatedMedia = prev[mediaField].filter((_, i) => i !== index);
+      return { ...prev, [mediaField]: updatedMedia };
+    });
+    updateMediaState((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleEdit = (article) => {
@@ -306,9 +538,22 @@ export default function ManageApp() {
       return;
     }
     try {
-      setNewArticle(article);
+      setNewArticle({
+        id: article.id,
+        title: article.title,
+        content: article.content,
+        created_at: article.created_at,
+        images: article.images,
+        videos: article.videos,
+        files: article.files,
+        topics: article.topics,
+        tags: article.tags,
+      });
       setIsEditing(true);
       setDeletingArticleId(null);
+      setUploadedImages(article.images);
+      setUploadedVideos(article.videos);
+      setUploadedFiles(article.files);
       setRecentActions((prev) => [
         {
           action: "Chỉnh sửa",
@@ -474,14 +719,9 @@ export default function ManageApp() {
       setShowLoginModal(true);
       return;
     }
-    if (
-      !newArticle.title ||
-      !newArticle.summary ||
-      !newArticle.date ||
-      !newArticle.topics
-    ) {
+    if (!newArticle.title || !newArticle.content) {
       setNotification({
-        message: "Tất cả các trường (trừ tags và media) đều là bắt buộc!",
+        message: "Tiêu đề và nội dung là bắt buộc!",
         type: "error",
       });
       return;
@@ -497,14 +737,20 @@ export default function ManageApp() {
   const confirmSaveChanges = async () => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!userData.name && !userData.email) {
+        throw new Error("User name or email is required");
+      }
+
       const articleData = {
         title: newArticle.title,
-        content: newArticle.summary,
-        created_at: newArticle.date,
-        images: newArticle.media,
-        topics: newArticle.topics,
-        tags: newArticle.tags.join(","),
-        name: userData.name || userData.email || "",
+        content: newArticle.content,
+        created_at: newArticle.created_at,
+        images: newArticle.images.join(",") || null,
+        videos: newArticle.videos.join(",") || null,
+        files: newArticle.files.join(",") || null,
+        topics: newArticle.topics || null,
+        tags: newArticle.tags.join(",") || null,
+        name: userData.name || userData.email,
       };
 
       const { error } = await supabase
@@ -515,7 +761,7 @@ export default function ManageApp() {
 
       const updatedArticle = {
         ...newArticle,
-        summary: newArticle.summary.slice(0, 100) + "...",
+        content: newArticle.content.slice(0, 100) + "...",
       };
       setArticles(
         articles.map((article) =>
@@ -537,6 +783,7 @@ export default function ManageApp() {
       });
       resetForm();
     } catch (err) {
+      console.error("Save changes error:", err);
       setNotification({
         message: `Không thể cập nhật bài viết: ${err.message}`,
         type: "error",
@@ -565,13 +812,6 @@ export default function ManageApp() {
     setNewArticle({
       ...newArticle,
       tags: newArticle.tags.filter((tag) => tag !== tagToRemove),
-    });
-  };
-
-  const handleRemoveMedia = (index) => {
-    setNewArticle({
-      ...newArticle,
-      media: newArticle.media.filter((_, i) => i !== index),
     });
   };
 
@@ -616,9 +856,11 @@ export default function ManageApp() {
     setNewArticle({
       id: null,
       title: "",
-      summary: "",
-      date: "",
-      media: [],
+      content: "",
+      created_at: "",
+      images: [],
+      videos: [],
+      files: [],
       topics: "",
       tags: [],
     });
@@ -628,6 +870,9 @@ export default function ManageApp() {
     setTagInput("");
     setShowConfirm(false);
     setShowPreview(false);
+    setUploadedImages([]);
+    setUploadedVideos([]);
+    setUploadedFiles([]);
   };
 
   const handleCancel = () => {
@@ -642,14 +887,9 @@ export default function ManageApp() {
   };
 
   const handlePreview = () => {
-    if (
-      !newArticle.title ||
-      !newArticle.summary ||
-      !newArticle.date ||
-      !newArticle.topics
-    ) {
+    if (!newArticle.title || !newArticle.content) {
       setNotification({
-        message: "Vui lòng điền đầy đủ thông tin (trừ tags và media) để xem trước!",
+        message: "Vui lòng điền tiêu đề và nội dung để xem trước!",
         type: "error",
       });
       return;
@@ -710,10 +950,10 @@ export default function ManageApp() {
       date14DaysAgo.setDate(currentDate.getDate() - 14);
 
       const oldArticles45Days = articles.filter(
-        (article) => new Date(article.date) < date45DaysAgo
+        (article) => new Date(article.created_at) < date45DaysAgo
       );
       const oldArticles14Days = articles.filter(
-        (article) => new Date(article.date) < date14DaysAgo
+        (article) => new Date(article.created_at) < date14DaysAgo
       );
 
       let suggestions = [];
@@ -755,7 +995,7 @@ export default function ManageApp() {
         <p>{error}</p>
         <button
           onClick={() => setError(null)}
-          className="bg-blue-500 text-white pv-4 py-2 rounded"
+          className="bg-blue-500 text-white px-4 py-2 rounded"
         >
           Thử lại
         </button>
@@ -793,7 +1033,7 @@ export default function ManageApp() {
               Quản lý bài viết
             </h1>
             <span className="text-sm text-green-500 wrap-text">
-              Tổng: {filteredArticles.length} bài viết
+              Tổng: {(filteredArticles || []).length} bài viết
             </span>
           </div>
           <div className="mb-4 flex flex-col sm:flex-row gap-4 flex-wrap">
@@ -874,13 +1114,13 @@ export default function ManageApp() {
             <input
               type="checkbox"
               checked={
-                filteredArticles.length > 0 &&
-                selectedArticles.length === filteredArticles.length
+                (filteredArticles || []).length > 0 &&
+                selectedArticles.length === (filteredArticles || []).length
               }
               onChange={(e) => {
                 if (e.target.checked) {
                   setSelectedArticles(
-                    filteredArticles.map((article) => article.id)
+                    (filteredArticles || []).map((article) => article.id)
                   );
                 } else {
                   setSelectedArticles([]);
@@ -890,12 +1130,13 @@ export default function ManageApp() {
               disabled={!isLoggedIn}
             />
             <label className="wrap-text">
-              Chọn tất cả ({selectedArticles.length}/{filteredArticles.length})
+              Chọn tất cả ({selectedArticles.length}/
+              {(filteredArticles || []).length})
             </label>
           </div>
           <div className="max-h-[500px] overflow-y-auto scrollbar-hidden">
             <ul>
-              {filteredArticles.map((article) => (
+              {(filteredArticles || []).map((article) => (
                 <div key={article.id} className="flex items-center mb-6">
                   <input
                     type="checkbox"
@@ -914,37 +1155,20 @@ export default function ManageApp() {
                       onClick={() => handleToggleDetails(article.id)}
                       className="cursor-pointer flex items-center flex-1 min-w-0"
                     >
-                      {article.media.length > 0 ? (
-                        article.media[0].type === "image" ? (
-                          <Image
-                            src={article.media[0].url || "/default-image.jpg"}
-                            alt={article.title || "No title"}
-                            width={50}
-                            height={50}
-                            className="rounded-md mr-3 flex-shrink-0"
-                            onError={(e) => (e.target.src = "/default-image.jpg")}
-                          />
-                        ) : article.media[0].type === "video" ? (
-                          <video
-                            src={article.media[0].url}
-                            className="w-12 h-12 rounded-md mr-3 flex-shrink-0"
-                          />
-                        ) : (
-                          <span className="text-sm mr-3 flex items-center">
-                            📄 {article.media[0].name || "File"}
-                          </span>
-                        )
+                      {article.images.length > 0 ? (
+                        renderMedia(article.images[0], 0)
+                      ) : article.videos.length > 0 ? (
+                        renderMedia(article.videos[0], 0)
+                      ) : article.files.length > 0 ? (
+                        renderMedia(article.files[0], 0)
                       ) : (
-                        <Image
-                          src="/default-image.jpg"
-                          alt="No media"
-                          width={50}
-                          height={50}
-                          className="rounded-md mr-3 flex-shrink-0"
-                        />
+                        <div className="w-[50px] h-[50px] flex items-center justify-center text-xs text-gray-500 bg-gray-200 rounded-md mr-3 px-1">
+                          Không có media
+                        </div>
                       )}
                       <span className="wrap-text">{article.title}</span>
                     </div>
+
                     <div className="flex space-x-2 flex-wrap mt-2 sm:mt-0">
                       <button
                         onClick={() => toggleFavorite(article.id)}
@@ -988,7 +1212,7 @@ export default function ManageApp() {
           )}`}
         >
           <div className="flex justify-between items-center mb-4 flex-wrap">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
+            <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
               {deletingArticleId ? "Xóa bài viết" : "Chỉnh sửa bài viết"}
             </h2>
           </div>
@@ -1000,42 +1224,35 @@ export default function ManageApp() {
                 "preview"
               )}`}
             >
-              <h3 className="text-xl font-bold wrap-text">{newArticle.title}</h3>
-              {newArticle.media.length > 0 ? (
+              <h3 className="text-xl font-bold wrap-text">
+                {newArticle.title}
+              </h3>
+              {newArticle.images.length > 0 ||
+              newArticle.videos.length > 0 ||
+              newArticle.files.length > 0 ? (
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {newArticle.media.map((item, index) => (
-                    <div key={index}>
-                      {item.type === "image" ? (
-                        <Image
-                          src={item.url || "/default-image.jpg"}
-                          alt={item.name || "Media"}
-                          width={200}
-                          height={200}
-                          className="rounded-md my-2"
-                          onError={(e) => (e.target.src = "/default-image.jpg")}
-                        />
-                      ) : item.type === "video" ? (
-                        <video
-                          src={item.url}
-                          controls
-                          className="w-48 h-48 rounded-md my-2"
-                        />
-                      ) : (
-                        <div className="flex items-center text-gray-600 wrap-text my-2">
-                          📄 <span className="ml-2">{item.name || item.url}</span>
-                        </div>
-                      )}
-                    </div>
+                  {newArticle.images.map((url, index) => (
+                    <div key={`image-${index}`}>{renderMedia(url, index)}</div>
+                  ))}
+                  {newArticle.videos.map((url, index) => (
+                    <div key={`video-${index}`}>{renderMedia(url, index)}</div>
+                  ))}
+                  {newArticle.files.map((url, index) => (
+                    <div key={`file-${index}`}>{renderMedia(url, index)}</div>
                   ))}
                 </div>
               ) : (
                 <p className="text-gray-500">Chưa có tệp nào.</p>
               )}
-              <p className="text-gray-600 wrap-text">{newArticle.summary}</p>
-              <p className="mt-1 text-gray-500 wrap-text">Ngày: {newArticle.date}</p>
-              <p className="mt-1 text-gray-500 wrap-text">Chủ đề: {newArticle.topics}</p>
+              <p className="text-gray-600 wrap-text">{newArticle.content}</p>
               <p className="mt-1 text-gray-500 wrap-text">
-                Tags: {newArticle.tags?.join(", ") || "None"}
+                Ngày: {newArticle.created_at}
+              </p>
+              <p className="mt-1 text-gray-500 wrap-text">
+                Chủ đề: {newArticle.topics || "Không có"}
+              </p>
+              <p className="mt-1 text-gray-500 wrap-text">
+                Tags: {newArticle.tags?.join(", ") || "Không có"}
               </p>
               <button
                 onClick={() => setShowPreview(false)}
@@ -1046,8 +1263,8 @@ export default function ManageApp() {
             </div>
           ) : (
             <>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Tiêu đề:</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">Tiêu đề:</label>
                 <input
                   type="text"
                   name="title"
@@ -1060,11 +1277,11 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Tóm tắt:</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">Nội dung:</label>
                 <textarea
-                  name="summary"
-                  value={newArticle.summary}
+                  name="content"
+                  value={newArticle.content}
                   onChange={handleChange}
                   className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
                     theme,
@@ -1073,12 +1290,12 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Ngày:</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">Ngày:</label>
                 <input
                   type="date"
-                  name="date"
-                  value={newArticle.date}
+                  name="created_at"
+                  value={newArticle.created_at}
                   onChange={handleChange}
                   className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
                     theme,
@@ -1087,86 +1304,8 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Tệp đa phương tiện:</label>
-                {newArticle.media.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {newArticle.media.map((item, index) => (
-                      <div key={index} className="relative flex items-center bg-gray-100 p-2 rounded">
-                        {item.type === "image" ? (
-                          <Image
-                            src={item.url || "/default-image.jpg"}
-                            alt={item.name || "Media"}
-                            width={50}
-                            height={50}
-                            className="rounded-md mr-2"
-                            onError={(e) => (e.target.src = "/default-image.jpg")}
-                          />
-                        ) : item.type === "video" ? (
-                          <video
-                            src={item.url}
-                            controls
-                            className="w-16 h-16 rounded-md mr-2"
-                          />
-                        ) : (
-                          <span className="text-sm flex items-center truncate max-w-[100px]">
-                            📄 {item.name || item.url}
-                          </span>
-                        )}
-                        <button
-                          onClick={() => handleRemoveMedia(index)}
-                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
-                          disabled={!isLoggedIn || deletingArticleId !== null}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">Chưa có tệp nào.</p>
-                )}
-                <div className="flex flex-col gap-2 mt-2">
-                  <label className="block text-sm wrap-text">Tải lên hình ảnh:</label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e.target.files, "image")}
-                    className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                      theme,
-                      "input"
-                    )}`}
-                    disabled={!isLoggedIn || deletingArticleId !== null}
-                  />
-                  <label className="block text-sm wrap-text">Tải lên video:</label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="video/*"
-                    onChange={(e) => handleFileUpload(e.target.files, "video")}
-                    className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                      theme,
-                      "input"
-                    )}`}
-                    disabled={!isLoggedIn || deletingArticleId !== null}
-                  />
-                  <label className="block text-sm wrap-text">Tải lên tệp (PDF, Word):</label>
-  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx"
-                    onChange={(e) => handleFileUpload(e.target.files, "file")}
-                    className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                      theme,
-                      "input"
-                    )}`}
-                    disabled={!isLoggedIn || deletingArticleId !== null}
-                  />
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Chủ đề:</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">Chủ đề:</label>
                 <input
                   type="text"
                   name="topics"
@@ -1179,8 +1318,8 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-              <div className="mb-4">
-                <label className="block mb-1 wrap-text">Thẻ tag:</label>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">Thẻ tag:</label>
                 <input
                   type="text"
                   value={tagInput}
@@ -1212,6 +1351,138 @@ export default function ManageApp() {
                     ))}
                   </div>
                 )}
+              </div>
+              <div className="mb-3">
+                <label className="block mb-1 text-sm wrap-text">
+                  Tệp đa phương tiện:
+                </label>
+                {newArticle.images.length > 0 ||
+                newArticle.videos.length > 0 ||
+                newArticle.files.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {newArticle.images.map((url, index) => (
+                      <div
+                        key={`image-${index}`}
+                        className="relative flex items-center bg-gray-100 p-2 rounded"
+                      >
+                        {renderMedia(url, index)}
+                        <button
+                          onClick={() => handleRemoveMedia(index, "image")}
+                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                          disabled={!isLoggedIn || deletingArticleId !== null}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {newArticle.videos.map((url, index) => (
+                      <div
+                        key={`video-${index}`}
+                        className="relative flex items-center bg-gray-100 p-2 rounded"
+                      >
+                        {renderMedia(url, index)}
+                        <button
+                          onClick={() => handleRemoveMedia(index, "video")}
+                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                          disabled={!isLoggedIn || deletingArticleId !== null}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {newArticle.files.map((url, index) => (
+                      <div
+                        key={`file-${index}`}
+                        className="relative flex items-center bg-gray-100 p-2 rounded"
+                      >
+                        {renderMedia(url, index)}
+                        <button
+                          onClick={() => handleRemoveMedia(index, "file")}
+                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                          disabled={!isLoggedIn || deletingArticleId !== null}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Chưa có tệp nào.</p>
+                )}
+                <div className="mt-2">
+                  <h3 className="text-sm font-bold text-teal-600 mb-2">
+                    Tải lên tệp
+                  </h3>
+                  <div className="flex flex-row gap-2 items-center flex-wrap">
+                    <label className="min-w-fit bg-teal-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
+                      <FileOutlined className="mr-1 text-sm" /> Ảnh
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        multiple
+                        onChange={(e) => handleUpload(e, "image")}
+                        className="hidden"
+                        aria-label="Tải lên hình ảnh"
+                        disabled={!isLoggedIn}
+                      />
+                    </label>
+                    <label className="min-w-fit bg-indigo-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
+                      <FileTextOutlined className="mr-1 text-sm" /> Word/PDF
+                      <input
+                        type="file"
+                        accept=".doc,.docx,application/pdf"
+                        multiple
+                        onChange={(e) => handleUpload(e, "file")}
+                        className="hidden"
+                        aria-label="Tải lên tệp Word hoặc PDF"
+                        disabled={!isLoggedIn}
+                      />
+                    </label>
+                    <label className="min-w-fit bg-purple-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
+                      <VideoCameraOutlined className="mr-1 text-sm" /> Video
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                        multiple
+                        onChange={(e) => handleUpload(e, "video")}
+                        className="hidden"
+                        aria-label="Tải lên video"
+                        disabled={!isLoggedIn}
+                      />
+                    </label>
+                  </div>
+
+                  {(uploadingCount.images > 0 || isUploadingImage) && (
+                    <div className="mt-2 flex items-center">
+                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
+                      <span className="text-teal-600 text-sm">
+                        Đang tải {uploadingCount.images} hình ảnh...
+                      </span>
+                    </div>
+                  )}
+                  {(uploadingCount.files > 0 || isUploadingFile) && (
+                    <div className="mt-2 flex items-center">
+                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
+                      <span className="text-teal-600 text-sm">
+                        Đang tải {uploadingCount.files} tệp...
+                      </span>
+                    </div>
+                  )}
+                  {(uploadingCount.videos > 0 || isUploadingVideo) && (
+                    <div className="mt-2 flex items-center">
+                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
+                      <span className="text-teal-600 text-sm">
+                        Đang tải {uploadingCount.videos} video...
+                      </span>
+                    </div>
+                  )}
+
+                  {imageError && (
+                    <p className="text-red-500 text-xs mt-2 animate-pulse">
+                      {imageError}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="flex space-x-2 flex-wrap">
                 {deletingArticleId !== null ? (
@@ -1282,7 +1553,7 @@ export default function ManageApp() {
               "favorites"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-green-700 wrap-text">
+            <h3 className="text-lg font-bold text-green-700 wrap-text">
               Bài viết yêu thích
             </h3>
             {favoriteArticles.length > 0 ? (
@@ -1313,21 +1584,21 @@ export default function ManageApp() {
               "favorites"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-teal-700 wrap-text">
+            <h3 className="text-lg font-bold text-teal-700 wrap-text">
               Thống kê nhanh
             </h3>
             <ul className="list-disc pl-5 text-gray-600">
               <li className="wrap-text">
                 Tổng bài viết:{" "}
-                <span className="font-semibold">{articles.length}</span>
+                <span className="font-bold">{articles.length}</span>
               </li>
               <li className="wrap-text">
                 Bài yêu thích:{" "}
-                <span className="font-semibold">{favoriteArticles.length}</span>
+                <span className="font-bold">{favoriteArticles.length}</span>
               </li>
               <li className="wrap-text">
                 Bài đã chọn:{" "}
-                <span className="font-semibold">{selectedArticles.length}</span>
+                <span className="font-bold">{selectedArticles.length}</span>
               </li>
             </ul>
           </div>
@@ -1337,7 +1608,7 @@ export default function ManageApp() {
               "recent"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-blue-700 wrap-text">
+            <h3 className="text-lg font-bold text-blue-700 wrap-text">
               Hoạt động gần đây
             </h3>
             {recentActions.length > 0 ? (
@@ -1345,7 +1616,7 @@ export default function ManageApp() {
                 {recentActions.map((action, index) => (
                   <li key={index} className="wrap-text">
                     {action.action}:{" "}
-                    <span className="font-semibold">{action.title}</span> (
+                    <span className="font-bold">{action.title}</span> (
                     {action.timestamp})
                   </li>
                 ))}
@@ -1373,14 +1644,14 @@ export default function ManageApp() {
               "recent"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-orange-700 wrap-text">
+            <h3 className="text-lg font-bold text-orange-700 wrap-text">
               Từ khóa phổ biến
             </h3>
             {articles.length > 0 && getTopTags().length > 0 ? (
               <ul className="list-disc pl-5 text-gray-600">
                 {getTopTags().map(({ tag, count }) => (
                   <li key={tag} className="wrap-text">
-                    {tag}: <span className="font-semibold">{count}</span> lần
+                    {tag}: <span className="font-bold">{count}</span> lần
                   </li>
                 ))}
               </ul>
@@ -1396,16 +1667,10 @@ export default function ManageApp() {
               "tips"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-purple-700 wrap-text">
+            <h3 className="text-lg font-bold text-purple-700 wrap-text">
               Mẹo quản lý nội dung
             </h3>
             <ul className="list-disc pl-5 text-gray-600">
-              <li className="wrap-text">
-                Sử dụng thẻ tag để phân loại bài viết dễ dàng hơn.
-              </li>
-              <li className="wrap-text">
-                Cập nhật hình ảnh thường xuyên để thu hút người xem.
-              </li>
               <li className="wrap-text">
                 Lưu bài viết quan trọng vào danh sách yêu thích.
               </li>
@@ -1420,7 +1685,7 @@ export default function ManageApp() {
               "tips"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-pink-700 wrap-text">
+            <h3 className="text-lg font-bold text-pink-700 wrap-text">
               Gợi ý hành động
             </h3>
             <p className="text-gray-600 wrap-text">{getActionSuggestion()}</p>
@@ -1434,7 +1699,7 @@ export default function ManageApp() {
               "export"
             )}`}
           >
-            <h3 className="text-lg font-semibold text-yellow-700 wrap-text">
+            <h3 className="text-lg font-bold text-yellow-700 wrap-text">
               Xuất danh sách
             </h3>
             <button
@@ -1471,7 +1736,7 @@ export default function ManageApp() {
       {showLoginModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-transparent">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">
               Yêu cầu đăng nhập
             </h3>
             <p className="text-gray-600 mb-6">

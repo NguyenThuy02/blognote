@@ -50,11 +50,13 @@ export default function ClassfyApp() {
 
   // Hàm chuyển đổi chuỗi/JSON thành mảng
   const parseArray = (data) => {
-    if (Array.isArray(data)) return data.filter((item) => item && typeof item === "string");
+    if (Array.isArray(data))
+      return data.filter((item) => item && typeof item === "string");
     if (typeof data === "string") {
       try {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed.filter((item) => item && typeof item === "string");
+        if (Array.isArray(parsed))
+          return parsed.filter((item) => item && typeof item === "string");
       } catch (e) {
         return data
           .split(",")
@@ -81,7 +83,9 @@ export default function ClassfyApp() {
       try {
         const { data, error } = await supabase
           .from("posts")
-          .select("id, title, content, topics, tags, name, images, videos, files, created_at");
+          .select(
+            "id, title, content, topics, tags, name, images, videos, files, created_at"
+          );
 
         if (error) throw error;
 
@@ -90,8 +94,15 @@ export default function ClassfyApp() {
           const videos = parseArray(article.videos).filter(isValidUrl);
           const files = parseArray(article.files).filter(isValidUrl);
 
-          if (article.images && images.length === 0 && article.images.length > 0) {
-            console.warn(`URL hình ảnh không hợp lệ trong bài viết ${article.id}:`, article.images);
+          if (
+            article.images &&
+            images.length === 0 &&
+            article.images.length > 0
+          ) {
+            console.warn(
+              `URL hình ảnh không hợp lệ trong bài viết ${article.id}:`,
+              article.images
+            );
           }
 
           return {
@@ -101,12 +112,16 @@ export default function ClassfyApp() {
             images,
             videos,
             files,
-            created_at: article.created_at ? new Date(article.created_at) : new Date(),
+            created_at: article.created_at
+              ? new Date(article.created_at)
+              : new Date(),
           };
         });
 
         setArticles(processedData);
-        setTopics([...new Set(processedData.flatMap((article) => article.topics))]);
+        setTopics([
+          ...new Set(processedData.flatMap((article) => article.topics)),
+        ]);
         setTags([...new Set(processedData.flatMap((article) => article.tags))]);
       } catch (error) {
         console.error("Lỗi khi tải bài viết:", error.message);
@@ -120,8 +135,12 @@ export default function ClassfyApp() {
   // Lọc và sắp xếp bài viết
   const filteredArticles = articles
     .filter((article) => {
-      const matchesCategory = selectedCategory ? article.topics.includes(selectedCategory) : true;
-      const matchesTag = selectedTag ? article.tags.includes(selectedTag) : true;
+      const matchesCategory = selectedCategory
+        ? article.topics.includes(selectedCategory)
+        : true;
+      const matchesTag = selectedTag
+        ? article.tags.includes(selectedTag)
+        : true;
       const matchesSearch = searchQuery
         ? article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           article.content.toLowerCase().includes(searchQuery.toLowerCase())
@@ -143,7 +162,11 @@ export default function ClassfyApp() {
 
   // Bài viết nổi bật cho carousel
   const featuredArticles = articles
-    .filter((article) => article.images.length + article.videos.length + article.files.length >= 2)
+    .filter(
+      (article) =>
+        article.images.length + article.videos.length + article.files.length >=
+        2
+    )
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, 5);
 
@@ -154,7 +177,8 @@ export default function ClassfyApp() {
       .filter(
         (a) =>
           a.id !== article.id &&
-          (a.topics.some((t) => article.topics.includes(t)) || a.tags.some((t) => article.tags.includes(t)))
+          (a.topics.some((t) => article.topics.includes(t)) ||
+            a.tags.some((t) => article.tags.includes(t)))
       )
       .slice(0, 3);
   };
@@ -195,11 +219,14 @@ export default function ClassfyApp() {
       className={`mt-[97px] p-5 mb-[-7px] max-w-7xl mx-auto rounded-lg shadow-md border border-blue-200 relative ${themes[theme]} animate-fade-in`}
     >
       <div
-        className={`p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(theme, "container")}`}
+        className={`p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+          theme,
+          "container"
+        )}`}
       >
         {/* Tiêu đề với hiệu ứng parallax */}
         <div className="relative h-32 mb-6 overflow-hidden rounded-xl parallax-header">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 transform translate-y-0 transition-transform duration-1000 ease-out"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 transform translate-y-0 transition-transform duration-1000 ease-out"></div>
           <h1
             className={`relative text-3xl font-bold text-white text-center pt-10 z-10 wrap-text ${getThemeClasses(
               theme,
@@ -214,7 +241,7 @@ export default function ClassfyApp() {
         {featuredArticles.length > 0 && (
           <div className="mb-8">
             <h2
-              className={`text-xl font-semibold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 wrap-text ${getThemeClasses(
+              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -245,12 +272,18 @@ export default function ClassfyApp() {
                     />
                   ) : (
                     <div className="h-full bg-gray-200 flex items-center justify-center rounded-lg">
-                      <p className="text-gray-500 wrap-text">Không có hình ảnh</p>
+                      <p className="text-gray-500 wrap-text">
+                        Không có hình ảnh
+                      </p>
                     </div>
                   )}
                   <div className="absolute bottom-0 left-0 right-0 bg-opacity-50 p-4 rounded-b-lg">
-                    <h3 className="text-purple-700 font-semibold wrap-text">{truncateText(article.title, 50)}</h3>
-                    <p className="text-purple-600 text-sm wrap-text">{truncateText(article.content, 80)}</p>
+                    <h3 className="text-purple-700 font-bold wrap-text">
+                      {truncateText(article.title, 50)}
+                    </h3>
+                    <p className="text-purple-600 text-sm wrap-text">
+                      {truncateText(article.content, 80)}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -309,7 +342,7 @@ export default function ClassfyApp() {
         <div className="mb-6 flex flex-col sm:flex-row gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
             <label
-              className={`block mb-1 text-lg font-semibold text-gray-700 wrap-text ${getThemeClasses(
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -335,7 +368,7 @@ export default function ClassfyApp() {
 
           <div className="flex-1 min-w-0">
             <label
-              className={`block mb-1 text-lg font-semibold text-gray-700 wrap-text ${getThemeClasses(
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -361,7 +394,7 @@ export default function ClassfyApp() {
 
           <div className="flex-1 min-w-0">
             <label
-              className={`block mb-1 text-lg font-semibold text-gray-700 wrap-text ${getThemeClasses(
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -385,7 +418,7 @@ export default function ClassfyApp() {
 
           <div className="flex-1 min-w-0">
             <label
-              className={`block mb-1 text-lg font-semibold text-gray-700 wrap-text ${getThemeClasses(
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -412,7 +445,9 @@ export default function ClassfyApp() {
         {/* Danh sách bài viết */}
         <div
           className={`mx-4 sm:mx-8 ${
-            viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col gap-4"
+            viewMode === "grid"
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              : "flex flex-col gap-4"
           }`}
         >
           {paginatedArticles.length === 0 && (
@@ -425,37 +460,47 @@ export default function ClassfyApp() {
               key={article.id}
               onClick={() => handleArticleClick(article)}
               className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white ${
-                viewMode === "list" ? "flex items-center gap-4" : "flex flex-col"
+                viewMode === "list"
+                  ? "flex items-center gap-4"
+                  : "flex flex-col"
               } ${getThemeClasses(theme, "preview")}`}
             >
               {/* Media (hiển thị bên trái trong chế độ danh sách) */}
               {viewMode === "list" && (
-                <div className="w-32 h-20 flex-shrink-0">
+                <div className="relative w-[150px] h-[100px] mx-auto flex-shrink-0">
                   {article.images.length > 0 ? (
                     <Image
                       src={article.images[0]}
                       alt={`Hình ảnh xem trước cho ${article.title}`}
                       width={150}
                       height={100}
-                      className="rounded-md object-cover"
+                      className="w-full h-full rounded-md object-cover"
                       loading="lazy"
-                      onError={() => console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)}
+                      onError={() =>
+                        console.warn(
+                          `Không thể tải hình ảnh: ${article.images[0]}`
+                        )
+                      }
                     />
                   ) : article.videos.length > 0 ? (
                     <video
                       className="w-full h-full rounded-md object-cover"
                       controls
                       loading="lazy"
-                      onError={() => console.warn(`Không thể tải video: ${article.videos[0]}`)}
+                      onError={() =>
+                        console.warn(
+                          `Không thể tải video: ${article.videos[0]}`
+                        )
+                      }
                     >
                       <source src={article.videos[0]} type="video/mp4" />
                       Trình duyệt của bạn không hỗ trợ video.
                     </video>
                   ) : article.files.length > 0 ? (
-                    <div className="w-full h-full flex items-center justify-center rounded-md bg-gray-100">
+                    <div className="relative w-[150px] h-[100px] mx-auto flex items-center justify-center rounded-md bg-gray-100">
                       <a
                         href={article.files[0]}
-                        className="text-blue-500 hover:underline text-xs text-center wrap-text"
+                        className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -463,8 +508,10 @@ export default function ClassfyApp() {
                       </a>
                     </div>
                   ) : (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-md">
-                      <p className="text-gray-500 text-xs wrap-text">Không có media</p>
+                    <div className="w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md mx-auto">
+                      <p className="text-gray-500 text-xs wrap-text">
+                        Không có media
+                      </p>
                     </div>
                   )}
                 </div>
@@ -485,7 +532,7 @@ export default function ClassfyApp() {
                 </div>
 
                 <h3
-                  className={`text-lg font-semibold text-gray-800 ${
+                  className={`text-lg font-bold text-gray-800 ${
                     viewMode === "grid" ? "pr-20" : ""
                   } wrap-text`}
                 >
@@ -494,7 +541,10 @@ export default function ClassfyApp() {
                 <div className="mt-3 flex items-baseline">
                   <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
                   <p className="wrap-text line-clamp-2">
-                    {truncateText(article.content, viewMode === "grid" ? 100 : 150)}
+                    {truncateText(
+                      article.content,
+                      viewMode === "grid" ? 100 : 150
+                    )}
                   </p>
                 </div>
 
@@ -511,7 +561,11 @@ export default function ClassfyApp() {
                             height={100}
                             className="rounded-md object-cover"
                             loading="lazy"
-                            onError={() => console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)}
+                            onError={() =>
+                              console.warn(
+                                `Không thể tải hình ảnh: ${article.images[0]}`
+                              )
+                            }
                           />
                         </div>
                       </div>
@@ -521,7 +575,11 @@ export default function ClassfyApp() {
                           className="w-full h-full rounded-md object-cover"
                           controls
                           loading="lazy"
-                          onError={() => console.warn(`Không thể tải video: ${article.videos[0]}`)}
+                          onError={() =>
+                            console.warn(
+                              `Không thể tải video: ${article.videos[0]}`
+                            )
+                          }
                         >
                           <source src={article.videos[0]} type="video/mp4" />
                           Trình duyệt của bạn không hỗ trợ video.
@@ -555,16 +613,20 @@ export default function ClassfyApp() {
                         </span>
                       ))
                     ) : (
-                      <p className="text-gray-500 text-sm wrap-text">Không có tags</p>
+                      <p className="text-gray-500 text-sm wrap-text">
+                        Không có tags
+                      </p>
                     )}
                   </div>
-                  <p className="text-blue-500 font-semibold wrap-text">
+                  <p className="text-blue-500 font-bold wrap-text">
                     {article.name || "Chưa có tác giả"}
                   </p>
                 </div>
 
                 {/* Badges media */}
-                {(article.images.length > 1 || article.videos.length > 1 || article.files.length > 1) && (
+                {(article.images.length > 1 ||
+                  article.videos.length > 1 ||
+                  article.files.length > 1) && (
                   <div className="mt-2 flex gap-2">
                     {article.images.length > 1 && (
                       <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
@@ -619,7 +681,7 @@ export default function ClassfyApp() {
         {selectedArticle && getRelatedArticles(selectedArticle).length > 0 && (
           <div className="mt-8">
             <h2
-              className={`text-xl font-semibold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 wrap-text ${getThemeClasses(
+              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
@@ -646,12 +708,14 @@ export default function ClassfyApp() {
                       </span>
                     ))}
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-800 pr-20 wrap-text">
+                  <h3 className="text-lg font-bold text-gray-800 pr-20 wrap-text">
                     {truncateText(article.title, 50)}
                   </h3>
                   <div className="mt-3 flex items-baseline">
                     <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
-                    <p className="wrap-text line-clamp-2">{truncateText(article.content, 100)}</p>
+                    <p className="wrap-text line-clamp-2">
+                      {truncateText(article.content, 100)}
+                    </p>
                   </div>
                   <div className="mt-3">
                     {article.images.length > 0 && (
@@ -663,7 +727,11 @@ export default function ClassfyApp() {
                           height={100}
                           className="rounded-md object-cover"
                           loading="lazy"
-                          onError={() => console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)}
+                          onError={() =>
+                            console.warn(
+                              `Không thể tải hình ảnh: ${article.images[0]}`
+                            )
+                          }
                         />
                       </div>
                     )}
@@ -679,7 +747,7 @@ export default function ClassfyApp() {
                         </span>
                       ))}
                     </div>
-                    <p className="text-blue-500 font-semibold wrap-text">
+                    <p className="text-blue-500 font-bold wrap-text">
                       {article.name || "Chưa có tác giả"}
                     </p>
                   </div>
@@ -723,7 +791,12 @@ export default function ClassfyApp() {
                   className="bg-gray-100 p-2 rounded-full text-gray-500 hover:bg-red-100 hover:text-red-500 transition-all duration-300"
                   aria-label="Đóng chi tiết bài viết"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -736,7 +809,7 @@ export default function ClassfyApp() {
               <div className="space-y-8">
                 <div>
                   <strong
-                    className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
                       theme,
                       "subtitle"
                     )}`}
@@ -744,11 +817,13 @@ export default function ClassfyApp() {
                     Tiêu đề
                     <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
                   </strong>
-                  <p className="mt-3 text-lg text-gray-700 wrap-text">{selectedArticle.title}</p>
+                  <p className="mt-3 text-lg text-gray-700 wrap-text">
+                    {selectedArticle.title}
+                  </p>
                 </div>
                 <div>
                   <strong
-                    className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
                       theme,
                       "subtitle"
                     )}`}
@@ -762,7 +837,7 @@ export default function ClassfyApp() {
                 </div>
                 <div>
                   <strong
-                    className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text mb-4 ${getThemeClasses(
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text mb-4 ${getThemeClasses(
                       theme,
                       "subtitle"
                     )}`}
@@ -788,7 +863,7 @@ export default function ClassfyApp() {
                 {selectedArticle.images.length > 0 && (
                   <div>
                     <strong
-                      className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
                         theme,
                         "subtitle"
                       )}`}
@@ -804,11 +879,15 @@ export default function ClassfyApp() {
                         >
                           <Image
                             src={image}
-                            alt={`Hình ảnh ${index + 1} cho ${selectedArticle.title}`}
+                            alt={`Hình ảnh ${index + 1} cho ${
+                              selectedArticle.title
+                            }`}
                             layout="fill"
                             className="rounded-lg object-cover"
                             loading="lazy"
-                            onError={() => console.warn(`Không thể tải hình ảnh: ${image}`)}
+                            onError={() =>
+                              console.warn(`Không thể tải hình ảnh: ${image}`)
+                            }
                           />
                         </div>
                       ))}
@@ -818,7 +897,7 @@ export default function ClassfyApp() {
                 {selectedArticle.videos.length > 0 && (
                   <div>
                     <strong
-                      className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
                         theme,
                         "subtitle"
                       )}`}
@@ -836,7 +915,9 @@ export default function ClassfyApp() {
                             className="w-full h-full rounded-lg object-cover"
                             controls
                             loading="lazy"
-                            onError={() => console.warn(`Không thể tải video: ${video}`)}
+                            onError={() =>
+                              console.warn(`Không thể tải video: ${video}`)
+                            }
                           >
                             <source src={video} type="video/mp4" />
                             Trình duyệt của bạn không hỗ trợ video.
@@ -849,7 +930,7 @@ export default function ClassfyApp() {
                 {selectedArticle.files.length > 0 && (
                   <div>
                     <strong
-                      className={`text-xl font-semibold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
                         theme,
                         "subtitle"
                       )}`}
@@ -886,7 +967,7 @@ export default function ClassfyApp() {
                   </div>
                 )}
                 <div className="text-right">
-                  <p className="text-blue-500 font-semibold wrap-text">
+                  <p className="text-blue-500 font-bold wrap-text">
                     Tác giả: {selectedArticle.name || "Chưa có tác giả"}
                   </p>
                 </div>
@@ -903,7 +984,7 @@ export default function ClassfyApp() {
           )}`}
         >
           <h2
-            className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 wrap-text ${getThemeClasses(
+            className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 wrap-text ${getThemeClasses(
               theme,
               "title"
             )}`}

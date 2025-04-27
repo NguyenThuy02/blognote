@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   MessageOutlined,
@@ -13,26 +13,56 @@ import {
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { supabase } from "../../../lib/supabase";
-import "aframe";
+import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <p className="text-red-500 text-base">
+          Error: {this.state.error.message} (Component:{" "}
+          {this.props.componentName})
+        </p>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Dynamically import components
 const ForceGraph2D = dynamic(
   () => import("react-force-graph").then((mod) => mod.ForceGraph2D),
-  { ssr: false, loading: () => <p>Loading...</p> }
+  {
+    ssr: false,
+    loading: () => <p className="text-gray-600 text-base">Loading graph...</p>,
+  }
 );
 
 const Emoji = dynamic(() => import("../emoji/page"), {
   ssr: false,
-  loading: () => <div>Loading emojis...</div>,
+  loading: () => (
+    <div className="text-gray-600 text-base">Loading emojis...</div>
+  ),
 });
 
 const Sticker = dynamic(() => import("../stickers/page"), {
   ssr: false,
-  loading: () => <div>Loading stickers...</div>,
+  loading: () => (
+    <div className="text-gray-600 text-base">Loading stickers...</div>
+  ),
 });
 
 export default function BloglistApp() {
+  const [theme, setTheme] = useState("light");
   const [searchTerm, setSearchTerm] = useState("");
   const [showCommentsForArticle, setShowCommentsForArticle] = useState(null);
   const [showDiagramForArticle, setShowDiagramForArticle] = useState(null);
@@ -61,17 +91,54 @@ export default function BloglistApp() {
   const [isMounted, setIsMounted] = useState(false);
   const [notification, setNotification] = useState(null);
   const [error, setError] = useState(null);
+  const [isAFrameLoaded, setIsAFrameLoaded] = useState(false);
+  const [isWriting, setIsWriting] = useState(false);
+
   const graphRef = useRef();
   const commentTextareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // Load A-Frame via script tag
+  useEffect(() => {
+    if (!isMounted || typeof window === "undefined") return;
+
+    const loadAFrame = () => {
+      if (window.AFRAME) {
+        console.log("A-Frame already loaded");
+        setIsAFrameLoaded(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://aframe.io/releases/1.5.0/aframe.min.js";
+      script.async = true;
+      script.onload = () => {
+        console.log("A-Frame loaded successfully");
+        setIsAFrameLoaded(true);
+      };
+      script.onerror = () => {
+        console.error("Failed to load A-Frame");
+        setError(
+          "Không thể tải A-Frame. Một số tính năng có thể không hoạt động."
+        );
+      };
+      document.head.appendChild(script);
+
+      return () => {
+        document.head.removeChild(script);
+      };
+    };
+
+    loadAFrame();
+  }, [isMounted]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || typeof window === "undefined") return;
 
     const checkLoginStatus = async () => {
       const userData = JSON.parse(localStorage.getItem("user") || "null");
@@ -114,16 +181,12 @@ export default function BloglistApp() {
       checkLoginStatus();
     };
 
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", handleStorageChange);
-      window.addEventListener("user-logout", handleLogoutEvent);
-    }
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("user-logout", handleLogoutEvent);
 
     return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("storage", handleStorageChange);
-        window.removeEventListener("user-logout", handleLogoutEvent);
-      }
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("user-logout", handleLogoutEvent);
     };
   }, [isMounted]);
 
@@ -131,15 +194,18 @@ export default function BloglistApp() {
     if (!isMounted) return;
 
     const fetchPostsAndAuthorsAndComments = async () => {
-      const { data: postsData, error: postsError } = await supabase
-        .from("posts")
-        .select(
-          "id, title, content, images, files, videos, topics, tags, name, created_at"
-        );
+      try {
+        const { data: postsData, error: postsError } = await supabase
+          .from("posts")
+          .select(
+            "id, title, content, images, files, videos, topics, tags, name, created_at"
+          );
 
-      if (postsError) {
-        setError("Lỗi khi lấy bài viết: " + postsError.message);
-      } else {
+        if (postsError) {
+          setError("Lỗi khi lấy bài viết: " + postsError.message);
+          return;
+        }
+
         const normalizedPosts = postsData.map((post) => ({
           ...post,
           tags: normalizeTags(post.tags),
@@ -158,7 +224,9 @@ export default function BloglistApp() {
 
         const { data: commentsData, error: commentsError } = await supabase
           .from("comments")
-          .select("id, article_id, user_id, content, updated_at, contentson, stickers")
+          .select(
+            "id, article_id, user_id, content, updated_at, contentson, stickers"
+          )
           .in(
             "article_id",
             normalizedPosts.map((post) => post.id)
@@ -166,88 +234,84 @@ export default function BloglistApp() {
 
         if (commentsError) {
           setError("Lỗi khi lấy bình luận: " + commentsError.message);
-        } else {
-          const uniqueComments = Array.from(
-            new Map(
-              commentsData.map((comment) => [comment.id, comment])
-            ).values()
-          );
+          return;
+        }
 
-          const userIds = [...new Set(uniqueComments.map((c) => c.user_id))];
-          let userMap = {};
-          if (userIds.length > 0) {
-            const { data: usersData, error: usersError } = await supabase
-              .from("users")
-              .select("id, name")
-              .in("id", userIds);
+        const uniqueComments = Array.from(
+          new Map(commentsData.map((comment) => [comment.id, comment])).values()
+        );
 
-            if (usersError) {
-              setError("Lỗi khi lấy tên người dùng: " + usersError.message);
-            } else {
-              userMap = Object.fromEntries(
-                usersData.map((user) => [user.id, user.name])
+        const userIds = [...new Set(uniqueComments.map((c) => c.user_id))];
+        let userMap = {};
+        if (userIds.length > 0) {
+          const { data: usersData, error: usersError } = await supabase
+            .from("users")
+            .select("id, name")
+            .in("id", userIds);
+
+          if (usersError) {
+            setError("Lỗi khi lấy tên người dùng: " + usersError.message);
+          } else {
+            userMap = Object.fromEntries(
+              usersData.map((user) => [user.id, user.name])
+            );
+          }
+        }
+
+        uniqueComments.forEach((comment) => {
+          let replies = [];
+          if (comment.contentson && typeof comment.contentson === "string") {
+            try {
+              replies = JSON.parse(comment.contentson);
+              if (!Array.isArray(replies)) {
+                replies = [];
+              }
+              replies = replies.map((reply) => ({
+                ...reply,
+                stickers: normalizeStickers(reply.stickers),
+              }));
+            } catch (e) {
+              setError(
+                `Lỗi phân tích contentson cho bình luận ${comment.id}: ` +
+                  e.message
               );
+              replies = [];
             }
           }
 
-          uniqueComments.forEach((comment) => {
-            let replies = [];
-            if (comment.contentson && typeof comment.contentson === "string") {
-              try {
-                replies = JSON.parse(comment.contentson);
-                if (!Array.isArray(replies)) {
-                  console.warn(
-                    `contentson for comment ${comment.id} is not an array:`,
-                    replies
-                  );
-                  replies = [];
-                }
-                // Normalize reply stickers
-                replies = replies.map((reply) => ({
-                  ...reply,
-                  stickers: normalizeStickers(reply.stickers),
-                }));
-              } catch (e) {
-                setError(
-                  `Lỗi phân tích contentson cho bình luận ${comment.id}: ` +
-                    e.message
-                );
-                replies = [];
-              }
-            }
+          let stickers = normalizeStickers(comment.stickers);
 
-            let stickers = normalizeStickers(comment.stickers);
-
-            initialComments[comment.article_id].push({
-              id: comment.id,
-              user_id: comment.user_id,
-              author: userMap[comment.user_id] || "Tác giả",
-              content: comment.content || "",
-              replies,
-              stickers,
-            });
+          initialComments[comment.article_id].push({
+            id: comment.id,
+            user_id: comment.user_id,
+            author: userMap[comment.user_id] || "Tác giả",
+            content: comment.content || "",
+            replies,
+            stickers,
           });
+        });
 
-          setComments(initialComments);
+        setComments(initialComments);
+
+        const { data: authorsData, error: authorsError } = await supabase
+          .from("posts")
+          .select("name");
+
+        if (authorsError) {
+          setError("Lỗi khi lấy tác giả: " + authorsError.message);
+        } else {
+          const authorCounts = authorsData.reduce((acc, { name }) => {
+            if (name) acc[name] = (acc[name] || 0) + 1;
+            return acc;
+          }, {});
+          const sortedAuthors = Object.entries(authorCounts)
+            .sort(([, countA], [, countB]) => countB - countA)
+            .slice(0, 7)
+            .map(([name]) => ({ name }));
+          setTopAuthors(sortedAuthors);
         }
-      }
-
-      const { data: authorsData, error: authorsError } = await supabase
-        .from("posts")
-        .select("name");
-
-      if (authorsError) {
-        setError("Lỗi khi lấy tác giả: " + authorsError.message);
-      } else {
-        const authorCounts = authorsData.reduce((acc, { name }) => {
-          if (name) acc[name] = (acc[name] || 0) + 1;
-          return acc;
-        }, {});
-        const sortedAuthors = Object.entries(authorCounts)
-          .sort(([, countA], [, countB]) => countB - countA)
-          .slice(0, 7)
-          .map(([name]) => ({ name }));
-        setTopAuthors(sortedAuthors);
+      } catch (error) {
+        setError("Lỗi khi tải dữ liệu: " + error.message);
       }
     };
 
@@ -260,15 +324,10 @@ export default function BloglistApp() {
     try {
       if (typeof stickers === "string") {
         if (stickers === "[]" || stickers.trim() === "") return [];
-        // Handle stringified array, e.g., "[\"https://...\"]"
         if (stickers.startsWith("[") && stickers.endsWith("]")) {
           try {
             const parsed = JSON.parse(stickers);
-            if (Array.isArray(parsed)) {
-              result = parsed;
-            } else {
-              result = [stickers];
-            }
+            result = Array.isArray(parsed) ? parsed : [stickers];
           } catch {
             result = stickers.split(",").map((url) => url.trim());
           }
@@ -278,7 +337,6 @@ export default function BloglistApp() {
       } else if (Array.isArray(stickers)) {
         result = stickers;
       }
-      // Filter valid URLs
       return result
         .filter((url) => {
           if (!url || typeof url !== "string") return false;
@@ -291,7 +349,6 @@ export default function BloglistApp() {
         })
         .map((url) => url.trim());
     } catch (e) {
-      console.warn("Error normalizing stickers:", e);
       return [];
     }
   };
@@ -338,7 +395,6 @@ export default function BloglistApp() {
         .single();
 
       if (error) {
-        console.error("Lỗi khi lấy thông tin người dùng:", error.message);
         setAuthorInfo({
           name: post.author,
           email: "Không có",
@@ -350,7 +406,6 @@ export default function BloglistApp() {
         });
       }
     } catch (error) {
-      console.error("Lỗi trong handlePostClick:", error.message);
       setAuthorInfo({
         name: post.author,
         email: "Không có",
@@ -406,19 +461,15 @@ export default function BloglistApp() {
   };
 
   const insertEmojiAtCursor = (textareaRef, emoji) => {
-    if (!isMounted || typeof window === "undefined") {
-      console.log("insertEmojiAtCursor skipped: Not in client environment");
-      return;
-    }
+    if (!isMounted || typeof window === "undefined") return;
 
     const textarea = textareaRef.current;
-    if (!textarea) {
-      console.warn("Textarea ref is not available");
-      return;
-    }
+    if (!textarea) return;
 
     const scrollContainer = scrollContainerRef.current;
-    const scrollPosition = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+    const scrollPosition = scrollContainer
+      ? scrollContainer.scrollTop
+      : window.scrollY;
 
     const start = textarea.selectionStart || 0;
     const end = textarea.selectionEnd || 0;
@@ -429,18 +480,17 @@ export default function BloglistApp() {
     const newText = before + emoji + after;
 
     if (textareaRef === commentTextareaRef) {
-      console.log("Updating newCommentContent:", newText);
       setNewCommentContent(newText);
     } else if (textareaRef === replyTextareaRef) {
-      console.log("Updating replyContent:", newText);
       setReplyContent(newText);
     }
 
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.value = newText;
-        textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + emoji.length;
-        textareaRef.current.focus({ preventScroll: true });
+        textareaRef.current.selectionStart = textareaRef.current.selectionEnd =
+          start + emoji.length;
+        textareaRef.current.focus();
         if (scrollContainer) {
           scrollContainer.scrollTop = scrollPosition;
         } else {
@@ -451,44 +501,47 @@ export default function BloglistApp() {
   };
 
   const handleEmojiSelect = (emoji, isReply = false) => {
-    if (!isMounted) {
-      console.log("handleEmojiSelect skipped: Component not mounted");
-      return;
-    }
-    console.log("handleEmojiSelect called:", { emoji, isReply });
+    if (!isMounted) return;
     insertEmojiAtCursor(isReply ? replyTextareaRef : commentTextareaRef, emoji);
   };
 
   const handleStickerSelect = (url, isReply = false) => {
     if (!isMounted || !url) return;
     try {
-      // Handle case where url is an array with a single string
       const stickerUrl = Array.isArray(url) && url.length === 1 ? url[0] : url;
       if (typeof stickerUrl !== "string") return;
       new URL(stickerUrl);
-      if (!stickerUrl.startsWith("http://") && !stickerUrl.startsWith("https://")) return;
-      console.log("handleStickerSelect called:", { stickerUrl, isReply });
+      if (
+        !stickerUrl.startsWith("http://") &&
+        !stickerUrl.startsWith("https://")
+      )
+        return;
       if (isReply) {
         setSelectedReplyStickers((prev) => [...prev, stickerUrl]);
       } else {
         setSelectedCommentStickers((prev) => [...prev, stickerUrl]);
       }
     } catch (e) {
-      console.warn("Invalid sticker URL:", url, e);
+      // Handle invalid URL silently
     }
   };
 
   const handleRemoveSticker = (url, isReply = false) => {
     if (isReply) {
-      setSelectedReplyStickers((prev) => prev.filter((sticker) => sticker !== url));
+      setSelectedReplyStickers((prev) =>
+        prev.filter((sticker) => sticker !== url)
+      );
     } else {
-      setSelectedCommentStickers((prev) => prev.filter((sticker) => sticker !== url));
+      setSelectedCommentStickers((prev) =>
+        prev.filter((sticker) => sticker !== url)
+      );
     }
   };
 
   const submitComment = async (articleId) => {
     if (!isLoggedIn || !currentUser || !isMounted) return;
-    if (!newCommentContent.trim() && selectedCommentStickers.length === 0) return;
+    if (!newCommentContent.trim() && selectedCommentStickers.length === 0)
+      return;
 
     const newComment = {
       article_id: articleId,
@@ -496,7 +549,7 @@ export default function BloglistApp() {
       content: newCommentContent,
       updated_at: new Date().toISOString(),
       contentson: JSON.stringify([]),
-      stickers: selectedCommentStickers.join(","), // Lưu dưới dạng chuỗi phân tách bằng dấu phẩy
+      stickers: selectedCommentStickers.join(","),
     };
 
     try {
@@ -544,7 +597,7 @@ export default function BloglistApp() {
       user_id: currentUser.id,
       author: currentUser.name || "Tác giả",
       content: replyContent,
-      stickers: selectedReplyStickers, // Lưu dưới dạng mảng trong replies
+      stickers: selectedReplyStickers,
     };
 
     try {
@@ -567,10 +620,6 @@ export default function BloglistApp() {
         try {
           currentReplies = JSON.parse(commentData.contentson);
           if (!Array.isArray(currentReplies)) {
-            console.warn(
-              `contentson for comment ${commentId} is not an array:`,
-              currentReplies
-            );
             currentReplies = [];
           }
         } catch (e) {
@@ -946,17 +995,15 @@ export default function BloglistApp() {
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
+        } else {
+          const { saveAs } = await import("file-saver");
+          saveAs(blob, `${article.title}.docx`);
         }
       } catch (pickerError) {
-        if (pickerError.name === "AbortError") {
-          console.log("User canceled the file picker.");
-          return;
+        if (pickerError.name !== "AbortError") {
+          const { saveAs } = await import("file-saver");
+          saveAs(blob, `${article.title}.docx`);
         }
-        console.warn(
-          "showSaveFilePicker not supported, falling back to saveAs."
-        );
-        const { saveAs } = await import("file-saver");
-        saveAs(blob, `${article.title}.docx`);
       }
       setNotification({
         message: "Xuất file Word thành công!",
@@ -1021,13 +1068,20 @@ export default function BloglistApp() {
   }
 
   return (
-    <div className="text-gray-700 mt-[97px] border border-blue-200 rounded-lg min-h-screen bg-blue-100 flex flex-row">
-      <div className="flex-1 mx-4 pt-5 pb-5 my-3 rounded-lg shadow-md bg-white">
+    <div
+      className={`text-gray-700 mt-[97px] shadow-2xl border border-blue-200 rounded-lg min-h-screen bg-blue-200 flex flex-row ${getThemeClasses(
+        theme,
+        "container"
+      )}`}
+    >
+      <div
+        className={`flex-1 mx-4 pt-5 pb-5 my-3 rounded-lg shadow-md bg-blue-100 ${getThemeClasses(
+          theme,
+          "container"
+        )}`}
+      >
         <div className="flex items-center justify-between mb-6 px-4">
-          <h1
-            className="text-2xl font-bold font-montserrat bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent"
-            style={{ fontSize: "26px" }}
-          >
+          <h1 className="text-xl font-bold font-montserrat bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
             Danh sách bài viết
           </h1>
           <div className="relative w-1/2 max-w-md">
@@ -1036,8 +1090,7 @@ export default function BloglistApp() {
               placeholder="Tìm kiếm bài viết..."
               value={searchTerm}
               onChange={handleSearchChange}
-              className="w-full bg-gray-100 border border-gray-300 rounded-full px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200"
-              style={{ fontSize: "18px" }}
+              className="w-full bg-gray-100 border border-gray-300 rounded-full px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-base"
             />
             <Image
               src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681498/nkydita1doyqs2igrdbd.svg"
@@ -1076,33 +1129,17 @@ export default function BloglistApp() {
                         : post.author[0].toUpperCase()}
                     </div>
                     <div>
-                      <p
-                        className="font-semibold text-blue-500"
-                        style={{ fontSize: "18px" }}
-                      >
+                      <p className="font-semibold text-blue-600 text-sm">
                         {post.author}
                       </p>
-                      <p
-                        className="text-sm text-gray-500"
-                        style={{ fontSize: "14px" }}
-                      >
-                        {post.created_at}
-                      </p>
+                      <p className="text-sm text-gray-500">{post.created_at}</p>
                     </div>
                   </div>
 
-                  <h3
-                    className="text-lg font-semibold text-gray-800 mb-2"
-                    style={{ fontSize: "20px" }}
-                  >
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
                     {post.title}
                   </h3>
-                  <p
-                    className="text-gray-600 mb-3"
-                    style={{ fontSize: "18px" }}
-                  >
-                    {post.content}
-                  </p>
+                  <p className="text-gray-600 mb-3 text-base">{post.content}</p>
 
                   {(post.images || post.videos) && (
                     <div className="flex flex-wrap justify-center items-end gap-4 mb-3">
@@ -1139,8 +1176,7 @@ export default function BloglistApp() {
                           href={post.files}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline flex items-center"
-                          style={{ fontSize: "18px" }}
+                          className="text-blue-600 hover:underline flex items-center text-sm"
                         >
                           <svg
                             className="w-5 h-5 mr-1"
@@ -1164,7 +1200,7 @@ export default function BloglistApp() {
                       {post.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="bg-gray-100 text-blue-500 text-sm px-2 py-1 rounded"
+                          className="bg-gray-100 text-blue-600 text-sm px-2 py-1 rounded"
                         >
                           {tag}
                         </span>
@@ -1220,7 +1256,7 @@ export default function BloglistApp() {
                         </button>
                       </>
                     ) : (
-                      <p className="text-gray-500 flex items-center">
+                      <p className="text-gray-500 flex items-center text-sm">
                         Đăng nhập để Bình luận, Lưu bài viết
                       </p>
                     )}
@@ -1237,116 +1273,144 @@ export default function BloglistApp() {
                   >
                     {loadingStates[post.id] &&
                     showCommentsForArticle === post.id ? (
-                      <p
-                        className="text-gray-600 text-lg"
-                        style={{ fontSize: "18px" }}
-                      >
-                        Đang tải...
-                      </p>
+                      <p className="text-gray-600 text-base">Đang tải...</p>
                     ) : (
                       <>
-                        <h1 className="text-xl font-bold font-montserrat text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-400 mb-6">
+                        <h1 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400 mb-6">
                           Nhận xét và phản hồi
                         </h1>
-                        <div className="mb-6">
-                          <div className="relative">
-                            <textarea
-                              ref={commentTextareaRef}
-                              placeholder="Nhập bình luận của bạn..."
-                              value={newCommentContent}
-                              onChange={handleNewCommentChange}
-                              rows="3"
-                              className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
-                              style={{
-                                border: "1px solid transparent",
-                                backgroundColor: "transparent",
-                                boxShadow:
-                                  "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
-                                outline: "none",
-                                fontSize: "18px",
-                              }}
-                            />
-                            <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                              <div className="mt-0">
-                                <Emoji
-                                  onSelect={(emoji) => handleEmojiSelect(emoji)}
-                                />
-                              </div>
-                              <div className="mt-0">
-                                <Sticker
-                                  onSelect={(url) =>
-                                    handleStickerSelect(url)
-                                  }
-                                />
-                              </div>
-                            </div>
-                          </div>
+
+                        {!isWriting && (
                           <button
-                            className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
-                            onClick={() => submitComment(post.id)}
+                            className="text-sm text-blue-600 hover:text-blue-800 font-semibold mb-4"
+                            onClick={() => setIsWriting(true)}
                           >
-                            Gửi bình luận
+                            ✍️ Viết bình luận
                           </button>
-                          {selectedCommentStickers.length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
-                              {selectedCommentStickers.map((url, index) => (
-                                <div
-                                  key={`${url}-${index}`}
-                                  className="relative w-16 h-16"
-                                >
-                                  {url.endsWith(".mp4") ? (
-                                    <video
-                                      src={url}
-                                      controls
-                                      width={64}
-                                      height={64}
-                                      className="rounded-sm"
-                                    />
-                                  ) : (
-                                    <Image
-                                      src={url}
-                                      alt={`sticker-${index}`}
-                                      width={64}
-                                      height={64}
-                                      style={{ objectFit: "contain" }}
-                                      className="rounded-sm"
-                                    />
-                                  )}
-                                  <button
-                                    onClick={() => handleRemoveSticker(url)}
-                                    className="absolute top-0 right-0 text-red-500 text-xs font-bold"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))}
+                        )}
+
+                        {isWriting && (
+                          <div className="mb-6">
+                            <div className="relative">
+                              <textarea
+                                ref={commentTextareaRef}
+                                placeholder="Nhập bình luận của bạn..."
+                                value={newCommentContent}
+                                onChange={handleNewCommentChange}
+                                rows="3"
+                                className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
+                                style={{
+                                  border: "1px solid transparent",
+                                  backgroundColor: "transparent",
+                                  boxShadow:
+                                    "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                                  outline: "none",
+                                }}
+                              />
+                              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                                {isAFrameLoaded ? (
+                                  <>
+                                    <ErrorBoundary componentName="Emoji">
+                                      <div className="mt-0">
+                                        <Emoji
+                                          onSelect={(emoji) =>
+                                            handleEmojiSelect(emoji)
+                                          }
+                                        />
+                                      </div>
+                                    </ErrorBoundary>
+                                    <ErrorBoundary componentName="Sticker">
+                                      <div className="mt-0">
+                                        <Sticker
+                                          onSelect={(url) =>
+                                            handleStickerSelect(url)
+                                          }
+                                        />
+                                      </div>
+                                    </ErrorBoundary>
+                                  </>
+                                ) : (
+                                  <p className="text-gray-500 text-sm">
+                                    Đang tải Emoji/Sticker...
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded text-sm"
+                                onClick={() => {
+                                  submitComment(post.id);
+                                  setIsWriting(false); // Tắt khung sau khi gửi
+                                }}
+                              >
+                                Gửi bình luận
+                              </button>
+                              <button
+                                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-sm"
+                                onClick={() => setIsWriting(false)}
+                              >
+                                Hủy
+                              </button>
+                            </div>
+
+                            {selectedCommentStickers.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
+                                {selectedCommentStickers.map((url, index) => (
+                                  <div
+                                    key={`${url}-${index}`}
+                                    className="relative w-16 h-16"
+                                  >
+                                    {url.endsWith(".mp4") ? (
+                                      <video
+                                        src={url}
+                                        controls
+                                        width={64}
+                                        height={64}
+                                        className="rounded-sm"
+                                      />
+                                    ) : (
+                                      <Image
+                                        src={url}
+                                        alt={`sticker-${index}`}
+                                        width={64}
+                                        height={64}
+                                        style={{ objectFit: "contain" }}
+                                        className="rounded-sm"
+                                      />
+                                    )}
+                                    <button
+                                      onClick={() => handleRemoveSticker(url)}
+                                      className="absolute top-0 right-0 text-red-500 text-xs font-bold"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {(comments[post.id] || []).map((comment) => (
                           <div
                             key={comment.id}
                             className="pb-4 mb-4 border-b border-gray-200"
                           >
                             <div className="flex items-start space-x-3">
-                              <div
-                                className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                              >
+                              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
                                 {comment.author[0]?.toUpperCase() || "?"}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between">
-                                  <p
-                                    className="font-semibold text-blue-500"
-                                    style={{ fontSize: "18px" }}
-                                  >
+                                  <p className="font-semibold text-blue-600 text-sm">
                                     {comment.author}
                                   </p>
                                   {currentUser &&
                                     comment.user_id === currentUser.id && (
                                       <div className="flex space-x-2">
                                         <button
-                                          className="text-blue-500 hover:text-blue-700"
+                                          className="text-blue-600 hover:text-blue-700"
                                           onClick={() =>
                                             startEditingComment(comment)
                                           }
@@ -1374,19 +1438,18 @@ export default function BloglistApp() {
                                         setEditedCommentContent(e.target.value)
                                       }
                                       rows="2"
-                                      className="w-full p-2 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
+                                      className="w-full p-2 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
                                       style={{
                                         border: "1px solid transparent",
                                         backgroundColor: "transparent",
                                         boxShadow:
                                           "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
                                         outline: "none",
-                                        fontSize: "18px",
                                       }}
                                     />
                                     <div className="mt-2 space-x-2">
                                       <button
-                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded"
+                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
                                         onClick={() =>
                                           saveEditedComment(post.id, comment.id)
                                         }
@@ -1394,7 +1457,7 @@ export default function BloglistApp() {
                                         Lưu
                                       </button>
                                       <button
-                                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded"
+                                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
                                         onClick={cancelEditing}
                                       >
                                         Hủy
@@ -1403,10 +1466,8 @@ export default function BloglistApp() {
                                   </div>
                                 ) : (
                                   <p
-                                    style={{
-                                      fontSize: "18px",
-                                      wordBreak: "break-word",
-                                    }}
+                                    className="text-base"
+                                    style={{ wordBreak: "break-word" }}
                                   >
                                     {comment.content}
                                   </p>
@@ -1442,8 +1503,10 @@ export default function BloglistApp() {
                                     </div>
                                   )}
                                 <button
-                                  className="text-blue-500 mt-2"
-                                  onClick={() => setReplyToCommentId(comment.id)}
+                                  className="text-blue-600 mt-2 text-sm"
+                                  onClick={() =>
+                                    setReplyToCommentId(comment.id)
+                                  }
                                 >
                                   <MessageOutlined
                                     className="mr-1"
@@ -1461,35 +1524,52 @@ export default function BloglistApp() {
                                         value={replyContent}
                                         onChange={handleReplyChange}
                                         rows="2"
-                                        className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none"
+                                        className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
                                         style={{
                                           border: "1px solid transparent",
                                           backgroundColor: "transparent",
                                           boxShadow:
                                             "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
                                           outline: "none",
-                                          fontSize: "18px",
                                         }}
                                       />
                                       <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                                        <div className="mt-0">
-                                          <Emoji
-                                            onSelect={(emoji) =>
-                                              handleEmojiSelect(emoji, true)
-                                            }
-                                          />
-                                        </div>
-                                        <div className="mt-0">
-                                          <Sticker
-                                            onSelect={(url) =>
-                                              handleStickerSelect(url, true)
-                                            }
-                                          />
-                                        </div>
+                                        {isAFrameLoaded ? (
+                                          <>
+                                            <ErrorBoundary componentName="Emoji">
+                                              <div className="mt-0">
+                                                <Emoji
+                                                  onSelect={(emoji) =>
+                                                    handleEmojiSelect(
+                                                      emoji,
+                                                      true
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                            </ErrorBoundary>
+                                            <ErrorBoundary componentName="Sticker">
+                                              <div className="mt-0">
+                                                <Sticker
+                                                  onSelect={(url) =>
+                                                    handleStickerSelect(
+                                                      url,
+                                                      true
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                            </ErrorBoundary>
+                                          </>
+                                        ) : (
+                                          <p className="text-gray-500 text-sm">
+                                            Đang tải Emoji/Sticker...
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
                                     <button
-                                      className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2"
+                                      className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2 text-sm"
                                       onClick={() =>
                                         submitReply(post.id, comment.id)
                                       }
@@ -1498,39 +1578,43 @@ export default function BloglistApp() {
                                     </button>
                                     {selectedReplyStickers.length > 0 && (
                                       <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
-                                        {selectedReplyStickers.map((url, index) => (
-                                          <div
-                                            key={`${url}-${index}`}
-                                            className="relative w-16 h-16"
-                                          >
-                                            {url.endsWith(".mp4") ? (
-                                              <video
-                                                src={url}
-                                                controls
-                                                width={64}
-                                                height={64}
-                                                className="rounded-sm"
-                                              />
-                                            ) : (
-                                              <Image
-                                                src={url}
-                                                alt={`sticker-${index}`}
-                                                width={64}
-                                                height={64}
-                                                style={{ objectFit: "contain" }}
-                                                className="rounded-sm"
-                                              />
-                                            )}
-                                            <button
-                                              onClick={() =>
-                                                handleRemoveSticker(url, true)
-                                              }
-                                              className="absolute top-0 right-0 text-red-500 text-xs font-bold"
+                                        {selectedReplyStickers.map(
+                                          (url, index) => (
+                                            <div
+                                              key={`${url}-${index}`}
+                                              className="relative w-16 h-16"
                                             >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        ))}
+                                              {url.endsWith(".mp4") ? (
+                                                <video
+                                                  src={url}
+                                                  controls
+                                                  width={64}
+                                                  height={64}
+                                                  className="rounded-sm"
+                                                />
+                                              ) : (
+                                                <Image
+                                                  src={url}
+                                                  alt={`sticker-${index}`}
+                                                  width={64}
+                                                  height={64}
+                                                  style={{
+                                                    objectFit: "contain",
+                                                  }}
+                                                  className="rounded-sm"
+                                                />
+                                              )}
+                                              <button
+                                                onClick={() =>
+                                                  handleRemoveSticker(url, true)
+                                                }
+                                                className="absolute top-0 right-0 text-red-500 text-xs font-bold"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          )
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -1544,20 +1628,17 @@ export default function BloglistApp() {
                                           key={reply.id}
                                           className="mb-2 flex items-start space-x-3"
                                         >
-                                          <div
-                                            className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                                            style={{ fontSize: "14px" }}
-                                          >
+                                          <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-xs">
                                             {reply.author[0]?.toUpperCase() ||
                                               "?"}
                                           </div>
                                           <div className="flex-1">
-                                            <p className="font-semibold text-blue-500">
+                                            <p className="font-semibold text-blue-600 text-sm">
                                               {reply.author}
                                             </p>
                                             <p
+                                              className="text-base"
                                               style={{
-                                                fontSize: "16px",
                                                 wordBreak: "break-word",
                                               }}
                                             >
@@ -1572,7 +1653,9 @@ export default function BloglistApp() {
                                                         key={`${url}-${index}`}
                                                         className="relative w-16 h-16"
                                                       >
-                                                        {url.endsWith(".mp4") ? (
+                                                        {url.endsWith(
+                                                          ".mp4"
+                                                        ) ? (
                                                           <video
                                                             src={url}
                                                             controls
@@ -1621,7 +1704,7 @@ export default function BloglistApp() {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-bold font-montserrat text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-400">
+                      <h2 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400">
                         Sơ đồ
                       </h2>
                       <div className="flex space-x-2">
@@ -1644,18 +1727,24 @@ export default function BloglistApp() {
                     <div className="h-96 flex justify-center items-center overflow-hidden">
                       {loadingStates[post.id] &&
                       showDiagramForArticle === post.id ? (
-                        <p className="text-gray-600 text-lg">Đang tải...</p>
+                        <p className="text-gray-600 text-base">Đang tải...</p>
+                      ) : isAFrameLoaded ? (
+                        <ErrorBoundary componentName="ForceGraph2D">
+                          <ForceGraph2D
+                            ref={graphRef}
+                            graphData={graphData}
+                            nodeAutoColorBy="group"
+                            nodeLabel="name"
+                            nodeRelSize={nodeSize}
+                            linkColor={() => "lightblue"}
+                            width={600}
+                            height={384}
+                          />
+                        </ErrorBoundary>
                       ) : (
-                        <ForceGraph2D
-                          ref={graphRef}
-                          graphData={graphData}
-                          nodeAutoColorBy="group"
-                          nodeLabel="name"
-                          nodeRelSize={nodeSize}
-                          linkColor={() => "lightblue"}
-                          width={600}
-                          height={384}
-                        />
+                        <p className="text-gray-500 text-base">
+                          Đang tải sơ đồ...
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1665,16 +1754,21 @@ export default function BloglistApp() {
         </div>
       </div>
 
-      <div className="w-1/4 min-w-[300px] max-w-[450px] bg-gradient-to-br from-gray-100 to-blue-100 border-l my-3 mr-3 border-gray-200 p-4 rounded-lg shadow-md transition-all duration-300 flex-shrink-0 h-fit">
+      <div
+        className={`w-1/4 min-w-[300px] max-w-[450px] bg-gradient-to-br from-gray-100 to-blue-100 border-l my-3 mr-3 border-gray-200 p-4 rounded-lg shadow-md transition-all duration-300 flex-shrink-0 h-fit ${getThemeClasses(
+          theme,
+          "container"
+        )}`}
+      >
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+          <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
             Thông tin tác giả
           </h2>
           <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm">
-            <div className="space-y-2 text-gray-600">
+            <div className="space-y-2 text-gray-600 text-sm">
               <p>
                 <strong>Tên:</strong>{" "}
-                <span className="text-blue-500">
+                <span className="text-blue-600">
                   {authorInfo.name || "Chưa chọn bài viết"}
                 </span>
               </p>
@@ -1687,12 +1781,12 @@ export default function BloglistApp() {
 
         {isLoggedIn && (
           <div className="mb-6 border-t border-gray-200 pt-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
               Bài viết đã lưu
             </h2>
             <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm max-h-[400px] overflow-y-auto scrollbar-hidden">
               {savedArticles.length === 0 ? (
-                <p className="text-gray-500">
+                <p className="text-gray-500 text-sm">
                   Chưa có bài viết nào được lưu.
                 </p>
               ) : (
@@ -1703,26 +1797,23 @@ export default function BloglistApp() {
                   >
                     <div className="flex justify-between items-center">
                       <p
-                        className="font-medium text-gray-700 cursor-pointer hover:text-blue-500"
+                        className="font-medium text-gray-800 cursor-pointer hover:text-blue-600 text-sm"
                         onClick={() => handleSavedArticleClick(article)}
                       >
                         {article.title}
                       </p>
                       <button
-                        className="text-red-400 hover:text-red-500 underline"
+                        className="text-red-500 hover:text-red-600 text-sm underline"
                         onClick={() => deleteSavedArticle(article.id)}
                       >
                         Xóa
                       </button>
                     </div>
-                    <p className="text-sm text-blue-500">
-                      Được lưu bởi: {article.name}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Tác giả: detectives
+                    <p className="text-sm text-blue-600">
+                      Tác giả: {article.author}
                     </p>
                     {selectedSavedArticle === article.id && (
-                      <div className="mt-2 text-gray-600">
+                      <div className="mt-2 text-gray-600 text-sm">
                         <p>{article.content}</p>
                         {article.tags.length > 0 && (
                           <p className="mt-1">
@@ -1739,7 +1830,9 @@ export default function BloglistApp() {
         )}
 
         <div className="pt-6 border-t border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Đề xuất</h2>
+          <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
+            Đề xuất
+          </h2>
           <div className="bg-gray-50 p-4 rounded-md border border-gray-200 shadow-sm">
             <div className="space-y-4">
               {topAuthors.map((author, index) => (
@@ -1751,7 +1844,7 @@ export default function BloglistApp() {
                     {author.name ? author.name[0].toUpperCase() : "?"}
                   </div>
                   <div>
-                    <p className="font-medium text-blue-500">
+                    <p className="font-medium text-blue-600 text-sm">
                       {author.name || "Chưa có tên"}
                     </p>
                     <p className="text-sm text-gray-500">Gợi ý theo dõi</p>
@@ -1760,6 +1853,10 @@ export default function BloglistApp() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="pt-6 border-t border-gray-200">
+          <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
         </div>
       </div>
 

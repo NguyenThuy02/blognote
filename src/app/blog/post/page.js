@@ -1,6 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import {
   FaTimes,
@@ -18,9 +20,16 @@ import {
 } from "@ant-design/icons";
 import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
+import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
 import Confirm from "../../../utils/error";
 import { useRouter, useSearchParams } from "next/navigation";
 import AvailableSamples from "../available/page";
+
+// Tích hợp thành phần Emoji với nhập động
+const Emoji = dynamic(() => import("../emoji/page"), {
+  ssr: false,
+  loading: () => <div>Đang tải biểu tượng cảm xúc...</div>,
+});
 
 export default function PostPage() {
   const [title, setTitle] = useState("");
@@ -68,13 +77,14 @@ export default function PostPage() {
   const [activeTab, setActiveTab] = useState("post");
   const [isScrolled, setIsScrolled] = useState(false);
   const [isTitleHidden, setIsTitleHidden] = useState(false);
+  const [theme, setTheme] = useState(themes[0]?.value || "default");
   const searchInputRef = useRef(null);
   const sidebarRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Memoize searchParams to stabilize reference
+  // Ghi nhớ tham số tìm kiếm
   const memoizedSearchParams = useMemo(() => {
     return {
       title: searchParams.get("title"),
@@ -84,7 +94,7 @@ export default function PostPage() {
     };
   }, [searchParams]);
 
-  // Handle notification auto-close
+  // Xử lý tự động đóng thông báo
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000);
@@ -92,7 +102,7 @@ export default function PostPage() {
     }
   }, [notification]);
 
-  // Check login status and sync events
+  // Kiểm tra trạng thái đăng nhập và đồng bộ sự kiện
   useEffect(() => {
     const checkLoginStatus = () => {
       const userData = JSON.parse(localStorage.getItem("user"));
@@ -125,8 +135,7 @@ export default function PostPage() {
 
     const initFromQuery = () => {
       if (memoizedSearchParams.title) setTitle(memoizedSearchParams.title);
-      if (memoizedSearchParams.content)
-        setContent(memoizedSearchParams.content);
+      if (memoizedSearchParams.content) setContent(memoizedSearchParams.content);
       if (memoizedSearchParams.topic) setTopic(memoizedSearchParams.topic);
       if (memoizedSearchParams.tags)
         setTags(
@@ -169,7 +178,7 @@ export default function PostPage() {
     };
   }, [memoizedSearchParams]);
 
-  // Suggest tags based on content
+  // Gợi ý thẻ dựa trên nội dung
   useEffect(() => {
     const keywords = content
       .toLowerCase()
@@ -183,7 +192,7 @@ export default function PostPage() {
     setTagSuggestions(suggestions);
   }, [content, tagsList]);
 
-  // Handle scroll for hiding tags
+  // Xử lý cuộn để ẩn thẻ
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 100);
@@ -193,7 +202,7 @@ export default function PostPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Handle sidebar scroll for hiding title and auto-scroll to search input
+  // Xử lý cuộn thanh bên để ẩn tiêu đề và tự động cuộn đến ô tìm kiếm
   useEffect(() => {
     if (showDrafts && searchInputRef.current) {
       searchInputRef.current.scrollIntoView({
@@ -269,7 +278,7 @@ export default function PostPage() {
       ]);
     } catch (err) {
       setNotification({
-        message: `Không thể tải danh sách tags: ${err.message}`,
+        message: `Không thể tải danh sách thẻ: ${err.message}`,
         type: "error",
       });
     }
@@ -291,12 +300,8 @@ export default function PostPage() {
 
       const allTopics = [
         ...new Set([
-          ...(demosData || []).map((item) =>
-            capitalizeFirstLetter(item.topics)
-          ),
-          ...(postsData || []).map((item) =>
-            capitalizeFirstLetter(item.topics)
-          ),
+          ...(demosData || []).map((item) => capitalizeFirstLetter(item.topics)),
+          ...(postsData || []).map((item) => capitalizeFirstLetter(item.topics)),
         ]),
       ];
 
@@ -349,7 +354,7 @@ export default function PostPage() {
       setEntries(demosFormatted);
       setFilteredEntries(demosFormatted);
     } catch (err) {
-      console.error("Error in fetchEntries:", err);
+      console.error("Lỗi trong fetchEntries:", err);
       setNotification({
         message: `Không thể tải dữ liệu: ${err.message}`,
         type: "error",
@@ -379,7 +384,7 @@ export default function PostPage() {
       hasError = true;
     }
     if (tags.length === 0) {
-      setTagError("Vui lòng chọn ít nhất một tag.");
+      setTagError("Vui lòng chọn ít nhất một thẻ.");
       hasError = true;
     }
     if (!isLoggedIn) {
@@ -461,7 +466,7 @@ export default function PostPage() {
       await fetchTopics();
       await fetchTags();
     } catch (error) {
-      console.error("Error in handleSaveDraft:", error);
+      console.error("Lỗi trong handleSaveDraft:", error);
       setNotification({
         message: `Không thể lưu bản nháp: ${error.message}`,
         type: "error",
@@ -510,7 +515,7 @@ export default function PostPage() {
       await fetchTags();
       router.push("/blog/post");
     } catch (error) {
-      console.error("Error in handlePublish:", error);
+      console.error("Lỗi trong handlePublish:", error);
       setNotification({
         message: `Không thể đăng bài viết: ${error.message}`,
         type: "error",
@@ -550,9 +555,7 @@ export default function PostPage() {
     setTitle(post.title);
     setContent(post.content);
     setTopic(post.topics);
-    setTags(
-      post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []
-    );
+    setTags(post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []);
     setCustomTopic("");
     setSelectedTag("");
     setCustomTag("");
@@ -577,6 +580,7 @@ export default function PostPage() {
     setSelectedTag("");
     setUploadedImages([]);
     setUploadedFiles([]);
+    setUploadedVideos([]);
     setIsUploadingImage(false);
     setIsUploadingFile(false);
     setIsUploadingVideo(false);
@@ -614,7 +618,7 @@ export default function PostPage() {
     );
     if (duplicates.length > 0) {
       setImageError(
-        `Các file trùng lặp: ${duplicates
+        `Các tệp trùng lặp: ${duplicates
           .map((f) => truncateFileName(f.name))
           .join(", ")}`
       );
@@ -635,7 +639,7 @@ export default function PostPage() {
       const uploadedUrls = [];
       for (const file of files) {
         if (file.size > 10 * 1024 * 1024) {
-          throw new Error("File quá lớn. Vui lòng chọn file nhỏ hơn 10MB");
+          throw new Error("Tệp quá lớn. Vui lòng chọn tệp nhỏ hơn 10MB");
         }
         const formData = new FormData();
         formData.append("file", file);
@@ -645,7 +649,7 @@ export default function PostPage() {
           "https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload",
           { method: "POST", body: formData }
         );
-        if (!response.ok) throw new Error("Upload failed");
+        if (!response.ok) throw new Error("Tải lên thất bại");
         const data = await response.json();
         if (!data.secure_url)
           throw new Error("Không nhận được URL từ Cloudinary");
@@ -665,14 +669,14 @@ export default function PostPage() {
 
       const { error } = await supabase.from("demos").upsert({
         name,
-        title: title || "Untitled",
+        title: title || "Không có tiêu đề",
         images: uploadedUrls.join(","),
       });
       if (error) throw error;
 
       setImageError("");
     } catch (err) {
-      console.error("Error in handleImageUpload:", err);
+      console.error("Lỗi trong handleImageUpload:", err);
       setImageError(err.message || "Không thể tải lên hình ảnh.");
     } finally {
       setIsUploadingImage(false);
@@ -705,7 +709,7 @@ export default function PostPage() {
     );
     if (duplicates.length > 0) {
       setNotification({
-        message: `Các file trùng lặp: ${duplicates
+        message: `Các tệp trùng lặp: ${duplicates
           .map((f) => truncateFileName(f.name))
           .join(", ")}`,
         type: "warning",
@@ -734,7 +738,7 @@ export default function PostPage() {
           "https://api.cloudinary.com/v1_1/dlaoxrnad/raw/upload",
           { method: "POST", body: formData }
         );
-        if (!response.ok) throw new Error("Upload failed");
+        if (!response.ok) throw new Error("Tải lên thất bại");
         const data = await response.json();
 
         uploadedFileUrls.push(data.secure_url);
@@ -752,12 +756,12 @@ export default function PostPage() {
 
       const { error } = await supabase.from("demos").upsert({
         name,
-        title: title || "Untitled",
+        title: title || "Không có tiêu đề",
         files: uploadedFileUrls.join(","),
       });
       if (error) throw error;
     } catch (err) {
-      console.error("Error in handleFileUpload:", err);
+      console.error("Lỗi trong handleFileUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên tệp.",
         type: "error",
@@ -787,7 +791,7 @@ export default function PostPage() {
     );
     if (duplicates.length > 0) {
       setNotification({
-        message: `Các file trùng lặp: ${duplicates
+        message: `Các tệp trùng lặp: ${duplicates
           .map((f) => truncateFileName(f.name))
           .join(", ")}`,
         type: "warning",
@@ -816,7 +820,7 @@ export default function PostPage() {
           "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
           { method: "POST", body: formData }
         );
-        if (!response.ok) throw new Error("Upload video failed");
+        if (!response.ok) throw new Error("Tải video thất bại");
         const data = await response.json();
 
         uploadedVideoUrls.push(data.secure_url);
@@ -834,12 +838,12 @@ export default function PostPage() {
 
       const { error } = await supabase.from("demos").upsert({
         name,
-        title: title || "Untitled",
+        title: title || "Không có tiêu đề",
         videos: uploadedVideoUrls.join(","),
       });
       if (error) throw error;
     } catch (err) {
-      console.error("Error in handleVideoUpload:", err);
+      console.error("Lỗi trong handleVideoUpload:", err);
       setNotification({
         message: err.message || "Không thể tải lên video.",
         type: "error",
@@ -864,7 +868,7 @@ export default function PostPage() {
   };
 
   const truncateFileName = (name, maxLength = 15) => {
-    if (!name) return "unnamed";
+    if (!name) return "không có tên";
     if (name.length <= maxLength) return name;
     return name.substring(0, maxLength - 3) + "...";
   };
@@ -959,25 +963,30 @@ export default function PostPage() {
         </div>
 
         <>
-          {/* Title Input */}
+          {/* Ô nhập tiêu đề */}
           <div className="relative mb-8">
-            <input
-              type="text"
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 text-lg focus:outline-none focus:border-teal-500 transition-colors duration-300"
-              placeholder=" "
-              aria-label="Tiêu đề bài viết"
-              aria-invalid={!!titleError}
-              aria-describedby="title-error"
-            />
-            <label
-              htmlFor="title"
-              className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-            >
-              Tiêu đề bài viết
-            </label>
+            <div className="relative">
+              <input
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="peer w-full p-4 pt-6 pr-12 pb-8 bg-transparent border-b-2 border-teal-300 text-teal-700 text-base focus:outline-none focus:border-teal-500 transition-colors duration-300"
+                placeholder=" "
+                aria-label="Tiêu đề bài viết"
+                aria-invalid={!!titleError}
+                aria-describedby="title-error"
+              />
+              <label
+                htmlFor="title"
+                className="mt-5 absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+              >
+                Tiêu đề bài viết
+              </label>
+              <div className="absolute right-3 bottom-2">
+                <Emoji onSelect={(emoji) => setTitle((prev) => prev + emoji)} />
+              </div>
+            </div>
             {titleError && (
               <p
                 id="title-error"
@@ -988,29 +997,36 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Content Textarea */}
+          {/* Ô nhập nội dung */}
           <div className="relative mb-8">
-            <textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="peer w-full min-h-[16rem] p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md transition-colors duration-300 resize-none"
-              placeholder=" "
-              style={{ height: "auto" }}
-              onInput={(e) => {
-                e.target.style.height = "auto";
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              aria-label="Mô tả bài viết"
-              aria-invalid={!!contentError}
-              aria-describedby="content-error"
-            />
-            <label
-              htmlFor="content"
-              className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
-            >
-              Mô tả bài viết
-            </label>
+            <div className="relative">
+              <textarea
+                id="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="peer w-full min-h-[16rem] p-4 pt-6 pr-12 pb-8 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md transition-colors duration-300 resize-none"
+                placeholder=" "
+                style={{ height: "auto" }}
+                onInput={(e) => {
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                aria-label="Mô tả bài viết"
+                aria-invalid={!!contentError}
+                aria-describedby="content-error"
+              />
+              <label
+                htmlFor="content"
+                className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
+              >
+                Mô tả bài viết
+              </label>
+              <div className="absolute right-3 bottom-2">
+                <Emoji
+                  onSelect={(emoji) => setContent((prev) => prev + emoji)}
+                />
+              </div>
+            </div>
             {contentError && (
               <p
                 id="content-error"
@@ -1021,7 +1037,7 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Topic and Tags */}
+          {/* Chủ đề và thẻ */}
           <div className="flex flex-col md:flex-row gap-6 mb-8">
             <div className="flex-1 relative">
               <select
@@ -1085,12 +1101,12 @@ export default function PostPage() {
                     if (value !== "Khác") handleAddTag(value);
                   }}
                   className="peer w-full p-4 pt-6 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2314b8a6%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.5rem_center] bg-[length:1.5em]"
-                  aria-label="Thẻ tag"
+                  aria-label="Thẻ"
                   aria-invalid={!!tagError}
                   aria-describedby="tag-error"
                 >
                   <option value="" disabled className="text-gray-400">
-                    Chọn tag
+                    Chọn thẻ
                   </option>
                   {tagsList.map((t) => (
                     <option
@@ -1106,7 +1122,7 @@ export default function PostPage() {
                   htmlFor="tags"
                   className="absolute left-4 top-4 text-teal-400 transition-all duration-300 peer-placeholder-shown:top-4 peer-placeholder-shown:text-base peer-focus:top-0 peer-focus:text-sm peer-focus:text-teal-500 peer-not-placeholder-shown:top-0 peer-not-placeholder-shown:text-sm"
                 >
-                  Thẻ tag
+                  Thẻ
                 </label>
               </div>
               {selectedTag === "Khác" && (
@@ -1120,8 +1136,8 @@ export default function PostPage() {
                     if (e.key === "Enter" && customTag) handleAddTag("Khác");
                   }}
                   className="w-full p-4 mt-4 bg-transparent border-b-2 border-teal-300 text-teal-700 focus:outline-none focus:border-teal-500 rounded-md"
-                  placeholder="Nhập tag tùy chỉnh"
-                  aria-label="Tag tùy chỉnh"
+                  placeholder="Nhập thẻ tùy chỉnh"
+                  aria-label="Thẻ tùy chỉnh"
                 />
               )}
               {tagSuggestions.length > 0 && (
@@ -1148,7 +1164,7 @@ export default function PostPage() {
                       <button
                         onClick={() => handleRemoveTag(tag)}
                         className="ml-2 text-white hover:text-red-300 transition-colors"
-                        aria-label={`Xóa tag ${tag}`}
+                        aria-label={`Xóa thẻ ${tag}`}
                       >
                         <FaTimes size={12} />
                       </button>
@@ -1167,9 +1183,9 @@ export default function PostPage() {
             </div>
           </div>
 
-          {/* Media Uploads */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-teal-600 mb-4">
+          {/* Tải lên phương tiện */}
+          <div className="mb-8 text-sm">
+            <h3 className="font-semibold text-teal-600 mb-4">
               Tệp đa phương tiện
             </h3>
             <div className="flex flex-wrap gap-4">
@@ -1249,7 +1265,7 @@ export default function PostPage() {
                     >
                       <Image
                         src={url}
-                        alt={`Uploaded image ${index}`}
+                        alt={`Hình ảnh đã tải ${index}`}
                         className="w-full h-24 object-cover"
                         width={96}
                         height={96}
@@ -1327,13 +1343,13 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-center items-center mt-8 flex-wrap gap-4">
+          {/* Nút hành động */}
+          <div className="flex justify-center items-center mt-8 flex-wrap gap-4 text-sm">
             <div className="flex gap-4">
               <button
                 type="button"
                 onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all duration-200"
+                className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition-all duration-200"
                 aria-label="Xóa"
               >
                 <FaTrash /> Xóa
@@ -1341,7 +1357,7 @@ export default function PostPage() {
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all duration-200"
+                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition-all duration-200"
                 aria-label="Lưu bản nháp"
               >
                 <FaSave /> Lưu bản nháp
@@ -1351,7 +1367,7 @@ export default function PostPage() {
               <button
                 type="button"
                 onClick={() => setLivePreview(!livePreview)}
-                className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200"
+                className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600 transition-all duration-200"
                 aria-label={livePreview ? "Tắt xem trước" : "Xem trước"}
               >
                 <FaEye /> {livePreview ? "Tắt xem trước" : "Xem trước"}
@@ -1359,7 +1375,7 @@ export default function PostPage() {
               <button
                 type="button"
                 onClick={handlePublish}
-                className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 transition-all duration-200"
+                className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-full hover:bg-teal-600 transition-all duration-200"
                 aria-label="Đăng bài"
               >
                 <FaPaperPlane /> Đăng bài
@@ -1395,7 +1411,7 @@ export default function PostPage() {
         <div className="text-gray-700 prose max-w-none mb-4">
           {content || "Mô tả bài viết..."}
         </div>
-        <h3 className="text-lg font-semibold text-teal-600 mb-4">
+        <h3 className="text-base font-semibold text-teal-600 mb-4">
           Tệp đa phương tiện
         </h3>
         {uploadedImages.length > 0 && (
@@ -1408,7 +1424,7 @@ export default function PostPage() {
                 >
                   <Image
                     src={url}
-                    alt={`Uploaded image ${index}`}
+                    alt={`Hình ảnh đã tải ${index}`}
                     className="w-full h-24 object-cover"
                     width={96}
                     height={96}
@@ -1477,7 +1493,11 @@ export default function PostPage() {
   }
 
   return (
-    <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700">
+    <div
+      className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 ${getThemeClasses(
+        theme
+      )}`}
+    >
       <style jsx global>{`
         @keyframes slideUp {
           from {
@@ -1555,7 +1575,7 @@ export default function PostPage() {
                   type: "success",
                 });
               } catch (err) {
-                console.error("Error in delete:", err);
+                console.error("Lỗi trong delete:", err);
                 setNotification({
                   message: `Không thể xóa: ${err.message}`,
                   type: "error",
@@ -1638,149 +1658,158 @@ export default function PostPage() {
                 aria-hidden="true"
               ></div>
             )}
-            <div
-              ref={sidebarRef}
-              className={`mt-[86px] mr-4 lg:w-1/3 fixed lg:static top-0 right-0 h-[calc(100vh-86px)] bg-teal-50 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
-                showDrafts ? "translate-x-0" : "translate-x-full"
-              } lg:translate-x-0 z-40 flex flex-col`}
-              style={{
-                WebkitOverflowScrolling: "touch",
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              <div className="flex-shrink-0">
-                <div
-                  className={`flex justify-between items-center mb-6 transition-all duration-300 ${
-                    isTitleHidden ? "hide-title h-0 overflow-hidden" : ""
-                  }`}
-                >
-                  <h2 className="text-xl font-bold text-teal-600 flex items-center">
-                    <DiffOutlined className="mr-2 text-teal-500" /> Bản nháp (
-                    {filteredEntries.length})
-                  </h2>
-                  <button
-                    onClick={() => setShowDrafts(!showDrafts)}
-                    className="lg:hidden text-teal-600 hover:text-teal-700 transition-colors"
-                    aria-label="Đóng danh sách bản nháp"
-                  >
-                    <FaTimes size={24} />
-                  </button>
-                </div>
-                <div className="relative mb-4">
-                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Tìm kiếm..."
-                    value={searchQuery}
-                    onChange={handleSearchDrafts}
-                    className="w-full pl-12 p-3 bg-teal-50 border border-teal-200 rounded-full focus:outline-none focus:border-teal-500 text-teal-700 transition-colors duration-200"
-                    aria-label="Tìm kiếm bản nháp"
-                  />
-                </div>
-              </div>
+            <div className="lg:w-1/3 mr-4">
               <div
-                ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto scrollbar-hidden"
+                ref={sidebarRef}
+                className={`mt-[86px] fixed lg:static top-0 right-0 h-[calc(100vh-86px)] bg-teal-50 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
+                  showDrafts ? "translate-x-0" : "translate-x-full"
+                } lg:translate-x-0 z-40 flex flex-col`}
+                style={{
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                }}
               >
-                <ul className="space-y-4 pb-8">
-                  {filteredEntries.length > 0 ? (
-                    filteredEntries.map((entry) => (
-                      <li
-                        key={`draft-${entry.table}-${entry.id}`}
-                        className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
-                      >
-                        <div className="flex gap-4">
-                          <div className="flex-shrink-0 w-12">
-                            {Array.isArray(entry.images) &&
-                            entry.images.length > 0 &&
-                            isValidUrl(entry.images[0]) ? (
-                              <Image
-                                src={entry.images[0]}
-                                alt={`Entry ${entry.id} image`}
-                                width={48}
-                                height={48}
-                                className="w-12 h-12 object-cover rounded-lg"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 font-medium">
-                                No img
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <strong className="text-teal-600 text-sm font-semibold">
-                              {entry.title || "Không có tiêu đề"}
-                            </strong>
-                            <p className="text-gray-600 text-xs mt-1 line-clamp-2">
-                              {entry.content
-                                ? entry.content.slice(0, 50) + "..."
-                                : "Không có nội dung"}
-                            </p>
-                            {Array.isArray(entry.tags) &&
-                              entry.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {entry.tags.slice(0, 3).map((tag, index) => (
-                                    <span
-                                      key={`${tag}-${index}`}
-                                      className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))}
+                <div className="flex-shrink-0">
+                  <div
+                    className={`flex justify-between items-center mb-6 transition-all duration-300 ${
+                      isTitleHidden ? "hide-title h-0 overflow-hidden" : ""
+                    }`}
+                  >
+                    <h2 className="text-xl font-bold text-teal-600 flex items-center">
+                      <DiffOutlined className="mr-2 text-teal-500" /> Bản nháp (
+                      {filteredEntries.length})
+                    </h2>
+                    <button
+                      onClick={() => setShowDrafts(!showDrafts)}
+                      className="lg:hidden text-teal-600 hover:text-teal-700 transition-colors"
+                      aria-label="Đóng danh sách bản nháp"
+                    >
+                      <FaTimes size={24} />
+                    </button>
+                  </div>
+                  <div className="relative mb-4">
+                    <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Tìm kiếm..."
+                      value={searchQuery}
+                      onChange={handleSearchDrafts}
+                      className="w-full pl-12 p-3 bg-teal-50 border border-teal-200 rounded-full focus:outline-none focus:border-teal-500 text-teal-700 transition-colors duration-200"
+                      aria-label="Tìm kiếm bản nháp"
+                    />
+                  </div>
+                </div>
+                <div
+                  ref={scrollContainerRef}
+                  className="flex-1 overflow-y-auto scrollbar-hidden"
+                >
+                  <ul className="space-y-4 pb-8">
+                    {filteredEntries.length > 0 ? (
+                      filteredEntries.map((entry) => (
+                        <li
+                          key={`draft-${entry.table}-${entry.id}`}
+                          className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                        >
+                          <div className="flex gap-4">
+                            <div className="flex-shrink-0 w-12">
+                              {Array.isArray(entry.images) &&
+                              entry.images.length > 0 &&
+                              isValidUrl(entry.images[0]) ? (
+                                <Image
+                                  src={entry.images[0]}
+                                  alt={`Hình ảnh bản nháp ${entry.id}`}
+                                  width={48}
+                                  height={48}
+                                  className="w-12 h-12 object-cover rounded-lg"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs px-1">
+                                  Không có media
                                 </div>
                               )}
-                            <small className="text-gray-500 text-xs block mt-2">
-                              {new Date(entry.created_at).toLocaleString()}
-                            </small>
-                            <div className="flex justify-end gap-3 mt-3">
-                              <button
-                                onClick={() => handleEditDraft(entry)}
-                                className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
-                                aria-label={`Chỉnh sửa bản nháp ${
-                                  entry.title || "Không có tiêu đề"
-                                }`}
-                              >
-                                Chỉnh sửa
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setConfirmDeleteId(entry.id);
-                                  setConfirmDeleteTable(entry.table);
-                                  setShowConfirm(true);
-                                }}
-                                className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
-                                aria-label={`Xóa bản nháp ${
-                                  entry.title || "Không có tiêu đề"
-                                }`}
-                              >
-                                Xóa
-                              </button>
+                            </div>
+                            <div className="flex-1">
+                              <strong className="text-teal-600 text-sm font-semibold">
+                                {entry.title || "Không có tiêu đề"}
+                              </strong>
+                              <p className="text-gray-600 text-xs mt-1 line-clamp-2">
+                                {entry.content
+                                  ? entry.content.slice(0, 50) + "..."
+                                  : "Không có nội dung"}
+                              </p>
+                              {Array.isArray(entry.tags) &&
+                                entry.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {entry.tags.slice(0, 3).map((tag, index) => (
+                                      <span
+                                        key={`${tag}-${index}`}
+                                        className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              <small className="text-gray-500 text-xs block mt-2">
+                                {new Date(entry.created_at).toLocaleString()}
+                              </small>
+                              <div className="flex justify-end gap-3 mt-3">
+                                <button
+                                  onClick={() => handleEditDraft(entry)}
+                                  className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
+                                  aria-label={`Chỉnh sửa bản nháp ${
+                                    entry.title || "Không có tiêu đề"
+                                  }`}
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setConfirmDeleteId(entry.id);
+                                    setConfirmDeleteTable(entry.table);
+                                    setShowConfirm(true);
+                                  }}
+                                  className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
+                                  aria-label={`Xóa bản nháp ${
+                                    entry.title || "Không có tiêu đề"
+                                  }`}
+                                >
+                                  Xóa
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </li>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-sm text-center pt-4">
-                      Không tìm thấy bản nháp nào.
-                    </p>
-                  )}
-                </ul>
+                        </li>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm text-center pt-4">
+                        Không tìm thấy bản nháp nào.
+                      </p>
+                    )}
+                  </ul>
+                </div>
+              </div>
+              {/* ThemeSelector với nền riêng, đặt bên ngoài và dưới sidebar */}
+              <div className="bg-teal-100 p-4 rounded-lg border border-teal-200 mt-4 mr-4">
+                <ThemeSelector
+                  currentTheme={theme}
+                  onThemeChange={setTheme}
+                />
               </div>
             </div>
-          </div>
-        )}
 
-        {isLoggedIn && !showDrafts && (
-          <button
-            onClick={() => setShowDrafts(true)}
-            className="fixed bottom-8 right-8 bg-teal-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-teal-600 transition-all duration-200 hover:scale-110"
-            aria-label="Mở danh sách bản nháp"
-          >
-            <DiffOutlined className="text-xl" />
-          </button>
+            {isLoggedIn && !showDrafts && (
+              <button
+                onClick={() => setShowDrafts(true)}
+                className="fixed bottom-8 right-8 bg-teal-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-teal-600 transition-all duration-200 hover:scale-110"
+                aria-label="Mở danh sách bản nháp"
+              >
+                <DiffOutlined className="text-xl" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
