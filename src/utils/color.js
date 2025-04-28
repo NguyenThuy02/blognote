@@ -153,7 +153,7 @@ export default function ThemeSelector({ currentTheme, onThemeChange }) {
       {/* Floating Icon Button */}
       <button
         onClick={() => setShowSelector(!showSelector)}
-        className="fixed bottom-6 right-6 z-50 p-3 rounded-full shadow-lg bg-gray-400 text-white hover:bg-gray-500 transition-all"
+        className="fixed bottom-19 right-6 z-50 p-2 rounded-full shadow-lg bg-gray-400 text-white hover:bg-gray-500 transition-all"
       >
         {getThemeIcon()}
       </button>

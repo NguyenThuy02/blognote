@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
 import { Carousel } from "react-responsive-carousel";
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 
@@ -981,6 +982,7 @@ export default function ClassfyApp() {
 
         <div className="grid grid-cols-1 gap-4">
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+          <ScrollToTop />
         </div>
       </div>
 

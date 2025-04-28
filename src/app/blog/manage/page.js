@@ -6,6 +6,7 @@ import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
 import {
   FileOutlined,
   FileTextOutlined,
@@ -1689,6 +1690,7 @@ export default function ManageApp() {
             </button>
           </div>
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+          <ScrollToTop />
         </div>
       </div>
 

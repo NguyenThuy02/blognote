@@ -14,6 +14,7 @@ import {
 import dynamic from "next/dynamic";
 import { supabase } from "../../../lib/supabase";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 
@@ -1821,6 +1822,7 @@ export default function BloglistApp() {
   
         <div className="pt-6 border-t border-gray-200">
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+          <ScrollToTop />
         </div>
       </div>
   

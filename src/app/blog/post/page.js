@@ -20,6 +20,7 @@ import {
 import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
 import Confirm from "../../../utils/error";
 import { useRouter, useSearchParams } from "next/navigation";
 import AvailableSamples from "../available/page";
@@ -1927,6 +1928,7 @@ export default function PostPage() {
               </div>
 
               <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+              <ScrollToTop />
             </div>
 
             {isLoggedIn && !showDrafts && (

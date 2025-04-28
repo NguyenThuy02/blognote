@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
 
 Chart.register(
   CategoryScale,
@@ -1918,9 +1919,9 @@ export default function ReportApp() {
                 </div>
               )}
             </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:gap-4">
+            <div className="flex flex-col gap-3 sm:gap-4">
               <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+              <ScrollToTop />
             </div>
           </main>
         </div>
