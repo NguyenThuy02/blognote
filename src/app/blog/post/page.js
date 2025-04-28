@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -135,7 +134,8 @@ export default function PostPage() {
 
     const initFromQuery = () => {
       if (memoizedSearchParams.title) setTitle(memoizedSearchParams.title);
-      if (memoizedSearchParams.content) setContent(memoizedSearchParams.content);
+      if (memoizedSearchParams.content)
+        setContent(memoizedSearchParams.content);
       if (memoizedSearchParams.topic) setTopic(memoizedSearchParams.topic);
       if (memoizedSearchParams.tags)
         setTags(
@@ -249,6 +249,12 @@ export default function PostPage() {
         .not("tags", "is", null);
       if (demosError) throw demosError;
 
+      const { data: demoPurposeData, error: demoPurposeError } = await supabase
+        .from("demopurpose")
+        .select("tags")
+        .not("tags", "is", null);
+      if (demoPurposeError) throw demoPurposeError;
+
       const allTags = [
         ...new Set([
           ...(postsData || []).flatMap((item) =>
@@ -261,6 +267,15 @@ export default function PostPage() {
               : []
           ),
           ...(demosData || []).flatMap((item) =>
+            item.tags
+              ? typeof item.tags === "string"
+                ? item.tags.split(",").map((tag) => tag.trim())
+                : Array.isArray(item.tags)
+                ? item.tags
+                : []
+              : []
+          ),
+          ...(demoPurposeData || []).flatMap((item) =>
             item.tags
               ? typeof item.tags === "string"
                 ? item.tags.split(",").map((tag) => tag.trim())
@@ -298,10 +313,23 @@ export default function PostPage() {
         .not("topics", "is", null);
       if (postsError) throw postsError;
 
+      const { data: demoPurposeData, error: demoPurposeError } = await supabase
+        .from("demopurpose")
+        .select("topics")
+        .not("topics", "is", null);
+      if (demoPurposeError) throw demoPurposeError;
+
       const allTopics = [
         ...new Set([
-          ...(demosData || []).map((item) => capitalizeFirstLetter(item.topics)),
-          ...(postsData || []).map((item) => capitalizeFirstLetter(item.topics)),
+          ...(demosData || []).map((item) =>
+            capitalizeFirstLetter(item.topics)
+          ),
+          ...(postsData || []).map((item) =>
+            capitalizeFirstLetter(item.topics)
+          ),
+          ...(demoPurposeData || []).map((item) =>
+            capitalizeFirstLetter(item.topics)
+          ),
         ]),
       ];
 
@@ -320,6 +348,8 @@ export default function PostPage() {
   const fetchEntries = async (userName) => {
     try {
       setLoading(true);
+
+      // Fetch from demos (giữ nguyên logic gốc)
       const { data: demosData, error: demosError } = await supabase
         .from("demos")
         .select(
@@ -329,6 +359,15 @@ export default function PostPage() {
         .order("created_at", { ascending: false });
       if (demosError) throw demosError;
 
+      // Fetch from demopurpose where purpose = 'draft'
+      const { data: demoPurposeData, error: demoPurposeError } = await supabase
+        .from("demopurpose")
+        .select("id, topics, tags, story_description, images, name, created_at")
+        .eq("name", userName)
+        .eq("purpose", "draft")
+        .order("created_at", { ascending: false });
+      if (demoPurposeError) throw demoPurposeError;
+
       const normalizeMedia = (media) => {
         if (!media) return [];
         if (typeof media === "string") {
@@ -337,22 +376,59 @@ export default function PostPage() {
         return [];
       };
 
+      // Normalize demos data (giữ nguyên logic gốc)
       const demosFormatted = demosData.map((entry) => ({
-        ...entry,
+        id: entry.id,
         table: "demos",
+        title: entry.title || "Không có tiêu đề",
+        content: entry.content || "",
         topics: capitalizeFirstLetter(entry.topics || ""),
         tags: entry.tags
           ? Array.isArray(entry.tags)
             ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
+            : typeof entry.tags === "string"
+            ? entry.tags
+                .split(",")
+                .map((tag) => capitalizeFirstLetter(tag.trim()))
             : []
           : [],
         images: normalizeMedia(entry.images),
         files: normalizeMedia(entry.files),
         videos: normalizeMedia(entry.videos),
+        created_at: entry.created_at,
+        name: entry.name,
       }));
 
-      setEntries(demosFormatted);
-      setFilteredEntries(demosFormatted);
+      // Normalize demopurpose data
+      const demoPurposeFormatted = demoPurposeData.map((entry) => ({
+        id: entry.id,
+        table: "demopurpose",
+        title: entry.story_description || "Không có tiêu đề",
+        content: entry.story_description || "",
+        topics: capitalizeFirstLetter(entry.topics || ""),
+        tags: entry.tags
+          ? typeof entry.tags === "string"
+            ? entry.tags
+                .split(",")
+                .map((tag) => capitalizeFirstLetter(tag.trim()))
+            : Array.isArray(entry.tags)
+            ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
+            : []
+          : [],
+        images: normalizeMedia(entry.images),
+        files: [],
+        videos: [],
+        created_at: entry.created_at,
+        name: entry.name,
+      }));
+
+      // Combine and sort entries
+      const combinedEntries = [...demosFormatted, ...demoPurposeFormatted].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+
+      setEntries(combinedEntries);
+      setFilteredEntries(combinedEntries);
     } catch (err) {
       console.error("Lỗi trong fetchEntries:", err);
       setNotification({
@@ -417,29 +493,54 @@ export default function PostPage() {
       const finalTopic = capitalizeFirstLetter(
         topic === "Khác" ? customTopic : topic
       );
-      const draftData = {
-        title,
-        content,
-        topics: finalTopic,
-        tags,
-        images: uploadedImages.length > 0 ? uploadedImages.join(",") : null,
-        files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
-        videos: uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
-        name,
-      };
+      const table = editingTable || "demopurpose"; // Mặc định lưu vào demopurpose nếu không chỉnh sửa
+      const draftData =
+        table === "demos"
+          ? {
+              title: title || "Không có tiêu đề",
+              content: content || "",
+              topics: finalTopic,
+              tags: tags.join(","),
+              images:
+                uploadedImages.length > 0 ? uploadedImages.join(",") : null,
+              files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
+              videos:
+                uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
+              name,
+            }
+          : {
+              topics: finalTopic,
+              tags: tags.join(","),
+              story_description: content || title || "Không có nội dung",
+              images:
+                uploadedImages.length > 0 ? uploadedImages.join(",") : null,
+              purpose: "draft",
+              name,
+            };
 
-      if (editingId !== null && editingTable === "demos") {
+      if (editingId !== null) {
         const { data, error } = await supabase
-          .from("demos")
+          .from(table)
           .update(draftData)
           .eq("id", editingId)
+          .eq(
+            table === "demos" ? "name" : "purpose",
+            table === "demos" ? name : "draft"
+          )
           .select()
           .single();
         if (error) throw error;
         setEntries(
           entries.map((entry) =>
-            entry.id === editingId && entry.table === "demos"
-              ? { ...data, table: "demos" }
+            entry.id === editingId && entry.table === table
+              ? {
+                  ...data,
+                  table,
+                  title:
+                    table === "demos" ? data.title : data.story_description,
+                  content:
+                    table === "demos" ? data.content : data.story_description,
+                }
               : entry
           )
         );
@@ -449,12 +550,20 @@ export default function PostPage() {
         });
       } else {
         const { data, error } = await supabase
-          .from("demos")
+          .from(table)
           .insert([draftData])
           .select()
           .single();
         if (error) throw error;
-        setEntries([{ ...data, table: "demos" }, ...entries]);
+        setEntries([
+          {
+            ...data,
+            table,
+            title: table === "demos" ? data.title : data.story_description,
+            content: table === "demos" ? data.content : data.story_description,
+          },
+          ...entries,
+        ]);
         setNotification({
           message: "Bản nháp đã được lưu thành công!",
           type: "success",
@@ -501,8 +610,15 @@ export default function PostPage() {
 
       if (error) throw error;
 
-      if (editingId !== null && editingTable === "demos") {
-        await supabase.from("demos").delete().eq("id", editingId);
+      if (editingId !== null) {
+        await supabase
+          .from(editingTable)
+          .delete()
+          .eq("id", editingId)
+          .eq(
+            editingTable === "demos" ? "name" : "purpose",
+            editingTable === "demos" ? name : "draft"
+          );
       }
 
       setNotification({
@@ -548,6 +664,7 @@ export default function PostPage() {
     setContentError("");
     setTopicError("");
     setTagError("");
+    setActiveTab("post");
   };
 
   const handleUseSample = (post) => {
@@ -555,7 +672,9 @@ export default function PostPage() {
     setTitle(post.title);
     setContent(post.content);
     setTopic(post.topics);
-    setTags(post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []);
+    setTags(
+      post.tags ? post.tags.map((tag) => capitalizeFirstLetter(tag)) : []
+    );
     setCustomTopic("");
     setSelectedTag("");
     setCustomTag("");
@@ -667,10 +786,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, images: prev.images - 1 }));
       }
 
-      const { error } = await supabase.from("demos").upsert({
+      const { error } = await supabase.from("demopurpose").upsert({
         name,
-        title: title || "Không có tiêu đề",
+        story_description: title || "Không có tiêu đề",
         images: uploadedUrls.join(","),
+        purpose: "draft",
       });
       if (error) throw error;
 
@@ -754,10 +874,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, files: prev.files - 1 }));
       }
 
-      const { error } = await supabase.from("demos").upsert({
+      const { error } = await supabase.from("demopurpose").upsert({
         name,
-        title: title || "Không có tiêu đề",
+        story_description: title || "Không có tiêu đề",
         files: uploadedFileUrls.join(","),
+        purpose: "draft",
       });
       if (error) throw error;
     } catch (err) {
@@ -836,10 +957,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, videos: prev.videos - 1 }));
       }
 
-      const { error } = await supabase.from("demos").upsert({
+      const { error } = await supabase.from("demopurpose").upsert({
         name,
-        title: title || "Không có tiêu đề",
+        story_description: title || "Không có tiêu đề",
         videos: uploadedVideoUrls.join(","),
+        purpose: "draft",
       });
       if (error) throw error;
     } catch (err) {
@@ -927,7 +1049,7 @@ export default function PostPage() {
 
     return (
       <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-        <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg">
+        <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-400 rounded-lg">
           <h1 className="text-2xl font-bold text-white">Viết bài mới</h1>
           <div className="relative w-12 h-12">
             <svg
@@ -1368,9 +1490,9 @@ export default function PostPage() {
                 type="button"
                 onClick={() => setLivePreview(!livePreview)}
                 className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600 transition-all duration-200"
-                aria-label={livePreview ? "Tắt xem trước" : "Xem trước"}
+                aria-label={livePreview ? "Ẩn xem trước" : "Xem trước"}
               >
-                <FaEye /> {livePreview ? "Tắt xem trước" : "Xem trước"}
+                <FaEye /> {livePreview ? "Ẩn xem trước" : "Xem trước"}
               </button>
               <button
                 type="button"
@@ -1498,6 +1620,12 @@ export default function PostPage() {
         theme
       )}`}
     >
+      <h1
+        className={`text-white text-2xl bg-gradient-to-r from-teal-400 to-indigo-400 border-2 border-blue-200 rounded-lg shadow-md font-bold text-center py-5 mb-3`}
+      >
+        Viết bài
+      </h1>
+
       <style jsx global>{`
         @keyframes slideUp {
           from {
@@ -1558,9 +1686,13 @@ export default function PostPage() {
             onConfirm={async () => {
               try {
                 const { error } = await supabase
-                  .from("demos")
+                  .from(confirmDeleteTable)
                   .delete()
-                  .eq("id", confirmDeleteId);
+                  .eq("id", confirmDeleteId)
+                  .eq(
+                    confirmDeleteTable === "demos" ? "name" : "purpose",
+                    confirmDeleteTable === "demos" ? name : "draft"
+                  );
                 if (error) throw error;
                 setEntries(
                   entries.filter((entry) => entry.id !== confirmDeleteId)
@@ -1742,14 +1874,16 @@ export default function PostPage() {
                               {Array.isArray(entry.tags) &&
                                 entry.tags.length > 0 && (
                                   <div className="flex flex-wrap gap-2 mt-2">
-                                    {entry.tags.slice(0, 3).map((tag, index) => (
-                                      <span
-                                        key={`${tag}-${index}`}
-                                        className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
-                                      >
-                                        {tag}
-                                      </span>
-                                    ))}
+                                    {entry.tags
+                                      .slice(0, 3)
+                                      .map((tag, index) => (
+                                        <span
+                                          key={`${tag}-${index}`}
+                                          className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
                                   </div>
                                 )}
                               <small className="text-gray-500 text-xs block mt-2">
@@ -1791,13 +1925,8 @@ export default function PostPage() {
                   </ul>
                 </div>
               </div>
-              {/* ThemeSelector với nền riêng, đặt bên ngoài và dưới sidebar */}
-              <div className="bg-teal-100 p-4 rounded-lg border border-teal-200 mt-4 mr-4">
-                <ThemeSelector
-                  currentTheme={theme}
-                  onThemeChange={setTheme}
-                />
-              </div>
+
+              <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
             </div>
 
             {isLoggedIn && !showDrafts && (

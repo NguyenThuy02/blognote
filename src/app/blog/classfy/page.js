@@ -718,24 +718,25 @@ export default function ClassfyApp() {
                     </p>
                   </div>
                   <div className="mt-3">
-                    {article.images.length > 0 && (
-                      <div className="relative w-[150px] h-[100px] mx-auto">
-                        <Image
-                          src={article.images[0]}
-                          alt={`Hình ảnh xem trước cho ${article.title}`}
-                          width={150}
-                          height={100}
-                          className="rounded-md object-cover"
-                          loading="lazy"
-                          onError={() =>
-                            console.warn(
-                              `Không thể tải hình ảnh: ${article.images[0]}`
-                            )
-                          }
-                        />
-                      </div>
-                    )}
-                  </div>
+  {article.images.length > 0 && (
+    <div className="relative w-[150px] h-[100px] mx-auto">
+      <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
+        <Image
+          src={article.images[0]}
+          alt={`Hình ảnh xem trước cho ${article.title}`}
+          width={150}
+          height={100}
+          className="rounded-md object-cover"
+          loading="lazy"
+          onError={() =>
+            console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)
+          }
+        />
+      </div>
+    </div>
+  )}
+</div>
+
                   <div className="mt-3 flex justify-between items-center">
                     <div className="flex flex-wrap gap-2">
                       {article.tags.map((tag) => (
@@ -977,23 +978,9 @@ export default function ClassfyApp() {
         )}
 
         {/* Phần chọn giao diện */}
-        <div
-          className={`mt-5 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
-            theme,
-            "support"
-          )}`}
-        >
-          <h2
-            className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 wrap-text ${getThemeClasses(
-              theme,
-              "title"
-            )}`}
-          >
-            Cài đặt giao diện
-          </h2>
-          <div className="grid grid-cols-1 gap-4">
-            <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
-          </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
         </div>
       </div>
 

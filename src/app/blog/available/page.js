@@ -781,7 +781,7 @@ export default function CreatePost() {
       return;
     }
     if (validateInputs()) return;
-
+  
     setShowConfirm({
       isOpen: true,
       action: async () => {
@@ -793,20 +793,14 @@ export default function CreatePost() {
             topics: finalTopic,
             tags: formData.tags.join(","),
             purpose: selectedPurpose,
-            questions:
-              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-            poll:
-              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
             quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-            story_type:
-              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_type: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
             story_description:
-              selectedPurpose === "Truyện tranh"
-                ? formData.storyDescription
-                : "",
+              selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
             story_doc: formData.storyDoc ? formData.storyDoc.url : null,
-            timeline:
-              selectedPurpose === "Hành trình" ? formData.timeline : null,
+            timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
             images:
               formData.images.length > 0
                 ? formData.images.map((img) => img.url).join(",")
@@ -815,14 +809,14 @@ export default function CreatePost() {
               JSON.parse(localStorage.getItem("user")).name ||
               JSON.parse(localStorage.getItem("user")).email,
           };
-
+  
           const { data, error } = await supabase
             .from("demopurpose")
-            .insert([draftData])
+            .insert(draftData) // Thay [draftData] thành draftData
             .select()
             .single();
           if (error) throw error;
-
+  
           addNotification("Bản nháp đã được lưu thành công!", "success");
           resetForm();
           await fetchTopics();
@@ -844,7 +838,7 @@ export default function CreatePost() {
       return;
     }
     if (validateInputs()) return;
-
+  
     setShowConfirm({
       isOpen: true,
       action: async () => {
@@ -856,20 +850,14 @@ export default function CreatePost() {
             topics: finalTopic,
             tags: formData.tags.join(","),
             purpose: selectedPurpose,
-            questions:
-              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-            poll:
-              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
             quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-            story_type:
-              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_type: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
             story_description:
-              selectedPurpose === "Truyện tranh"
-                ? formData.storyDescription
-                : "",
+              selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
             story_doc: formData.storyDoc ? formData.storyDoc.url : null,
-            timeline:
-              selectedPurpose === "Hành trình" ? formData.timeline : null,
+            timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
             images:
               formData.images.length > 0
                 ? formData.images.map((img) => img.url).join(",")
@@ -878,14 +866,14 @@ export default function CreatePost() {
               JSON.parse(localStorage.getItem("user")).name ||
               JSON.parse(localStorage.getItem("user")).email,
           };
-
+  
           const { data, error } = await supabase
             .from("postpurpose")
-            .insert([newPost])
+            .insert(newPost) // Thay [newPost] thành newPost
             .select()
             .single();
           if (error) throw error;
-
+  
           addNotification("Bài viết đã được đăng thành công!", "success");
           resetForm();
           await fetchTopics();
@@ -2006,7 +1994,7 @@ export default function CreatePost() {
                         name={`milestone-status-${index}`}
                         value={milestone.status}
                         onChange={handleFormChange}
-                        className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                        className="h-9 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
                       >
                         <option value="Hoàn thành">Hoàn thành</option>
                         <option value="Đang thực hiện">Đang thực hiện</option>

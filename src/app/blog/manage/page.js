@@ -1548,10 +1548,7 @@ export default function ManageApp() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "favorites"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm bg-gray-1 flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-green-700 wrap-text">
               Bài viết yêu thích
@@ -1579,10 +1576,7 @@ export default function ManageApp() {
             )}
           </div>
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "favorites"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-teal-700 wrap-text">
               Thống kê nhanh
@@ -1603,10 +1597,7 @@ export default function ManageApp() {
             </ul>
           </div>
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "recent"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-blue-700 wrap-text">
               Hoạt động gần đây
@@ -1639,10 +1630,7 @@ export default function ManageApp() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "recent"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1  bg-white`}
           >
             <h3 className="text-lg font-bold text-orange-700 wrap-text">
               Từ khóa phổ biến
@@ -1662,10 +1650,7 @@ export default function ManageApp() {
             )}
           </div>
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "tips"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-purple-700 wrap-text">
               Mẹo quản lý nội dung
@@ -1680,10 +1665,7 @@ export default function ManageApp() {
             </ul>
           </div>
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "tips"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-pink-700 wrap-text">
               Gợi ý hành động
@@ -1694,10 +1676,7 @@ export default function ManageApp() {
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
-            className={`p-4 rounded-lg shadow-sm border flex-1 ${getThemeClasses(
-              theme,
-              "export"
-            )}`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-yellow-700 wrap-text">
               Xuất danh sách
@@ -1762,3 +1741,4 @@ export default function ManageApp() {
     </div>
   );
 }
+
