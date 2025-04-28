@@ -1,4 +1,3 @@
-// components/details.js
 import { useState, useEffect } from "react";
 import { supabase2 } from "../../lib/supabase";
 import Image from "next/image";
@@ -150,17 +149,27 @@ export default function ChiTiet({ noteId, onClose }) {
   if (loading) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
         variants={backdropVariants}
       >
         <motion.div
-          className="bg-white p-6 rounded-lg shadow-lg"
+          className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center"
           variants={modalVariants}
         >
-          <p className="text-gray-700 text-lg font-medium">Đang tải...</p>
+          {/* Spinner dễ thương với hiệu ứng xoay */}
+          <motion.div
+            className="w-12 h-12 rounded-full bg-pink-200 flex items-center justify-center"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <span className="text-2xl">🐾</span> 
+          </motion.div>
+          <p className="text-gray-700 text-lg font-medium mt-4 animate-bounce">
+            Đang tải nè... 
+          </p>
         </motion.div>
       </motion.div>
     );
@@ -169,7 +178,7 @@ export default function ChiTiet({ noteId, onClose }) {
   if (error) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -196,7 +205,7 @@ export default function ChiTiet({ noteId, onClose }) {
   if (!note) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -225,7 +234,7 @@ export default function ChiTiet({ noteId, onClose }) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50"
+        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -247,10 +256,44 @@ export default function ChiTiet({ noteId, onClose }) {
 
           {/* Tiêu đề ghi chú */}
           <motion.h1
-            className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+            className="text-4xl font-bold text-center mb-6 text-white drop-shadow-lg relative"
+            style={{ 
+              fontFamily: "Lora, serif",
+              backgroundImage: "linear-gradient(135deg, #d8b9ff, #b9d8ff)", // Thay background bằng backgroundImage
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)"
+            }}
+            whileHover={{
+              rotate: [-5, 5, -5, 0],
+              transition: { rotate: { duration: 0.5, ease: "easeInOut" } }
+            }}
           >
+            {[...Array(4)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute text-pink-400 text-2xl pointer-events-none"
+                style={{
+                  left: `${20 + i * 20}%`, // Đặt vị trí ngẫu nhiên
+                  bottom: "0"
+                }}
+                initial={{ opacity: 0, y: 0 }}
+                animate={{
+                  opacity: [0, 1, 0], // Hiện lên rồi mờ đi
+                  y: -50, // Bay lên
+                  x: Math.random() * 20 - 10, // Lệch trái/phải ngẫu nhiên
+                  transition: {
+                    delay: i * 0.3, // Trái tim xuất hiện lần lượt (cách nhau 0.3 giây ban đầu)
+                    duration: 1.5, // Thời gian hiệu ứng kéo dài 1.5 giây
+                    repeat: Infinity, // Lặp vô hạn
+                    repeatDelay: 9 // Sau 9 giây sẽ lặp lại
+                  }
+                }}
+              >
+                🩵
+              </motion.div>
+            ))}
             {note.title}
           </motion.h1>
 

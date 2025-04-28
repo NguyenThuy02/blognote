@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 export default function Sidebar() {
@@ -7,7 +9,7 @@ export default function Sidebar() {
       <nav className="space-y-4">
         {/* Bài viết */}
         <div>
-          <h3 className="text-gray-400 text-sm mb-2">📚 Bài viết</h3>
+          <h3 className="text-sm mb-2">📚 Bài viết</h3>
           <ul className="space-y-2">
             <li>
               <Link
@@ -54,7 +56,7 @@ export default function Sidebar() {
 
         {/* Ghi chú */}
         <div>
-          <h3 className="text-gray-400 text-sm mb-2">📝 Ghi chú</h3>
+          <h3 className="text-sm mb-2">📝 Ghi chú</h3>
           <ul className="space-y-2">
             <li>
               <Link
@@ -101,7 +103,7 @@ export default function Sidebar() {
 
         {/* Công cụ khác */}
         <div>
-          <h3 className="text-gray-400 text-sm mb-2">📊 Công cụ</h3>
+          <h3 className="text-sm mb-2">📊 Công cụ</h3>
           <ul className="space-y-2">
             <li>
               <Link
@@ -138,6 +140,30 @@ export default function Sidebar() {
           </ul>
         </div>
       </nav>
+
+      <style jsx>{`
+        aside {
+          background: var(--background);
+          color: var(--text-color);
+          border-color: var(--border-color);
+          box-shadow: 0 4px 12px var(--shadow-color);
+          transition: all 0.3s ease;
+        }
+        h2, h3 {
+          color: var(--text-color);
+        }
+        h3 {
+          opacity: 0.6;
+        }
+        a {
+          color: var(--text-color);
+          transition: all 0.3s ease;
+        }
+        a:hover {
+          background: linear-gradient(to right, var(--accent-color), var(--border-color));
+          color: white;
+        }
+      `}</style>
     </aside>
   );
 }

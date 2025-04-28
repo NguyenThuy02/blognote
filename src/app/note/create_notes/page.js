@@ -37,6 +37,14 @@ import {
 import mammoth from "mammoth";
 import * as pdfjsLib from "pdfjs-dist";
 import Image from "next/image";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import Editor from "@monaco-editor/react"; 
+import axios from 'axios';
+import CryptoJS from "crypto-js";
+import ThemeSettings from "../../components/ThemeSettings"; 
+import Dexie from 'dexie';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -55,11 +63,21 @@ const NoteApp = () => {
   const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
   const audioRef = useRef(null);
   const importFileInputRef = useRef(null);
   const noteFormRef = useRef(null); // cuộn phần sửa 
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceBlob, setVoiceBlob] = useState(null);
+  const [voiceUrl, setVoiceUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [audioUrl, setAudioUrl] = useState(""); // URL của file âm thanh tải lên
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false); // Trạng thái loading video
+  const mediaRecorderRef = useRef(null);
+  const audioInputRef = useRef(null); // Ref cho input file âm thanh
+  const recognitionRef = useRef(null); 
 
   const [fontFamily, setFontFamily] = useState("Verdana");
   const [fontSize, setFontSize] = useState("14pt");
@@ -90,12 +108,19 @@ const NoteApp = () => {
   const [filterMenuVisible, setFilterMenuVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
-
+  const [selectedLanguage, setSelectedLanguage] = useState("javascript");
+  const [isOffline, setIsOffline] = useState(false);// Thêm state và logic ngoại tuyến
+  const [pendingActions, setPendingActions] = useState([]);
+  const videoInputRef = useRef(null); // tải video
+  const [voicePublicId, setVoicePublicId] = useState("");
+  const [codeOutput, setCodeOutput] = useState(""); // Lưu kết quả chạy code
   const [visibleNoteTypes, setVisibleNoteTypes] = useState({
     plain: true,
     rich: true,
     whiteboard: true,
     spreadsheet: true,
+    markdown: true, // Added markdown to visible note types
+    voice: true, // Thêm voice
   });
 
   const noteTypeMenuRef = useRef(null);
@@ -106,10 +131,205 @@ const NoteApp = () => {
   const emojiPickerRef = useRef(null);
   const filterMenuRef = useRef(null);
   const sortMenuRef = useRef(null);
-
+  
+  // Thêm hàm generateLocalId tại đây
+  const generateLocalId = async () => {
+    const lastNote = await db.notes.orderBy('id').last();
+    const lastId = lastNote ? lastNote.id : 0;
+    return lastId < 0 ? lastId - 1 : -1; // Tạo ID âm tăng dần
+  };
+  
   useEffect(() => {
     fetchNotes();
   }, []);
+
+  //Thêm useEffect để theo dõi trạng thái mạng
+  useEffect(() => {
+    // Khởi tạo trạng thái ngoại tuyến
+    setIsOffline(!navigator.onLine);
+  
+    // Theo dõi trạng thái mạng
+    const handleOnline = async () => {
+      setIsOffline(false);
+      await syncPendingActions();
+    };
+    const handleOffline = () => setIsOffline(true);
+  
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+  
+    // Lấy ghi chú từ IndexedDB khi khởi động
+    const initOfflineNotes = async () => {
+      try {
+        const offlineNotes = await db.notes.toArray();
+        if (offlineNotes.length > 0) {
+          setNotes(
+            offlineNotes.map(note => {
+              let parsedTodos = [];
+              let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+  
+              // Xử lý parse todos
+              if (note.todos && typeof note.todos === 'string') {
+                try {
+                  parsedTodos = JSON.parse(note.todos);
+                  if (!Array.isArray(parsedTodos)) parsedTodos = [];
+                } catch (e) {
+                  console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+                  parsedTodos = [];
+                }
+              }
+  
+              // Xử lý parse spreadsheet_data
+              if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+                try {
+                  parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+                  if (!Array.isArray(parsedSpreadsheetData)) {
+                    parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                  }
+                } catch (e) {
+                  console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                }
+              }
+  
+              return {
+                ...note,
+                todos: parsedTodos,
+                spreadsheet_data: parsedSpreadsheetData,
+                isPinned: note.isPinned || false,
+                audio_url: note.audio_url || "",
+                video_url: note.video_url || "",
+              };
+            })
+          );
+        } else {
+          fetchNotes();
+        }
+      } catch (err) {
+        console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
+        setError('Không thể tải ghi chú cục bộ: ' + err.message);
+      }
+    };
+  
+    initOfflineNotes();
+  
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Hàm đồng bộ hóa các hành động đang chờ
+  const syncPendingActions = async () => {
+    try {
+      const actions = await db.pendingActions.toArray();
+      for (const action of actions) {
+        const { action: syncAction, noteId, data } = action;
+        if (syncAction === 'create') {
+          const { error } = await supabase2.from('notess').insert([data]).select().single();
+          if (error) throw error;
+          await db.notes.delete(noteId); // Xóa ghi chú tạm thời
+        } else if (syncAction === 'update') {
+          const { error } = await supabase2.from('notess').update(data).eq('id', noteId);
+          if (error) throw error;
+        } else if (syncAction === 'delete') {
+          const { error } = await supabase2.from('notess').delete().eq('id', noteId);
+          if (error) throw error;
+        }
+        await db.pendingActions.delete(action.id); // Xóa hành động đã đồng bộ
+      }
+      setPendingActions([]);
+      await fetchNotes(); // Cập nhật danh sách ghi chú
+    } catch (err) {
+      console.error('Lỗi đồng bộ hóa:', err);
+      setError('Không thể đồng bộ hóa dữ liệu: ' + err.message);
+    }
+  };
+
+      // Khởi tạo IndexedDB với Dexie
+      const db = new Dexie('NoteAppDB');
+      db.version(1).stores({
+        notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,video_url,isPending,syncAction',
+        pendingActions: '++id,action,noteId,data',
+      });
+
+      // Xử lý kéo thả
+    const handleDragStart = (e, index) => {
+      e.dataTransfer.setData("index", index);
+      e.currentTarget.classList.add("dragging");
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = (e, dropIndex) => {
+      e.preventDefault();
+      const dragIndex = e.dataTransfer.getData("index");
+      const newTodos = [...todos];
+      const [draggedTodo] = newTodos.splice(dragIndex, 1);
+      newTodos.splice(dropIndex, 0, draggedTodo);
+      setTodos(newTodos);
+      document.querySelectorAll(".dragging").forEach((el) => el.classList.remove("dragging"));
+    };
+
+    // Xử lý chỉnh sửa công việc
+    const handleEditTodo = (index) => {
+      const todo = todos[index];
+      setContent(todo.text);
+      setReminderTime(todo.reminder || "");
+      setTodos(todos.filter((_, i) => i !== index)); // Xóa tạm thời công việc để chỉnh sửa
+    };
+
+    // Xử lý xóa công việc
+    const handleDeleteTodo = (index) => {
+      if (confirm("Bạn có chắc muốn xóa công việc này không?")) {
+        setTodos(todos.filter((_, i) => i !== index));
+      }
+    };
+    
+      // ghi âm 
+      useEffect(() => {
+        // Khởi tạo SpeechRecognition
+        if (typeof window !== "undefined" && window.SpeechRecognition) {
+          recognitionRef.current = new window.SpeechRecognition();
+          recognitionRef.current.lang = "vi-VN"; // Ngôn ngữ tiếng Việt
+          recognitionRef.current.interimResults = true; // Hiển thị kết quả tạm thời
+          recognitionRef.current.continuous = true; // Ghi âm liên tục
+      
+          let hasSpeech = false; // Biến để kiểm tra xem có phát hiện văn bản hay không
+      
+          recognitionRef.current.onresult = (event) => {
+            let transcript = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              transcript += event.results[i][0].transcript;
+            }
+            if (transcript.trim()) {
+              hasSpeech = true; // Có văn bản được phát hiện
+              setContent((prev) => prev + transcript); // Thêm văn bản vào content
+            }
+          };
+      
+          recognitionRef.current.onend = () => {
+            if (!hasSpeech && isRecording) {
+              setError("Không phát hiện văn bản từ giọng nói.");
+            }
+          };
+      
+          recognitionRef.current.onerror = (event) => {
+            setError("Lỗi Speech-to-Text: " + event.error);
+            stopRecording();
+          };
+        } else {
+          console.warn("SpeechRecognition API không được hỗ trợ trên trình duyệt này.");
+        }
+      
+        return () => {
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
+        };
+      }, [isRecording]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -170,63 +390,114 @@ const NoteApp = () => {
   }, []);
 
   const fetchNotes = async () => {
+    if (isOffline) {
+      try {
+        const offlineNotes = await db.notes.toArray();
+        setNotes(
+          offlineNotes.map(note => {
+            let parsedTodos = [];
+            let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+  
+            if (note.todos && typeof note.todos === 'string') {
+              try {
+                parsedTodos = JSON.parse(note.todos);
+                if (!Array.isArray(parsedTodos)) parsedTodos = [];
+              } catch (e) {
+                console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+                parsedTodos = [];
+              }
+            }
+  
+            if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+              try {
+                parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+                if (!Array.isArray(parsedSpreadsheetData)) {
+                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                }
+              } catch (e) {
+                console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+                parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+              }
+            }
+  
+            return {
+              ...note,
+              todos: parsedTodos,
+              spreadsheet_data: parsedSpreadsheetData,
+              isPinned: note.isPinned || false,
+              audio_url: note.audio_url || "",
+              video_url: note.video_url || "",
+            };
+          }) || []
+        );
+      } catch (err) {
+        console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
+        setError('Không thể tải ghi chú cục bộ: ' + err.message);
+      }
+      return;
+    }
+  
     try {
       const { data, error } = await supabase2
         .from("notess")
         .select(
-          "id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification"
+          "id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, video_url"
         )
         .order("updated_at", { ascending: false });
-      if (error) throw error;
-
-      setNotes(
-        data.map((note) => {
-          let parsedTodos = [];
-          let parsedSpreadsheetData = Array(10)
-            .fill()
-            .map(() => Array(10).fill(""));
-
-          if (note.todos) {
-            try {
-              parsedTodos = JSON.parse(note.todos);
-              if (!Array.isArray(parsedTodos)) parsedTodos = [];
-            } catch (e) {
-              console.error(`Error parsing todos for note ${note.id}:`, e);
-              parsedTodos = [];
-            }
+      if (error) {
+        console.error("Chi tiết lỗi Supabase:", error);
+        throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
+      }
+  
+      const parsedNotes = data.map((note) => {
+        let parsedTodos = [];
+        let parsedSpreadsheetData = Array(10)
+          .fill()
+          .map(() => Array(10).fill(""));
+  
+        if (note.todos && typeof note.todos === 'string') {
+          try {
+            parsedTodos = JSON.parse(note.todos);
+            if (!Array.isArray(parsedTodos)) parsedTodos = [];
+          } catch (e) {
+            console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+            parsedTodos = [];
           }
-
-          if (note.spreadsheet_data) {
-            try {
-              parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-              if (!Array.isArray(parsedSpreadsheetData))
-                parsedSpreadsheetData = Array(10)
-                  .fill()
-                  .map(() => Array(10).fill(""));
-            } catch (e) {
-              console.error(
-                `Error parsing spreadsheet_data for note ${note.id}:`,
-                e
-              );
+        }
+  
+        if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+          try {
+            parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+            if (!Array.isArray(parsedSpreadsheetData))
               parsedSpreadsheetData = Array(10)
                 .fill()
                 .map(() => Array(10).fill(""));
-            }
+          } catch (e) {
+            console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+            parsedSpreadsheetData = Array(10)
+              .fill()
+              .map(() => Array(10).fill(""));
           }
-
-          return {
-            ...note,
-            todos: parsedTodos,
-            spreadsheet_data: parsedSpreadsheetData,
-            isPinned: false,
-          };
-        }) || []
-      );
+        }
+  
+        return {
+          ...note,
+          todos: parsedTodos,
+          spreadsheet_data: parsedSpreadsheetData,
+          isPinned: false,
+          audio_url: note.audio_url || "",
+          video_url: note.video_url || "",
+        };
+      }) || [];
+  
+      setNotes(parsedNotes);
+  
+      // Lưu vào IndexedDB để sử dụng ngoại tuyến
+      await db.notes.clear();
+      await db.notes.bulkPut(parsedNotes);
     } catch (err) {
-      console.error("Error fetching notes:", err);
-      setError(
-        "Không thể tải ghi chú: " + (err.message || "Lỗi không xác định")
-      );
+      console.error("Chi tiết lỗi khi lấy ghi chú:", err);
+      setError("Không thể tải ghi chú: " + (err.message || "Lỗi không xác định"));
     }
   };
 
@@ -240,19 +511,24 @@ const NoteApp = () => {
       return;
     }
     if (
-      (currentNoteType === "plain" || currentNoteType === "rich") &&
-      !content.trim()
+      (currentNoteType === "plain" ||
+        currentNoteType === "rich" ||
+        currentNoteType === "markdown" ||
+        currentNoteType === "voice") &&
+      !content.trim() &&
+      !videoUrl &&
+      !audioUrl
     ) {
-      setError("Nội dung không được để trống.");
+      setError("Nội dung, video hoặc âm thanh không được để trống.");
       return;
     }
-
+  
     try {
       const imageUrl =
         uploadedImages.length > 0
           ? uploadedImages[uploadedImages.length - 1]
           : null;
-
+  
       let classification;
       switch (currentNoteType) {
         case "plain":
@@ -267,25 +543,29 @@ const NoteApp = () => {
         case "spreadsheet":
           classification = "spreadsheet";
           break;
+        case "markdown":
+          classification = "markdown";
+          break;
+        case "voice":
+          classification = "voice";
+          break;
         default:
           classification = "Abundant";
       }
-
+  
       const categoryMap = {
         Personal: 1,
         Study: 2,
         Entertainment: 3,
         Upload: 4,
       };
-
+  
       const noteData = {
         title: title.trim(),
-        content:
-          currentNoteType === "plain" || currentNoteType === "rich"
-            ? content.trim()
-            : "",
+        content: content.trim(),
         image_url: imageUrl,
         updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         note_type: currentNoteType,
         font_style: fontStyle,
         font_size: fontSize,
@@ -294,15 +574,68 @@ const NoteApp = () => {
         text_align: textAlign,
         text_color: textColor,
         background_color: backgroundColor,
-        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos) : null,
+        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos || []) : null,
         spreadsheet_data:
           currentNoteType === "spreadsheet"
-            ? JSON.stringify(spreadsheetData)
+            ? JSON.stringify(spreadsheetData || Array(10).fill().map(() => Array(10).fill("")))
             : null,
-        classification: classification,
+        classification,
         category_id: categoryMap[category] || 1,
+        audio_url: audioUrl || null,
+        video_url: videoUrl || null,
       };
-
+  
+      if (isOffline) {
+        // Sử dụng generateLocalId thay vì random
+        const localId = editingId !== null ? editingId : await generateLocalId();
+        await db.notes.put({
+          ...noteData,
+          id: localId,
+          isPending: true,
+          syncAction: editingId !== null ? 'update' : 'create',
+        });
+        await db.pendingActions.put({
+          action: editingId !== null ? 'update' : 'create',
+          noteId: localId,
+          data: noteData,
+        });
+        setNotes((prev) => {
+          const updatedNotes = editingId !== null
+            ? prev.map((note) =>
+                note.id === editingId
+                  ? {
+                      ...note,
+                      ...noteData,
+                      todos: noteData.todos ? JSON.parse(noteData.todos) : [],
+                      spreadsheet_data: noteData.spreadsheet_data
+                        ? JSON.parse(noteData.spreadsheet_data)
+                        : Array(10)
+                            .fill()
+                            .map(() => Array(10).fill("")),
+                    }
+                  : note
+              )
+            : [
+                {
+                  ...noteData,
+                  id: localId,
+                  isPinned: false,
+                  todos: noteData.todos ? JSON.parse(noteData.todos) : [],
+                  spreadsheet_data: noteData.spreadsheet_data
+                    ? JSON.parse(noteData.spreadsheet_data)
+                    : Array(10)
+                        .fill()
+                        .map(() => Array(10).fill("")),
+                },
+                ...prev,
+              ];
+          return updatedNotes;
+        });
+        resetForm();
+        setError('Ghi chú đã được lưu cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
+  
       if (editingId !== null) {
         const { data, error } = await supabase2
           .from("notess")
@@ -316,35 +649,48 @@ const NoteApp = () => {
             note.id === editingId ? { ...note, ...data } : note
           )
         );
+        await db.notes.put({ ...data, todos: data.todos ? JSON.stringify(data.todos) : null, spreadsheet_data: data.spreadsheet_data ? JSON.stringify(data.spreadsheet_data) : null });
       } else {
         const { data, error } = await supabase2
-          .from("notes")
+          .from("notess")
           .insert([noteData])
           .select()
           .single();
         if (error) throw error;
         setNotes([{ ...data, isPinned: false }, ...notes]);
+        await db.notes.put({ ...data, todos: data.todos ? JSON.stringify(data.todos) : null, spreadsheet_data: data.spreadsheet_data ? JSON.stringify(data.spreadsheet_data) : null });
       }
-
+  
       resetForm();
       await fetchNotes();
     } catch (err) {
       console.error("Error saving note:", err);
-      setError(
-        "Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định")
-      );
+      setError("Có lỗi khi lưu ghi chú: " + (err.message || "Lỗi không xác định"));
     }
   };
 
   const handleDeleteNote = async (noteId) => {
     if (!confirm("Bạn có chắc muốn xóa ghi chú này không?")) return;
     try {
+      if (isOffline) {
+        await db.notes.delete(noteId);
+        await db.pendingActions.put({
+          action: 'delete',
+          noteId,
+          data: null,
+        });
+        setNotes(notes.filter((note) => note.id !== noteId));
+        setError('Ghi chú đã được xóa cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
+
       const { error } = await supabase2
-        .from("notes")
+        .from("notess")
         .delete()
         .eq("id", noteId);
       if (error) throw error;
       setNotes(notes.filter((note) => note.id !== noteId));
+      await db.notes.delete(noteId);
       setError("");
     } catch (err) {
       console.error("Error deleting note:", err);
@@ -354,122 +700,157 @@ const NoteApp = () => {
     }
   };
 
-  const handleEditNote = (note) => {
-    setTitle(note.title);
-    setContent(note.content || "");
-    setUploadedImages(note.image_url ? [note.image_url] : []);
-    setEditingId(note.id);
-    setCurrentNoteType(note.note_type || "rich");
-    setFontFamily(note.font_family || "Verdana");
-    setFontSize(note.font_size || "14pt");
-    setFontWeight(note.font_weight || "normal");
-    setFontStyle(note.font_style || "normal");
-    setTextAlign(note.text_align || "left");
-    setTextColor(note.text_color || "#000000");
-    setBackgroundColor(note.background_color || "#ffffff");
-    setTodos(note.todos || []);
-    setSpreadsheetData(
-      note.spreadsheet_data ||
+    const handleEditNote = (note) => {
+      setTitle(note.title);
+      setContent(note.content || "");
+      setUploadedImages(note.image_url ? [note.image_url] : []);
+      setEditingId(note.id);
+      setCurrentNoteType(note.note_type || "rich");
+      setFontFamily(note.font_family || "Verdana");
+      setFontSize(note.font_size || "14pt");
+      setFontWeight(note.font_weight || "normal");
+      setFontStyle(note.font_style || "normal");
+      setTextAlign(note.text_align || "left");
+      setTextColor(note.text_color || "#000000");
+      setBackgroundColor(note.background_color || "#ffffff");
+    
+      let parsedTodos = [];
+      if (note.todos && typeof note.todos === 'string') {
+        try {
+          parsedTodos = JSON.parse(note.todos);
+          if (!Array.isArray(parsedTodos)) parsedTodos = [];
+        } catch (e) {
+          console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+          parsedTodos = [];
+        }
+      }
+      setTodos(parsedTodos);
+    
+      let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+      if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+        try {
+          parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+          if (!Array.isArray(parsedSpreadsheetData)) {
+            parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+          }
+        } catch (e) {
+          console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+          parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+        }
+      }
+      setSpreadsheetData(parsedSpreadsheetData);
+    
+      setSpreadsheetHistory([
+        JSON.parse(JSON.stringify(parsedSpreadsheetData)),
+      ]);
+      setHistoryIndex(0);
+      setImageUploadVisible(
+        note.note_type !== "plain" &&
+        note.note_type !== "markdown" &&
+        note.note_type !== "voice"
+      );
+      setVoiceUrl(note.voice_url || "");
+      setVideoUrl(note.video_url || "");
+      setAudioUrl(note.audio_url || "");
+    
+      const reverseCategoryMap = {
+        1: "Personal",
+        2: "Study",
+        3: "Entertainment",
+        4: "Upload",
+      };
+      setCategory(reverseCategoryMap[note.category_id] || "Personal");
+    
+      setError("");
+    
+      if (noteFormRef.current) {
+        noteFormRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+
+    const resetForm = () => {
+      setTitle("");
+      setContent("");
+      setUploadedImages([]);
+      setImageUploadVisible(false);
+      setEditingId(null);
+      setCurrentNoteType("rich");
+      setFontFamily("Verdana");
+      setFontSize("14pt");
+      setFontWeight("normal");
+      setFontStyle("normal");
+      setTextAlign("left");
+      setTextColor("#000000");
+      setBackgroundColor("#ffffff");
+      setTodos([]);
+      setSpreadsheetData(
         Array(10)
           .fill()
           .map(() => Array(10).fill(""))
-    );
-    setSpreadsheetHistory([
-      JSON.parse(
-        JSON.stringify(
-          note.spreadsheet_data ||
-            Array(10)
-              .fill()
-              .map(() => Array(10).fill(""))
-        )
-      ),
-    ]);
-    setHistoryIndex(0);
-    setImageUploadVisible(note.note_type !== "plain");
-  
-    const reverseCategoryMap = {
-      1: "Personal",
-      2: "Study",
-      3: "Entertainment",
-      4: "Upload",
+      );
+      setSpreadsheetHistory([]);
+      setHistoryIndex(-1);
+      setReminderTime("");
+      setCategory("Personal");
+      setError("");
+      setShowEmojiPicker(false);
+      setIsAudioPlaying(false);
+      setSelectedAudio("");
+      setTranslateTo("");
+      setExtraMenuVisible(false);
+      setIsRecording(false);
+      setVoiceBlob(null);
+      setVoiceUrl("");
+      setVoicePublicId("");
+      setVideoUrl("");
+      setAudioUrl("");
+      setIsUploadingVideo(false);
+      setVoicePublicId("");
     };
-    setCategory(reverseCategoryMap[note.category_id] || "Personal");
-  
-    setError("");
-  
-    // Cuộn lên phần tạo ghi chú
-    if (noteFormRef.current) {
-      noteFormRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  };
 
-  const resetForm = () => {
-    setTitle("");
-    setContent("");
-    setUploadedImages([]);
-    setImageUploadVisible(false);
-    setEditingId(null);
-    setCurrentNoteType("rich");
-    setFontFamily("Verdana");
-    setFontSize("14pt");
-    setFontWeight("normal");
-    setFontStyle("normal");
-    setTextAlign("left");
-    setTextColor("#000000");
-    setBackgroundColor("#ffffff");
-    setTodos([]);
-    setSpreadsheetData(
-      Array(10)
-        .fill()
-        .map(() => Array(10).fill(""))
-    );
-    setSpreadsheetHistory([]);
-    setHistoryIndex(-1);
-    setReminderTime("");
-    setCategory("Personal");
-    setError("");
-    setShowEmojiPicker(false);
-    setIsAudioPlaying(false);
-    setSelectedAudio("");
-    setTranslateTo("");
-    setExtraMenuVisible(false);
-  };
-
-  const handleExportNotes = () => {
-    const text = notes
-      .map((note) => {
-        let contentStr = "";
-        if (note.note_type === "whiteboard" && note.todos) {
-          contentStr = note.todos
-            .map(
-              (t) =>
-                `${t.completed ? "[x]" : "[ ]"} ${t.text} ${
-                  t.reminder ? `(Nhắc nhở: ${t.reminder})` : ""
-                }`
-            )
-            .join("\n");
-        } else if (note.note_type === "spreadsheet" && note.spreadsheet_data) {
-          contentStr = note.spreadsheet_data
-            .map((row) => row.join("\t"))
-            .join("\n");
-        } else {
-          contentStr = note.content;
+    const handleExportNotes = () => {
+      if (!title.trim()) {
+        setError("Vui lòng nhập tiêu đề trước khi xuất.");
+        return;
+      }
+    
+      let contentStr = "";
+      if (currentNoteType === "whiteboard" && todos.length > 0) {
+        contentStr = todos
+          .map(
+            (t) =>
+              `${t.completed ? "[x]" : "[ ]"} ${t.text} ${
+                t.reminder ? `(Nhắc nhở: ${t.reminder})` : ""
+              }`
+          )
+          .join("\n");
+      } else if (currentNoteType === "spreadsheet" && spreadsheetData.length > 0) {
+        contentStr = spreadsheetData.map((row) => row.join("\t")).join("\n");
+      } else if (currentNoteType === "markdown" || currentNoteType === "rich" || currentNoteType === "plain" || currentNoteType === "voice") {
+        if (!content.trim() && !videoUrl && !audioUrl) {
+          setError("Vui lòng nhập nội dung, video hoặc âm thanh trước khi xuất.");
+          return;
         }
-        return `Tiêu đề: ${
-          note.title
-        }\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date(
-          note.updated_at
-        ).toLocaleString()}\n---\n`;
-      })
-      .join("\n");
-    const blob = new Blob([text], { type: "text/plain" });
-    const link = document.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = link;
-    a.download = "ghi-chu.txt";
-    a.click();
-    setExtraMenuVisible(false);
-  };
+        contentStr = content;
+        if (videoUrl) {
+          contentStr += `\nVideo URL: ${videoUrl}`;
+        }
+        if (audioUrl) {
+          contentStr += `\nAudio URL: ${audioUrl}`;
+        }
+      }
+    
+      const text = `Tiêu đề: ${title}\nNội dung: ${contentStr}\nNgày cập nhật: ${new Date().toLocaleString()}`;
+      const blob = new Blob([text], { type: "text/plain" });
+      const link = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = link;
+      a.download = `${title || "ghi-chu"}.txt`;
+      a.click();
+      URL.revokeObjectURL(link); // Giải phóng URL
+      setExtraMenuVisible(false);
+      setError("");
+    };
 
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -610,7 +991,12 @@ const NoteApp = () => {
   const handleNoteTypeChange = (type) => {
     setCurrentNoteType(type);
     setNoteTypeMenu(false);
-    if (type === "plain" || type === "whiteboard" || type === "spreadsheet") {
+    if (
+      type === "plain" ||
+      type === "whiteboard" ||
+      type === "spreadsheet" ||
+      type === "markdown"
+    ) {
       setUploadedImages([]);
       setImageUploadVisible(false);
     }
@@ -728,30 +1114,85 @@ const NoteApp = () => {
     }
   };
 
-  const handleTranslate = async () => {
-    if (!content.trim()) {
-      setError("Vui lòng nhập nội dung để dịch.");
-      return;
+  // hàm xóa ghi âm "lỗi"
+  const handleDeleteVoice = async () => {
+    if (isRecording) {
+      stopRecording();
     }
-    if (!translateTo) {
-      setError("Vui lòng chọn ngôn ngữ để dịch.");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${translateTo}&dt=t&q=${encodeURIComponent(
-          content
-        )}`
-      );
-      const data = await response.json();
-      const translatedText = data[0][0][0];
-      setContent(translatedText);
+  
+    if (voicePublicId) {
+      try {
+        const cloudName = "dszqh3qcx";
+        const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || "247625795348214";
+        const apiSecret = process.env.CLOUDINARY_API_SECRET || "PJm2yB_Gu4rDHCxzOdz23M7hh10"; 
+        const timestamp = Math.floor(Date.now() / 1000);
+        const signature = CryptoJS.SHA1(`public_id=${voicePublicId}&timestamp=${timestamp}${apiSecret}`).toString(); // Tạo chữ ký
+  
+        // Xóa file trên Cloudinary
+        const formData = new FormData();
+        formData.append("public_id", voicePublicId);
+        formData.append("api_key", apiKey);
+        formData.append("timestamp", timestamp);
+        formData.append("signature", signature);
+  
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/video/destroy`,
+          { method: "POST", body: formData }
+        );
+  
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to delete from Cloudinary: ${errorData.error.message}`);
+        }
+  
+        // Cập nhật Supabase để xóa voice_url
+        if (editingId !== null) {
+          const { error: supabaseError } = await supabase2
+            .from("notess")
+            .update({ voice_url: null })
+            .eq("id", editingId);
+  
+          if (supabaseError) {
+            throw new Error(`Failed to update Supabase: ${supabaseError.message}`);
+          }
+        }
+  
+        // Xóa state cục bộ
+        setVoiceUrl("");
+        setVoiceBlob(null);
+        setVoicePublicId("");
+        setContent("");
+        setError("");
+  
+        console.log("Voice deleted successfully from Cloudinary and Supabase");
+      } catch (err) {
+        console.error("Không thể xóa file:", err);
+        setError("Không thể xóa file: " + err.message);
+      }
+    } else {
+      if (editingId !== null) {
+        try {
+          const { error: supabaseError } = await supabase2
+            .from("notess")
+            .update({ voice_url: null })
+            .eq("id", editingId);
+  
+          if (supabaseError) {
+            throw new Error(`Failed to update Supabase: ${supabaseError.message}`);
+          }
+        } catch (err) {
+          console.error("Không thể cập nhật Supabase:", err);
+          setError("Không thể cập nhật Supabase: " + err.message);
+          return;
+        }
+      }
+  
+      setVoiceUrl("");
+      setVoiceBlob(null);
+      setVoicePublicId("");
+      setContent("");
       setError("");
-      setExtraMenuVisible(false);
-    } catch (err) {
-      console.error("Error translating text:", err);
-      setError("Không thể dịch nội dung. Vui lòng thử lại.");
+      console.log("Cleared local voice state");
     }
   };
 
@@ -771,51 +1212,72 @@ const NoteApp = () => {
   };
 
   const sortedNotes = [...notes]
-    .filter(
-      (note) =>
-        (filterType === "all" || note.note_type === filterType || filterType === "selective") &&
-        (filterType !== "selective" || visibleNoteTypes[note.note_type]) &&
-        (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (note.content &&
-            note.content.toLowerCase().includes(searchQuery.toLowerCase())))
-    )
-    .sort((a, b) => {
-      if (filterType === "selective") {
-        const order = ["plain", "rich", "whiteboard", "spreadsheet"];
-        const aIndex = order.indexOf(a.note_type);
-        const bIndex = order.indexOf(b.note_type);
-        if (aIndex !== bIndex) return aIndex - bIndex;
-      }
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return sortBy === "title"
-        ? a.title.localeCompare(b.title)
-        : new Date(b.updated_at) - new Date(a.updated_at);
-    });
+  .filter(
+    (note) =>
+      (filterType === "all" ||
+        note.note_type === filterType ||
+        filterType === "selective") &&
+      (filterType !== "selective" || visibleNoteTypes[note.note_type]) &&
+      (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (note.content &&
+          note.content.toLowerCase().includes(searchQuery.toLowerCase())))
+  )
+  .sort((a, b) => {
+    if (filterType === "selective") {
+      const order = [
+        "plain",
+        "rich",
+        "whiteboard",
+        "spreadsheet",
+        "markdown", 
+      ];
+      const aIndex = order.indexOf(a.note_type);
+      const bIndex = order.indexOf(b.note_type);
+      if (aIndex !== bIndex) return aIndex - bIndex;
+    }
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    return sortBy === "title"
+      ? a.title.localeCompare(b.title)
+      : new Date(b.updated_at) - new Date(a.updated_at);
+  });
 
   const emojiList = [
-    "😀", "😃", "😄", "😊", "😍", "🥰", "😘", "😜", "😎", "🤓",
-    "😇", "🥳", "😂", "🤗", "😢", "😭", "😡", "😤", "😱", "😳",
-    "🤔", "🙄", "😴", "🤤", "👍", "👎", "👏", "🙌", "✋", "👊",
-    "✌️", "🤝", "🙏", "💪", "👀", "👉", "❤️", "💕", "💖", "💙",
-    "💚", "💛", "💜", "🖤", "💔", "💘", "✨", "⭐", "🌟", "🔥",
+    "😃", "😄", "😊", "😂", "🤗", "😜", "😎", "😍", "🥰", "😘", 
+    "😇", "🥳", "🥲", "😢", "😭", "😡", "😤", "😱", "😳", "🥱",
+    "🤔", "🙄", "😴", "🤤", "🤓", "👍", "👎", "👏", "🙌", "✋",
+    "👊", "✌️", "🤝", "🙏", "💪", "👀", "👉", "❤️", "💕", "💖", 
+    "💚", "💛", "💜", "🖤", "💔", "💘", "💙", "✨", "⭐", "🌟", 
     "💡", "🎉", "🎈", "🎁", "🎂", "🍰", "🍕", "🍔", "🍟", "🍦",
     "☕", "🍵", "🍺", "🍷", "🥂", "🍹", "🌈", "☀️", "🌙", "☁️",
     "⛄", "⚡", "🌊", "🌸", "🌺", "🌼", "🍁", "🍂", "🍃", "📌",
     "✅", "❌", "❓", "❗", "🚀", "✈️", "🚗", "🚢", "🏠", "🏡",
     "🏝️", "⛰️", "🎵", "🎶", "🎤", "🎧", "📱", "💻", "📷", "📸",
-    "🎥", "📺", "⏰", "⌚", "🔧", "⚙️", "💰",
+    "🎥", "📺", "⏰", "⌚", "🔧", "⚙️", "💰", "🦉", "🔥",
   ];
 
   const audioOptions = [
     { name: "Tiếng mưa", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
     { name: "Nhạc thư giãn", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
     { name: "Sóng biển", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
-    { name: "Câu Chuyện Nếu Như", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743346199/CauChuyenNeuNhu-Superluckyqi-5991519_q3a4ns.mp3" },
-    { name: "Khoảng Cách Thời Gian", url: "https://drive.google.com/uc?export=download&id=1SPOHbIGDYGZmLJq7mBw_szMyWmvSCVcV" },
-    { name: "Âm thanh của nỗi nhớ anh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345471/AmThanhCuaNoiNhoAnh-VK-6817533_r5gro0.mp3" },
-    { name: "Sự nghiệp chướng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345196/htptrtnfix_gvyo3k.mp3"},
-    { name: "Show Ra Cho Em Xem", url: ""},
+    { name: "1. Âm thanh của nỗi nhớ anh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345471/AmThanhCuaNoiNhoAnh-VK-6817533_r5gro0.mp3" },
+    { name: "2. Bất công", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375496/BatCong-TranTuTinh-6962563_iqytb7.mp3"},
+    { name: "3. Chấp mê bất ngộ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374132/ChapMeBatNgo-VuongNhiLang-7519346_jyfe2a.mp3"},
+    { name: "4. Câu Chuyện Nếu Như", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743346199/CauChuyenNeuNhu-Superluckyqi-5991519_q3a4ns.mp3" },
+    { name: "5. Nếu tình yêu đã lãng quên", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375063/qqrnzgok2q_i0bbh2.mp3"},
+    { name: "6. Trạm khí tượng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374818/TramKhiTuong-Uu-7005868_o8zuwp.mp3"},
+    { name: "7. Thôi hãy quên đi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745375267/ThoiHayQuenDi-1K-7220980_mjg5mw.mp3"},
+    { name: "8. Trang giấy cuối cùng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376051/TrangGiayCuoiCung-YCCCC-7513473_xlqrkv.mp3"},
+    { name: "9. Giày cao gót màu đỏ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745374688/GiayCaoGotMauDo-ChuLoi-5750670_wstchg.mp3" },
+    { name: "10. Thanh trừ", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376187/ThanhTru-VuongHanThanAmandaToTinhTiep-6932215_sysstg.mp3"},
+    { name: "11. Ngu hề thán", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377421/NguHeThanDJThamNiemRemix-VanNhanThinhThuYiXiaoJiangHu-6758883_u6t9xi.mp3"},
+    { name: "12. Ngấm lạnh", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376411/NgamLanh-TuyetNhiXueEr-6897488_va6kyj.mp3"},
+    { name: "13. sau khi anh đi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377091/SauKhiAnhDiCover-LuLuMauImLang-6651494_zhvsvt.mp3"},
+    { name: "14. Quên rồi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745376782/QuenRoi-ChuLamPhong-8853506_f3dcha.mp3"},
+    { name: "15. không thán hề", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745377259/KhongThanHe-NgaoThatGiaAoQiYe-7008255_muukkq.mp3"},
+    { name: "16. Tứ ngã", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745486436/TungaBanChoTa-NhatChiBachDuongYiZhiBaiYang-8291706_cklfkp.mp3"},
+    { name: "17. Tiếng trăng rơi", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1745486710/TiengTrangRoi-HuaLamTamXuLanXin-8019659_nshajo.mp3"},
+    { name: "1. Sự nghiệp chướng", url: "https://res.cloudinary.com/dszqh3qcx/video/upload/v1743345196/htptrtnfix_gvyo3k.mp3"},
   ];
 
   const languageOptions = [
@@ -907,9 +1369,220 @@ const NoteApp = () => {
     setError("");
   };
 
+  const runCode = async () => {
+  try {
+    const normalizedContent = content.replace(/\r\n/g, "\n").trim() + "\n";
+    console.log("Normalized Content (String):", JSON.stringify(normalizedContent));
+
+    const codeBlocks = [];
+    const codeBlockRegex = /```(\w+)?(?:\s|\n)*([\s\S]*?)(?:\s|\n)*```/g;
+    let match;
+    while ((match = codeBlockRegex.exec(normalizedContent)) !== null) {
+      const language = match[1]?.toLowerCase();
+      const code = match[2].trim();
+      console.log("Found language:", language);
+      console.log("Found code:", code);
+      if (["javascript", "python", "cpp"].includes(language)) {
+        codeBlocks.push({ language, code });
+      }
+    }
+
+    let codeToRun, language;
+    if (codeBlocks.length > 0) {
+      const selectedBlock = codeBlocks.find(
+        (block) => block.language === selectedLanguage
+      ) || codeBlocks[codeBlocks.length - 1];
+      codeToRun = selectedBlock.code;
+      language = selectedBlock.language;
+    } else {
+      codeToRun = normalizedContent.split("\n").join("\n").trim();
+      language = selectedLanguage;
+      if (!codeToRun) {
+        setCodeOutput(
+          "Không tìm thấy code để chạy. Vui lòng nhập code hợp lệ hoặc sử dụng cú pháp Markdown (e.g., ```javascript ... ```)."
+        );
+        return;
+      }
+    }
+
+    let output = "";
+    if (language === "javascript") {
+      // Chạy JavaScript cục bộ (phần markdown)
+      const originalConsoleLog = console.log;
+      console.log = (...args) => {
+        output += args.join(" ") + "\n";
+      };
+      try {
+        const result = new Function(codeToRun)();
+        console.log = originalConsoleLog;
+        if (result !== undefined) {
+          output += String(result);
+        }
+        setCodeOutput(output.trim() || "Không có output.");
+      } catch (error) {
+        console.log = originalConsoleLog;
+        setCodeOutput(`Lỗi khi chạy code JavaScript: ${error.message}`);
+      }
+    } else {
+      // Chạy Python hoặc C++ qua Piston API
+      try {
+        const languageMap = {
+          python: { language: "python", version: "3.10.0" },
+          cpp: { language: "cpp", version: "10.2.0" },
+        };
+
+        const response = await axios.post("https://emkc.org/api/v2/piston/execute", {
+          language: languageMap[language].language,
+          version: languageMap[language].version,
+          files: [{ content: codeToRun }],
+        });
+
+        const result = response.data;
+        if (result.run && result.run.output) {
+          output = result.run.output.trim();
+          if (result.run.stderr) {
+            output += `\nLỗi: ${result.run.stderr.trim()}`;
+          }
+        } else if (result.message) {
+          output = `Lỗi từ API: ${result.message}`;
+        } else {
+          output = "Không có output.";
+        }
+        setCodeOutput(output || "Không có output.");
+      } catch (error) {
+        setCodeOutput(`Lỗi khi chạy code ${language}: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    setCodeOutput(`Lỗi xử lý: ${error.message}`);
+  }
+};
+
+      // Ghi chú bằng giọng nói 
+      const startRecording = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorderRef.current = new MediaRecorder(stream);
+          const chunks = [];
+      
+          mediaRecorderRef.current.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data);
+          };
+      
+          mediaRecorderRef.current.onstop = async () => {
+            const blob = new Blob(chunks, { type: "audio/webm" });
+            // Không lưu blob hay URL vì bản ghi âm sẽ bị xóa sau khi chuyển đổi
+            mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+          };
+      
+          mediaRecorderRef.current.start();
+          setIsRecording(true);
+          if (recognitionRef.current) {
+            recognitionRef.current.start();
+          }
+          setError("");
+        } catch (err) {
+          setError("Không thể truy cập micro: " + err.message);
+        }
+      };
+
+      const stopRecording = () => {
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+          setVoiceBlob(null);
+          setVoiceUrl("");
+          setVoicePublicId("");
+        }
+        if (recognitionRef.current) {
+          recognitionRef.current.stop(); 
+        }
+      };
+
+      // tải âm thanh lên 
+      const handleAudioUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 50 * 1024 * 1024) {
+          throw new Error("File âm thanh quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", "blognote");
+        formData.append("cloud_name", "dlaoxrnad");
+        const response = await fetch(
+          "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
+          { method: "POST", body: formData }
+        );
+        if (!response.ok) throw new Error("Upload failed");
+        const data = await response.json();
+        setAudioUrl(data.secure_url);
+        setError("");
+      } catch (err) {
+        setError("Không thể tải lên file âm thanh: " + err.message);
+      }
+    };
+
+      // tải video 
+      const handleVideoUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 50 * 1024 * 1024) {
+          throw new Error("Video quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
+        }
+        setIsUploadingVideo(true); // load
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", "blognote");
+        formData.append("cloud_name", "dlaoxrnad");
+        const response = await fetch(
+          "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
+          { method: "POST", body: formData }
+        );
+        if (!response.ok) throw new Error("Upload failed");
+        const data = await response.json();
+        setVideoUrl(data.secure_url);
+        setError("");
+      } catch (err) {
+        setError("Không thể tải lên video: " + err.message);
+      } finally {
+        setIsUploadingVideo(false); 
+      }
+    };
+
+        // dịch ngôn ngữ (lỗi)
+        const handleTranslate = async () => {
+          if (!content.trim()) {
+            setError("Vui lòng nhập nội dung để dịch.");
+            return;
+          }
+          if (!translateTo) {
+            setError("Vui lòng chọn ngôn ngữ để dịch.");
+            return;
+          }
+      
+          try {
+            const response = await fetch(
+              `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${translateTo}&dt=t&q=${encodeURIComponent(
+                content
+              )}`
+            );
+            const data = await response.json();
+            const translatedText = data[0][0][0];
+            setContent(translatedText);
+            setError("");
+            setExtraMenuVisible(false);
+          } catch (err) {
+            console.error("Error translating text:", err);
+            setError("Không thể dịch nội dung. Vui lòng thử lại.");
+          }
+        };
+
   return (
-    <div className="text-gray-700">
-<div ref={noteFormRef} className="mt-[96px] p-5 mb-[-7px] max-w-7xl mx-auto p-8 border border-gray-300 rounded-lg shadow-lg">
+    <div className="w-full min-h-screen note-app-container" style={{ color: 'var(--text-color)' }}>
+   <div ref={noteFormRef} className="mt-[96px] p-4 w-full border border-gray-300 rounded-lg shadow-lg">
   <h1 className="text-4xl font-extrabold text-gray-800 mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
     BlogNote - Ghi chú
   </h1>
@@ -918,7 +1591,7 @@ const NoteApp = () => {
     placeholder="Tiêu đề ghi chú"
     value={title}
     onChange={(e) => setTitle(e.target.value)}
-    className="w-full border-2 border-transparent p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
+    className="w-full border-2 border-gray-300 p-4 rounded-xl mb-4 font-bold text-lg transition duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300"
         />
 
         <div className="flex flex-nowrap space-x-4 text-blue-600 mb-4 relative">
@@ -955,6 +1628,18 @@ const NoteApp = () => {
                 >
                   📊 Ghi chú bảng tính
                 </button>
+                <button
+                  className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                  onClick={() => handleNoteTypeChange("markdown")} 
+                >
+                  💻 Ghi chú Markdown/Code
+                </button>
+                <button
+                className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                onClick={() => handleNoteTypeChange("voice")}
+              >
+                🎙 Đính kèm Video, âm thanh..
+              </button>
               </div>
             )}
           </div>
@@ -1107,12 +1792,15 @@ const NoteApp = () => {
                   <FaFileExport /> Xuất File
                 </button>
                 <div className="relative">
-                  <button
-                    onClick={handleTranslate}
-                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                <button
+                onClick={handleTranslate}
+                   className={`dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200 ${
+                       isOffline ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+                disabled={isOffline}
                   >
-                    <FaLanguage /> Dịch
-                  </button>
+                <FaLanguage /> Dịch
+              </button>
                 </div>
                 <div className="relative" ref={translateMenuRef}>
                   <button
@@ -1297,7 +1985,7 @@ const NoteApp = () => {
               placeholder="Nội dung ghi chú"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full h-56 border-2 border-transparent p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
+              className="w-full h-119 border-2 border-gray-300 p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
               style={{
                 fontFamily: currentNoteType === "rich" ? fontFamily : "Verdana",
                 fontSize: currentNoteType === "rich" ? fontSize : "14pt",
@@ -1312,7 +2000,7 @@ const NoteApp = () => {
           </>
         ) : currentNoteType === "whiteboard" ? (
           <div className="mb-4">
-            {/* Thanh công cụ định dạng cho loại ghi chú whiteboard */}
+            {/* Thanh công cụ cho loại ghi chú */}
             <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
               <select
                 value={fontFamily}
@@ -1482,7 +2170,17 @@ const NoteApp = () => {
             </div>
             <ul className="space-y-2">
               {todos.map((todo, index) => (
-                <li key={index} className="flex items-center gap-2">
+                <li
+                  key={index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg hover:bg-gray-100 transition duration-200 cursor-move"
+                >
+                  <div className="flex-shrink-0">
+                  <FaBars className="text-gray-500 mr-2" /> {/* Biểu tượng kéo thả */}
+                  </div>
                   <input
                     type="checkbox"
                     checked={todo.completed}
@@ -1490,7 +2188,7 @@ const NoteApp = () => {
                     className="w-5 h-5"
                   />
                   <span
-                    className={todo.completed ? "line-through text-gray-500" : ""}
+                    className={`flex-grow ${todo.completed ? "line-through text-gray-500" : ""}`}
                     style={{
                       fontFamily: fontFamily,
                       fontSize: fontSize,
@@ -1505,10 +2203,25 @@ const NoteApp = () => {
                   </span>
                   {todo.reminder && (
                     <small className="ml-2 text-gray-500 flex items-center">
-                      <FaBell className="mr-1" /> (Nhắc nhở:{" "}
-                      {new Date(todo.reminder).toLocaleString()})
+                      <FaBell className="mr-1" /> (Nhắc nhở: {new Date(todo.reminder).toLocaleString()})
                     </small>
                   )}
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={() => handleEditTodo(index)}
+                      className="text-green-600 hover:text-green-800 transition duration-200"
+                      title="Sửa công việc"
+                    >
+                      <FaEdit />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTodo(index)}
+                      className="text-red-500 hover:text-red-700 transition duration-200"
+                      title="Xóa công việc"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -1744,6 +2457,278 @@ const NoteApp = () => {
               </button>
             </div>
           </div>
+                  ) : currentNoteType === "voice" ? (
+                    <div className="mb-4">
+                      {/* Thanh công cụ định dạng giống ghi chú rich */}
+                      <div className="mb-4 flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg border border-gray-300">
+                        <select
+                          value={fontFamily}
+                          onChange={(e) => setFontFamily(e.target.value)}
+                          className="border p-1 rounded bg-white"
+                        >
+                          <option value="Verdana">Verdana</option>
+                          <option value="Arial">Arial</option>
+                          <option value="Times New Roman">Times New Roman</option>
+                          <option value="Courier New">Courier New</option>
+                        </select>
+                        <select
+                          value={fontSize}
+                          onChange={(e) => setFontSize(e.target.value)}
+                          className="border p-1 rounded bg-white"
+                        >
+                          <option value="10pt">10pt</option>
+                          <option value="12pt">12pt</option>
+                          <option value="14pt">14pt</option>
+                          <option value="16pt">16pt</option>
+                          <option value="18pt">18pt</option>
+                        </select>
+                        <button
+                          onClick={() =>
+                            setFontWeight(fontWeight === "bold" ? "normal" : "bold")
+                          }
+                          className={`border p-2 rounded ${
+                            fontWeight === "bold" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaBold />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setFontStyle(fontStyle === "italic" ? "normal" : "italic")
+                          }
+                          className={`border p-2 rounded ${
+                            fontStyle === "italic" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaItalic />
+                        </button>
+                        <button
+                          onClick={() => setTextAlign("left")}
+                          className={`border p-2 rounded ${
+                            textAlign === "left" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaAlignLeft />
+                        </button>
+                        <button
+                          onClick={() => setTextAlign("center")}
+                          className={`border p-2 rounded ${
+                            textAlign === "center" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaAlignCenter />
+                        </button>
+                        <button
+                          onClick={() => setTextAlign("right")}
+                          className={`border p-2 rounded ${
+                            textAlign === "right" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaAlignRight />
+                        </button>
+                        <button
+                          onClick={() => setTextAlign("justify")}
+                          className={`border p-2 rounded ${
+                            textAlign === "justify" ? "bg-blue-200" : "bg-white"
+                          } hover:bg-blue-100`}
+                        >
+                          <FaAlignJustify />
+                        </button>
+                        <button
+                          onClick={handleUnorderedList}
+                          className="border p-2 rounded bg-white hover:bg-blue-100"
+                        >
+                          <FaListUl />
+                        </button>
+                        <button
+                          onClick={handleOrderedList}
+                          className="border p-2 rounded bg-white hover:bg-blue-100"
+                        >
+                          <FaListOl />
+                        </button>
+                        <button
+                          onClick={handleIndent}
+                          className="border p-2 rounded bg-white hover:bg-blue-100"
+                        >
+                          <FaIndent />
+                        </button>
+                        <button
+                          onClick={handleOutdent}
+                          className="border p-2 rounded bg-white hover:bg-blue-100"
+                        >
+                          <FaOutdent />
+                        </button>
+                        <button
+                          onClick={() => videoInputRef.current?.click()}
+                          className="border p-2 rounded bg-white hover:bg-blue-100"
+                        >
+                          <FaImage />
+                        </button>
+                        <input
+                          type="color"
+                          value={textColor}
+                          onChange={(e) => setTextColor(e.target.value)}
+                          className="border p-1 rounded w-8 h-8"
+                        />
+                        <input
+                          type="color"
+                          value={backgroundColor}
+                          onChange={(e) => setBackgroundColor(e.target.value)}
+                          className="border p-1 rounded w-8 h-8"
+                        />
+                      </div>
+                  
+                      {/* Nút ghi âm, tải video, và tải âm thanh */}
+                      <div className="flex flex-wrap gap-4 mb-4">
+                        <button
+                          onClick={isRecording ? stopRecording : startRecording}
+                          className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+                        >
+                          {isRecording ? <FaPause /> : <FaPlay />}
+                          <span>{isRecording ? "Dừng ghi âm" : "Bắt đầu ghi âm"}</span>
+                        </button>
+                        <button
+                          onClick={() => videoInputRef.current?.click()}
+                          className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+                        >
+                          <FaPlus /> <span>Tải video</span>
+                        </button>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          ref={videoInputRef}
+                          onChange={handleVideoUpload}
+                          className="hidden"
+                        />
+                        <button
+                          onClick={() => audioInputRef.current?.click()}
+                          className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+                        >
+                          <FaPlus /> <span>Tải âm thanh</span>
+                        </button>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          ref={audioInputRef}
+                          onChange={handleAudioUpload}
+                          className="hidden"
+                        />
+                      </div>
+                  
+                      {/* Hiệu ứng loading khi tải video */}
+                      {isUploadingVideo && (
+                        <div className="mb-4 flex items-center justify-center">
+                          <div className="flex flex-col items-center">
+                            <div className="text-4xl animate-spin">🎥</div>
+                            <p className="text-gray-600 mt-2 animate-pulse">
+                              Đang tải video, chờ tí nha! 😺
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                  
+                      {/* Hiển thị video */}
+                      {videoUrl && !isUploadingVideo && (
+                        <div className="mb-4">
+                          <p className="text-gray-700">Video:</p>
+                          <video controls src={videoUrl} className="w-full max-w-md rounded-md" />
+                          <button
+                            onClick={() => setVideoUrl("")}
+                            className="mt-2 text-red-500 hover:text-red-700"
+                          >
+                            Xóa video
+                          </button>
+                        </div>
+                      )}
+                  
+                      {/* Hiển thị file âm thanh */}
+                      {audioUrl && (
+                        <div className="mb-4">
+                          <p className="text-gray-700">Âm thanh:</p>
+                          <audio controls src={audioUrl} className="w-full" />
+                          <button
+                            onClick={() => setAudioUrl("")}
+                            className="mt-2 text-red-500 hover:text-red-700"
+                          >
+                            Xóa âm thanh
+                          </button>
+                        </div>
+                      )}
+                  
+                      {/* Textarea cho nội dung văn bản (từ Speech-to-Text hoặc chỉnh sửa thủ công) */}
+                      <textarea
+                        ref={textAreaRef}
+                        placeholder="Nội dung được chuyển từ giọng nói sẽ hiển thị ở đây..."
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className="w-full h-100 border-2 border-gray-300 p-4 rounded-xl transition duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-300"
+                        style={{
+                          fontFamily,
+                          fontSize,
+                          fontWeight,
+                          fontStyle,
+                          textAlign,
+                          color: textColor,
+                          backgroundColor,
+                        }}
+                      />
+                    </div>
+          ) : currentNoteType === "markdown" ? (
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Khung bên trái: Trình chỉnh sửa Markdown với monaco-editor */}
+            <div className="border border-gray-300 rounded-xl p-4 bg-white h-135 overflow-y-auto">
+              <div className="flex justify-between items-center mb-2">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="border p-2 rounded-lg bg-white shadow-sm hover:bg-gray-50"
+                >
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="cpp">C++</option>
+                </select>
+              </div>
+              <Editor
+                height="100%"
+                language={selectedLanguage === "cpp" ? "cpp" : selectedLanguage}
+                value={content}
+                onChange={(value) => setContent(value || "")}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  wordWrap: "on",
+                  automaticLayout: true,
+                  lineEndings: "lf",
+                }}
+                theme="vs-dark"
+              />
+            </div>
+
+            {/* Khung bên phải: Hiển thị kết quả chạy code */}
+            <div className="border border-gray-300 rounded-xl p-4 bg-gray-50 h-56 overflow-y-auto">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-bold text-gray-700">Kết quả chạy code:</h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={runCode}
+                    className="menu-btn px-4 py-1 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
+                  >
+                    Run Code
+                  </button>
+                  <button
+                    onClick={() => setCodeOutput("")}
+                    className="menu-btn px-4 py-1 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg bg-gray-500 hover:bg-gray-600"
+                  >
+                    Clear Output
+                  </button>
+                </div>
+              </div>
+              <pre className="text-gray-700 whitespace-pre-wrap">
+                {codeOutput ||
+                  `Chưa có kết quả. Nhập khối code ${selectedLanguage} và nhấn 'Run Code' để xem output.`}
+              </pre>
+            </div>
+          </div>
         ) : null}
 
         {error && <p className="text-red-500">{error}</p>}
@@ -1951,221 +2936,235 @@ const NoteApp = () => {
             </h2>
             <ul>
               {sortedNotes.length > 0 ? (
-                sortedNotes.map((note) => (
-                  <li
-                    key={note.id}
-                    className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg"
-                  >
-                    <div className="flex-shrink-0 mr-4">
-                      {note.image_url && (
-                        <Image
-                          src={note.image_url}
-                          alt={`Note ${note.id} image`}
-                          width={80}
-                          height={80}
-                          className="w-20 h-20 object-cover rounded-md"
-                        />
-                      )}
-                    </div>
-                    <div className="flex-grow">
-                      <strong className="text-purple-600 text-lg">
-                        {note.title}
-                      </strong>
-                      {note.note_type === "whiteboard" &&
-                      Array.isArray(note.todos) &&
-                      note.todos.length > 0 ? (
-                        <ul className="list-disc pl-5">
-                          {note.todos.map((todo, index) => (
-                            <li key={index} className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={todo.completed}
-                                onChange={() => {
-                                  const updatedTodos = note.todos.map((t, i) =>
-                                    i === index
-                                      ? { ...t, completed: !t.completed }
-                                      : t
-                                  );
-                                  supabase2
-                                    .from("notes")
-                                    .update({
-                                      todos: JSON.stringify(updatedTodos),
-                                    })
-                                    .eq("id", note.id)
-                                    .then(() => fetchNotes());
-                                }}
-                                className="w-5 h-5"
-                              />
-                              <span
-                                className={
-                                  todo.completed
-                                    ? "line-through text-gray-500"
-                                    : ""
-                                }
-                              >
-                                {todo.text}
-                              </span>
-                              {todo.reminder && (
-                                <>
-                                  <small className="ml-2 text-gray-500 flex items-center">
-                                    <FaBell className="mr-1" /> (Nhắc nhở:{" "}
-                                    {new Date(todo.reminder).toLocaleString()})
-                                  </small>
-                                  {!todo.completed && (
-                                    <button
-                                      onClick={() => {
-                                        const updatedTodos = note.todos.map(
-                                          (t, i) =>
-                                            i === index
-                                              ? { ...t, reminder: null }
-                                              : t
-                                        );
-                                        supabase2
-                                          .from("notess")
-                                          .update({
-                                            todos: JSON.stringify(updatedTodos),
-                                          })
-                                          .eq("id", note.id)
-                                          .then(() => fetchNotes());
-                                      }}
-                                      className="ml-2 text-red-500 hover:text-red-700"
-                                      title="Tắt nhắc nhở"
-                                    >
-                                      <FaBellSlash />
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : note.note_type === "spreadsheet" &&
-                        Array.isArray(note.spreadsheet_data) &&
-                        note.spreadsheet_data.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="border-collapse border border-gray-300 text-sm">
-                            <tbody>
-                              {note.spreadsheet_data
-                                .slice(0, 3)
-                                .map((row, rowIndex) => (
-                                  <tr key={rowIndex}>
-                                    {Array.isArray(row) ? (
-                                      row.slice(0, 3).map((cell, colIndex) => (
-                                        <td
-                                          key={colIndex}
-                                          className="border border-gray-300 p-1"
-                                        >
-                                          {cell}
-                                        </td>
-                                      ))
-                                    ) : (
-                                      <td className="border border-gray-300 p-1">
-                                        Invalid Row
-                                      </td>
-                                    )}
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                          <small>
-                            (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
-                            {note.spreadsheet_data[0]?.length || 0})
-                          </small>
-                        </div>
-                      ) : (
-                        <p className="text-gray-700">{note.content}</p>
-                      )}
-                      <small className="text-gray-500">
-                        {new Date(note.updated_at).toLocaleString()}
-                      </small>
-                    </div>
-                    <div className="flex space-x-3 ml-4">
-                      <button
-                        onClick={() => handlePinNote(note.id)}
-                        className={`text-xl transition duration-200 ${
-                          note.isPinned
-                            ? "text-yellow-500 hover:text-yellow-700"
-                            : "text-gray-500 hover:text-gray-700"
-                        }`}
-                        title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
-                      >
-                        <FaThumbtack />
-                      </button>
-                      <button
-                        onClick={() => handleEditNote(note)}
-                        className="text-green-600 text-xl hover:text-green-800 transition duration-200"
-                        title="Sửa ghi chú"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteNote(note.id)}
-                        className="text-red-500 text-xl hover:text-red-700 transition duration-200"
-                        title="Xóa ghi chú"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
+  sortedNotes.map((note) => (
+    <li
+      key={note.id}
+      className="border-2 border-gray-200 p-5 rounded-xl mt-4 flex items-start transition duration-300 hover:shadow-lg"
+    >
+      <div className="flex-shrink-0 mr-4">
+        {note.image_url && (
+          <Image
+            src={note.image_url}
+            alt={`Note ${note.id} image`}
+            width={80}
+            height={80}
+            className="w-20 h-20 object-cover rounded-md"
+          />
+        )}
+      </div>
+      <div className="flex-grow">
+        <strong className="text-purple-600 text-lg">{note.title}</strong>
+        {note.note_type === "whiteboard" &&
+        Array.isArray(note.todos) &&
+            note.todos.length > 0 ? (
+              <ul className="list-disc pl-5">
+                {note.todos.map((todo, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={todo.completed}
+                      onChange={() => {
+                        const updatedTodos = note.todos.map((t, i) =>
+                          i === index ? { ...t, completed: !t.completed } : t
+                        );
+                        supabase2
+                          .from("notess")
+                          .update({
+                            todos: JSON.stringify(updatedTodos),
+                          })
+                          .eq("id", note.id)
+                          .then(() => fetchNotes());
+                      }}
+                      className="w-5 h-5"
+                    />
+                    <span
+                      className={
+                        todo.completed ? "line-through text-gray-500" : ""
+                      }
+                    >
+                      {todo.text}
+                    </span>
+                    {todo.reminder && (
+                      <>
+                        <small className="ml-2 text-gray-500 flex items-center">
+                          <FaBell className="mr-1" /> (Nhắc nhở:{" "}
+                          {new Date(todo.reminder).toLocaleString()})
+                        </small>
+                        {!todo.completed && (
+                          <button
+                            onClick={() => {
+                              const updatedTodos = note.todos.map((t, i) =>
+                                i === index ? { ...t, reminder: null } : t
+                              );
+                              supabase2
+                                .from("notess")
+                                .update({
+                                  todos: JSON.stringify(updatedTodos),
+                                })
+                                .eq("id", note.id)
+                                .then(() => fetchNotes());
+                            }}
+                            className="ml-2 text-red-500 hover:text-red-700"
+                            title="Tắt nhắc nhở"
+                          >
+                            <FaBellSlash />
+                          </button>
+                        )}
+                      </>
+                    )}
                   </li>
-                ))
-              ) : (
-                <p className="text-gray-500 mt-3">
-                  Không tìm thấy ghi chú nào.
-                </p>
-              )}
+                ))}
+              </ul>
+            ) : note.note_type === "spreadsheet" &&
+              Array.isArray(note.spreadsheet_data) &&
+              note.spreadsheet_data.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="border-collapse border border-gray-300 text-sm">
+                  <tbody>
+                    {note.spreadsheet_data.slice(0, 3).map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {Array.isArray(row) ? (
+                          row.slice(0, 3).map((cell, colIndex) => (
+                            <td
+                              key={colIndex}
+                              className="border border-gray-300 p-1"
+                            >
+                              {cell}
+                            </td>
+                          ))
+                        ) : (
+                          <td className="border border-gray-300 p-1">
+                            Invalid Row
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <small>
+                  (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
+                  {note.spreadsheet_data[0]?.length || 0})
+                </small>
+              </div>
+            ) : note.note_type === "voice" ? (
+              <div>
+                {note.content && <p className="text-gray-700">{note.content}</p>}
+                {note.voice_url && (
+                  <div className="mt-2">
+                    <p className="text-gray-700">Bản ghi âm:</p>
+                    <audio controls src={note.voice_url} className="w-full" />
+                  </div>
+                )}
+                {note.video_url && (
+                  <div className="mt-2">
+                    <p className="text-gray-700">Video:</p>
+                    <video
+                      controls
+                      src={note.video_url}
+                      className="w-full max-w-md rounded-md"
+                    />
+                  </div>
+                )}
+                {note.audio_url && (
+                  <div className="mt-2">
+                    <p className="text-gray-700">Âm thanh:</p>
+                    <audio controls src={note.audio_url} className="w-full" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-700">{note.content}</p>
+            )}
+            <small className="text-gray-500">
+              {new Date(note.updated_at).toLocaleString()}
+            </small>
+          </div>
+          <div className="flex space-x-3 ml-4">
+            <button
+              onClick={() => handlePinNote(note.id)}
+              className={`text-xl transition duration-200 ${
+                note.isPinned
+                  ? "text-yellow-500 hover:text-yellow-700"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+              title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
+            >
+              <FaThumbtack />
+            </button>
+            <button
+              onClick={() => handleEditNote(note)}
+              className="text-green-600 text-xl hover:text-green-800 transition duration-200"
+              title="Sửa ghi chú"
+            >
+              <FaEdit />
+            </button>
+            <button
+              onClick={() => handleDeleteNote(note.id)}
+              className="text-red-500 text-xl hover:text-red-700 transition duration-200"
+              title="Xóa ghi chú"
+            >
+              <FaTrash />
+            </button>
+          </div>
+        </li>
+      ))
+    ) : (
+      <p className="text-gray-500 mt-3">Không tìm thấy ghi chú nào.</p>
+    )}
             </ul>
           </div>
         </div>
 
         <style jsx>{`
+          :global(.note-app-container) {
+            background-color: var(--background);
+            width: 100%;
+            min-height: 100vh;
+          }
           .menu-btn {
-            background: linear-gradient(135deg, #6aa8ff, #b57edc);
-            color: white;
+            background: var(--accent-color, linear-gradient(135deg, #6aa8ff, #b57edc));
+            color: var(--text-color, white);
             font-size: 16px;
             font-weight: 500;
-            border: none;
+            border: 1px solid var(--border-color, transparent);
             outline: none;
             cursor: pointer;
           }
           .menu-btn:hover {
-            background: linear-gradient(135deg, #b57edc, #6aa8ff);
+            background: var(--accent-color, linear-gradient(135deg, #b57edc, #6aa8ff));
             transform: scale(1.05);
+            border-color: var(--border-color, #b57edc);
           }
           .menu-dropdown {
+            background: var(--background);
+            border: 1px solid var(--border-color, #e5e7eb);
             opacity: 1;
             transform: translateY(0);
           }
-        .dropdown-item {
-          background: none;
-          border: none;
-          color: #333;
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.3s ease-in-out;
-          position: relative;
-        }
-
-        .dropdown-item:hover {
-          background: linear-gradient(
-            to right,
-            #e8e1ff,
-            #d6eaff
-          ); /* Gradient từ tím nhạt sang xanh nhạt */
-          color: #6aa8ff; /* Màu chữ khi hover */
-          box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3); /* Bóng đổ với màu xanh nhạt */
-          transform: translateY(-3px) scale(1.02); /* Nâng lên và phóng to nhẹ */
-          animation: bounce 0.4s ease infinite alternate; /* Hiệu ứng nảy nhẹ */
-        }
-
-        /* Hiệu ứng nảy sinh động */
-        @keyframes bounce {
-          0% {
+          .dropdown-item {
+            background: none;
+            border: none;
+            color: var(--text-color, #333);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease-in-out;
+            position: relative;
+          }
+          .dropdown-item:hover {
+            background: var(--accent-color, linear-gradient(to right, #e8e1ff, #d6eaff));
+            color: var(--text-color, #6aa8ff);
+            box-shadow: 0 6px 12px rgba(106, 168, 255, 0.3);
             transform: translateY(-3px) scale(1.02);
+            animation: bounce 0.4s ease infinite alternate;
           }
-          100% {
-            transform: translateY(-5px) scale(1.02);
+          @keyframes bounce {
+            0% {
+              transform: translateY(-3px) scale(1.02);
+            }
+            100% {
+              transform: translateY(-5px) scale(1.02);
+            }
           }
-        }
           @keyframes slideDown {
             from {
               opacity: 0;
@@ -2177,7 +3176,7 @@ const NoteApp = () => {
             }
           }
           .dropdown-item:hover {
-            color: #2563eb;
+            color: var(--text-color, #2563eb);
           }
           .animate-slide-in {
             animation: slideIn 0.3s ease-in-out;
@@ -2192,8 +3191,62 @@ const NoteApp = () => {
               transform: translateX(0);
             }
           }
+          /* Cập nhật các thành phần giao diện khác */
+          .text-gray-700 {
+            color: var(--text-color, #374151);
+          }
+          .border-gray-300 {
+            border-color: var(--border-color, #d1d5db);
+          }
+          .bg-white {
+            background-color: var(--background);
+          }
+          .bg-gray-100 {
+            background-color: var(--background);
+          }
+          .bg-blue-50 {
+            background-color: var(--background);
+          }
+          .bg-gray-50 {
+            background-color: var(--background);
+          }
+          .text-blue-600 {
+            color: var(--text-color, #2563eb);
+          }
+          .text-purple-600 {
+            color: var(--text-color, #7c3aed);
+          }
+          .focus\\:border-blue-400:focus {
+            border-color: var(--border-color, #3b82f6);
+          }
+          .focus\\:ring-blue-300:focus {
+            --tw-ring-color: var(--border-color, #93c5fd);
+          }
+          .hover\\:bg-blue-100:hover {
+            background-color: var(--background);
+          }
+          .bg-blue-200 {
+            background-color: var(--background);
+          }
+          .bg-gray-200 {
+            background-color: var(--background);
+          }
+
+          li[draggable]:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+          li.dragging {
+            opacity: 0.6;
+            background-color: #e0f7fa;
+          }
         `}</style>
+              {isOffline && (
+        <div className="fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-4 rounded-lg shadow-md">
+          Bạn đang ở chế độ ngoại tuyến. Các thay đổi sẽ được đồng bộ khi có mạng.
+        </div>
+      )}
       </div>
+              <ThemeSettings />
     </div>
   );
 };

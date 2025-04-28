@@ -117,7 +117,7 @@ export default function NotePage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-          BlogNote - Tạo Ghi Chú
+          BlogNote - Tạo Ghi Chú 
         </h1>
         <div className="flex justify-end mb-4">
           <Link href="/note/list" className="text-blue-500 hover:underline">

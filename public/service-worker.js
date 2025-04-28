@@ -96,10 +96,11 @@ export default function ManageNotes() {
   // Đồng bộ thay đổi khi online
   const syncOfflineChanges = async () => {
     const db = await initDB();
-    const tx = db.transaction('changes', 'readwrite');
-    const store = tx.objectStore('changes');
-    const changes = await store.getAll();
-    
+    const readTx = db.transaction('changes', 'readwrite');
+    const readStore = readTx.objectStore('changes');
+    const changes = await readStore.getAll();
+    await readTx.done; // Ensure read transaction is complete
+
     for (const change of changes) {
       try {
         if (change.type === 'update') {
@@ -130,11 +131,17 @@ export default function ManageNotes() {
       }
     }
 
-    // Clear store in a new transaction
-    const clearTx = db.transaction('changes', 'readwrite');
-    const clearStore = clearTx.objectStore('changes');
-    await clearStore.clear();
-    await clearTx.done;
+    // Clear changes in a new transaction
+    try {
+      const clearTx = db.transaction('changes', 'readwrite');
+      const clearStore = clearTx.objectStore('changes');
+      await clearStore.clear();
+      await clearTx.done;
+      console.log('Cleared offline changes from IndexedDB');
+    } catch (err) {
+      console.error('Error clearing changes store:', err.message, err.stack);
+      showNotification("Lỗi khi xóa thay đổi cục bộ: " + (err.message || 'Unknown error'));
+    }
 
     setOfflineChanges([]);
     fetchNotes();
@@ -167,7 +174,7 @@ export default function ManageNotes() {
     };
 
     window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.removeEventListener('offline', handleOffline);
     setIsOffline(!navigator.onLine);
 
     // Kiểm tra phiên người dùng Supabase
