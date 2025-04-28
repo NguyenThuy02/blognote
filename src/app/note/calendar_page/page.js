@@ -78,39 +78,72 @@ const CalendarPage = () => {
     currentMonth === today.getMonth() &&
     currentYear === today.getFullYear();
 
-  const fetchTodos = async () => {
-    try {
-      const { data, error } = await supabase2
-        .from("notess")
-        .select("id, title, todos")
-        .eq("note_type", "whiteboard");
-      if (error) throw error;
-
-      const allTodos = data
-        .filter((note) => note.todos)
-        .flatMap((note) => {
+    const fetchTodos = async () => {
+      try {
+        // Lấy thông tin người dùng từ localStorage
+        const userData = localStorage.getItem("user");
+        let user_id = null;
+        if (userData) {
           try {
-            const parsedTodos = JSON.parse(note.todos);
-            return Array.isArray(parsedTodos)
-              ? parsedTodos.map((todo, index) => ({
-                  ...todo,
-                  todoId: `${note.id}-${index}`,
-                  noteId: note.id,
-                  noteTitle: note.title,
-                }))
-              : [];
-          } catch (e) {
-            console.error("Error parsing todos:", e);
-            return [];
+            const parsedUser = JSON.parse(userData);
+            user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+            if (!user_id) {
+              console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+              toast.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+              return;
+            }
+          } catch (err) {
+            console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+            toast.error("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            return;
           }
-        })
-        .filter((todo) => todo.reminder);
-
-      setTodos(allTodos);
-    } catch (err) {
-      console.error("Error fetching todos:", err);
-    }
-  };
+        } else {
+          console.error("Không tìm thấy thông tin người dùng. Vui lòng 등록 nhập.");
+          toast.error("Vui lòng đăng nhập để xem công việc của bạn.");
+          return;
+        }
+    
+        // Lọc dữ liệu từ bảng notess theo user_id và note_type
+        const { data, error } = await supabase2
+          .from("notess")
+          .select("id, title, todos")
+          .eq("note_type", "whiteboard")
+          .eq("user_id", user_id); // Thêm điều kiện lọc theo user_id
+    
+        if (error) throw error;
+    
+        if (!data || data.length === 0) {
+          console.warn("Không tìm thấy ghi chú nào cho người dùng này.");
+          setTodos([]);
+          return;
+        }
+    
+        const allTodos = data
+          .filter((note) => note.todos)
+          .flatMap((note) => {
+            try {
+              const parsedTodos = JSON.parse(note.todos);
+              return Array.isArray(parsedTodos)
+                ? parsedTodos.map((todo, index) => ({
+                    ...todo,
+                    todoId: `${note.id}-${index}`,
+                    noteId: note.id,
+                    noteTitle: note.title,
+                  }))
+                : [];
+            } catch (e) {
+              console.error("Error parsing todos:", e);
+              return [];
+            }
+          })
+          .filter((todo) => todo.reminder);
+    
+        setTodos(allTodos);
+      } catch (err) {
+        console.error("Error fetching todos:", err);
+        toast.error("Có lỗi khi tải công việc. Vui lòng thử lại sau.");
+      }
+    };
 
   useEffect(() => {
     const user = localStorage.getItem("user");

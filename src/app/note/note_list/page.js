@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
 import ChiTiet from "../../components/details";
 import ThemeSettings from "../../components/ThemeSettings";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
@@ -11,11 +14,15 @@ export default function NoteList() {
   const [richNotesWithImage, setRichNotesWithImage] = useState([]);
   const [sketchNotes, setSketchNotes] = useState([]);
   const [spreadsheetNotes, setSpreadsheetNotes] = useState([]);
+  const [markdownNotes, setMarkdownNotes] = useState([]);
+  const [voiceNotes, setVoiceNotes] = useState([]);
   const [filteredTextNotes, setFilteredTextNotes] = useState([]);
   const [filteredRichNotesWithoutImage, setFilteredRichNotesWithoutImage] = useState([]);
   const [filteredRichNotesWithImage, setFilteredRichNotesWithImage] = useState([]);
   const [filteredSketchNotes, setFilteredSketchNotes] = useState([]);
   const [filteredSpreadsheetNotes, setFilteredSpreadsheetNotes] = useState([]);
+  const [filteredMarkdownNotes, setFilteredMarkdownNotes] = useState([]);
+  const [filteredVoiceNotes, setFilteredVoiceNotes] = useState([]);
   const [pinnedNotes, setPinnedNotes] = useState(new Set());
   const [hiddenNotes, setHiddenNotes] = useState(new Set());
   const [pinInput, setPinInput] = useState("");
@@ -31,25 +38,73 @@ export default function NoteList() {
   const [currentRichPage, setCurrentRichPage] = useState(1);
   const [currentSketchPage, setCurrentSketchPage] = useState(1);
   const [currentSpreadsheetPage, setCurrentSpreadsheetPage] = useState(1);
+  const [currentMarkdownPage, setCurrentMarkdownPage] = useState(1);
+  const [currentVoicePage, setCurrentVoicePage] = useState(1);
 
   const [showMoreText, setShowMoreText] = useState(false);
   const [showMoreRich, setShowMoreRich] = useState(false);
   const [showMoreSketch, setShowMoreSketch] = useState(false);
   const [showMoreSpreadsheet, setShowMoreSpreadsheet] = useState(false);
+  const [showMoreMarkdown, setShowMoreMarkdown] = useState(false);
+  const [showMoreVoice, setShowMoreVoice] = useState(false);
 
-  const notesPerPage = 5;
+  const notesPerPage = 4;
   const PIN = "1234";
 
   const fetchNotes = async () => {
     try {
+      // Lấy thông tin người dùng từ localStorage
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            alert("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          alert("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          return;
+        }
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        alert("Vui lòng đăng nhập để xem ghi chú của bạn.");
+        return;
+      }
+
+      // Lọc dữ liệu từ bảng notess theo user_id
       const { data, error } = await supabase2
         .from("notess")
         .select(
-          "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data"
+          "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, audio_url, audio_file_name, video_url, video_file_name"
         )
+        .eq("user_id", user_id) // Thêm điều kiện lọc theo user_id
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        console.warn("Không tìm thấy ghi chú nào cho người dùng này.");
+        setTextNotes([]);
+        setRichNotesWithoutImage([]);
+        setRichNotesWithImage([]);
+        setSketchNotes([]);
+        setSpreadsheetNotes([]);
+        setMarkdownNotes([]);
+        setVoiceNotes([]);
+        setFilteredTextNotes([]);
+        setFilteredRichNotesWithoutImage([]);
+        setFilteredRichNotesWithImage([]);
+        setFilteredSketchNotes([]);
+        setFilteredSpreadsheetNotes([]);
+        setFilteredMarkdownNotes([]);
+        setFilteredVoiceNotes([]);
+        return;
+      }
 
       const mappedNotes = data.map((note) => {
         let parsedTodos = [];
@@ -85,6 +140,10 @@ export default function NoteList() {
           note_type: note.note_type,
           todos: parsedTodos,
           spreadsheet_data: parsedSpreadsheetData,
+          audio_url: note.audio_url || "",
+          audio_file_name: note.audio_file_name || "",
+          video_url: note.video_url || "",
+          video_file_name: note.video_file_name || "",
         };
       });
 
@@ -98,14 +157,25 @@ export default function NoteList() {
       setSpreadsheetNotes(
         mappedNotes.filter((note) => note.note_type === "spreadsheet")
       );
+      setMarkdownNotes(
+        mappedNotes.filter((note) => note.note_type === "markdown")
+      );
+      setVoiceNotes(mappedNotes.filter((note) => note.note_type === "voice"));
 
       setFilteredTextNotes(mappedNotes.filter((note) => note.note_type === "plain"));
       setFilteredRichNotesWithoutImage(richNotes.filter((note) => !note.image));
       setFilteredRichNotesWithImage(richNotes.filter((note) => note.image));
       setFilteredSketchNotes(mappedNotes.filter((note) => note.note_type === "whiteboard"));
       setFilteredSpreadsheetNotes(mappedNotes.filter((note) => note.note_type === "spreadsheet"));
+      setFilteredMarkdownNotes(
+        mappedNotes.filter((note) => note.note_type === "markdown")
+      );
+      setFilteredVoiceNotes(
+        mappedNotes.filter((note) => note.note_type === "voice")
+      );
     } catch (err) {
       console.error("Error fetching notes:", err);
+      alert("Có lỗi khi tải ghi chú. Vui lòng thử lại sau.");
     }
   };
 
@@ -127,12 +197,16 @@ export default function NoteList() {
     setFilteredRichNotesWithImage(filterNotes(richNotesWithImage, searchQuery));
     setFilteredSketchNotes(filterNotes(sketchNotes, searchQuery));
     setFilteredSpreadsheetNotes(filterNotes(spreadsheetNotes, searchQuery));
+    setFilteredMarkdownNotes(filterNotes(markdownNotes, searchQuery));
+    setFilteredVoiceNotes(filterNotes(voiceNotes, searchQuery));
 
     setCurrentTextPage(1);
     setCurrentRichPage(1);
     setCurrentSketchPage(1);
     setCurrentSpreadsheetPage(1);
-  }, [searchQuery, textNotes, richNotesWithoutImage, richNotesWithImage, sketchNotes, spreadsheetNotes]);
+    setCurrentMarkdownPage(1);
+    setCurrentVoicePage(1);
+  }, [searchQuery, textNotes, richNotesWithoutImage, richNotesWithImage, sketchNotes, spreadsheetNotes, markdownNotes, voiceNotes]);
 
   const togglePin = (noteId) => {
     setPinnedNotes((prev) => {
@@ -211,6 +285,8 @@ export default function NoteList() {
   const totalSpreadsheetPages = Math.ceil(
     filteredSpreadsheetNotes.length / notesPerPage
   );
+  const totalMarkdownPages = Math.ceil(filteredMarkdownNotes.length / notesPerPage);
+  const totalVoicePages = Math.ceil(filteredVoiceNotes.length / notesPerPage);
 
   useEffect(() => {
     if (richNotesWithImage.length > 0) {
@@ -260,7 +336,8 @@ export default function NoteList() {
           </h1>
           <p className="text-gray-200 mb-6">
             Explore top note-taking apps to boost your productivity. From simple
- Ascertain the perfect app for your needs. Start organizing your ideas today!
+            text to multimedia notes, find the perfect app for your needs. Start
+            organizing your ideas today!
           </p>
           <div className="relative">
             <button
@@ -917,7 +994,7 @@ export default function NoteList() {
                   </div>
                 )}
                 {hiddenNotes.has(note.id) && (
-                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                  <p className="min-h-[40px] line-clamp- Catholic2" style={{ color: "var(--text-color)" }}>
                     Ghi chú này đã bị ẩn
                   </p>
                 )}
@@ -983,7 +1060,7 @@ export default function NoteList() {
             <button
               onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)}
               disabled={currentSpreadsheetPage === totalSpreadsheetPages}
-              className="rounded-full px-4 px-4 py-2 mx-1 transition-colors duration-200"
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
               style={{
                 background: "var(--background)",
                 border: "1px solid var(--border-color)",
@@ -996,77 +1073,483 @@ export default function NoteList() {
         )}
       </div>
 
-      {contextMenu && (
+      {/* Khung 5: Ghi chú Markdown/Code */}
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+          💻 Ghi chú Markdown/Code
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {paginate(filteredMarkdownNotes, currentMarkdownPage)
+            .slice(0, showMoreMarkdown ? filteredMarkdownNotes.length : 4)
+            .map((note) => (
+              <div
+                key={note.id}
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
+              >
+                <div className="relative">
+                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
+                    {note.title}
+                  </h3>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`absolute top-0 right-0 text-lg ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600 transition-colors duration-200`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    📌
+                  </button>
+                </div>
+                {note.description && !hiddenNotes.has(note.id) && (
+                  <div className="markdown-preview min-h-[60px] line-clamp-3">
+                    <ReactMarkdown
+                      components={{
+                        code({ node, inline, className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          return !inline && match ? (
+                            <SyntaxHighlighter
+                              style={vscDarkPlus}
+                              language={match[1]}
+                              PreTag="div"
+                              {...props}
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code className={className} {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {note.description}
+                    </ReactMarkdown>
+                  </div>
+                )}
+                {hiddenNotes.has(note.id) && (
+                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
+                    Ghi chú này đã bị ẩn
+                  </p>
+                )}
+                {!hiddenNotes.has(note.id) && (
+                  <button
+                    onClick={() => setViewDetailNoteId(note.id)}
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
+                  >
+                    Xem chi tiết →
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+
+        <button
+          onClick={() => setShowMoreMarkdown(!showMoreMarkdown)}
+          className="mt-4 mx-auto block transition-colors duration-200"
+          style={{ color: "var(--accent-color)" }}
+        >
+          {showMoreMarkdown ? "Ẩn bớt" : "Xem thêm"}
+        </button>
+
+        {showMoreMarkdown && (
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={() => setCurrentMarkdownPage(currentMarkdownPage - 1)}
+              disabled={currentMarkdownPage === 1}
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
+            >
+              {"<"}
+            </button>
+            {Array.from({ length: totalMarkdownPages }, (_, index) => (
+              <button
+                key={index + 1}
+                onClick={() => setCurrentMarkdownPage(index + 1)}
+                className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                  currentMarkdownPage === index + 1
+                    ? "shadow hover:shadow-lg"
+                    : "shadow-sm hover:shadow-md"
+                }`}
+                style={{
+                  background:
+                    currentMarkdownPage === index + 1
+                      ? "var(--accent-color)"
+                      : "var(--background)",
+                  color:
+                    currentMarkdownPage === index + 1
+                      ? "var(--background)"
+                      : "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                {index + 1}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentMarkdownPage(currentMarkdownPage + 1)}
+              disabled={currentMarkdownPage === totalMarkdownPages}
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+              style={{
+                background: "var(--background)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-color)",
+              }}
+            >
+              {">"}
+            </button>
+          </div>
+        )}
+      </div>
+
+    {/* Khung 6: Ghi chú đính kèm (Voice) */}
+    <div
+      className="rounded-lg p-4 transition duration-300 ease-in-out"
+      style={{
+        background: "var(--background)",
+        border: "1px solid var(--border-color)",
+      }}
+    >
+      <h2
+        className="text-xl font-bold mb-4"
+        style={{ color: "var(--text-color)" }}
+      >
+        🎙 Ghi chú đính kèm
+      </h2>
+
+      {/* Audio Notes Section */}
+      <div className="mb-6">
+        <h3
+          className="text-lg font-semibold mb-2"
+          style={{ color: "var(--text-color)" }}
+        >
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {paginate(
+            filteredVoiceNotes.filter((note) => note.audio_url),
+            currentVoicePage
+          )
+            .slice(0, showMoreVoice ? filteredVoiceNotes.length : 4)
+            .map((note) => (
+              <div
+                key={`audio-${note.id}`}
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out h-[300px] flex flex-col justify-between ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id)
+                    ? "#FEF3C7"
+                    : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
+              >
+                <div className="relative">
+                  <h3
+                    className="font-semibold inline"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    {note.title}
+                  </h3>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`absolute top-0 right-0 text-lg ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600 transition-colors duration-200`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    📌
+                  </button>
+                </div>
+                {!hiddenNotes.has(note.id) ? (
+                  <div className="flex-1 overflow-y-auto">
+                    {note.description && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.description}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <p style={{ color: "var(--text-color)" }}>
+                        Âm thanh: {note.audio_file_name || "Bản ghi âm"}
+                      </p>
+                      <audio controls src={note.audio_url} className="w-full" />
+                    </div>
+                  </div>
+                ) : (
+                  <p
+                    className="min-h-[40px] line-clamp-2 flex-1"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    Ghi chú này đã bị ẩn
+                  </p>
+                )}
+                {!hiddenNotes.has(note.id) && (
+                  <button
+                    onClick={() => setViewDetailNoteId(note.id)}
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
+                  >
+                    Xem chi tiết →
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+
+    {/* Video Notes Section */}
+      <div className="mb-6">
+        <h3
+          className="text-lg font-semibold mb-2"
+          style={{ color: "var(--text-color)" }}
+        >
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {paginate(
+            filteredVoiceNotes.filter((note) => note.video_url),
+            currentVoicePage
+          )
+            .slice(0, showMoreVoice ? filteredVoiceNotes.length : 4)
+            .map((note) => (
+              <div
+                key={`video-${note.id}`}
+                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out h-[300px] flex flex-col justify-between ${
+                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
+                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                style={{
+                  background: pinnedNotes.has(note.id)
+                    ? "#FEF3C7"
+                    : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onContextMenu={(e) => handleContextMenu(e, note.id)}
+              >
+                <div className="relative">
+                  <h3
+                    className="font-semibold inline"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    {note.title}
+                  </h3>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`absolute top-0 right-0 text-lg ${
+                      pinnedNotes.has(note.id)
+                        ? "text-yellow-500"
+                        : "text-gray-400"
+                    } hover:text-yellow-600 transition-colors duration-200`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    📌
+                  </button>
+                </div>
+                {!hiddenNotes.has(note.id) ? (
+                  <div className="flex-1 overflow-y-auto">
+                    {note.description && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.description}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <p style={{ color: "var(--text-color)" }}>
+                        Video: {note.video_file_name || "Video đính kèm"}
+                      </p>
+                      <video
+                        controls
+                        src={note.video_url}
+                        className="w-full h-[150px] object-cover rounded-md"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p
+                    className="min-h-[40px] line-clamp-2 flex-1"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    Ghi chú này đã bị ẩn
+                  </p>
+                )}
+                {!hiddenNotes.has(note.id) && (
+                  <button
+                    onClick={() => setViewDetailNoteId(note.id)}
+                    className="mt-2 block transition-colors duration-200"
+                    style={{ color: "var(--accent-color)" }}
+                  >
+                    Xem chi tiết →
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <button
+        onClick={() => setShowMoreVoice(!showMoreVoice)}
+        className="mt-4 mx-auto block transition-colors duration-200"
+        style={{ color: "var(--accent-color)" }}
+      >
+        {showMoreVoice ? "Ẩn bớt" : "Xem thêm"}
+      </button>
+
+      {showMoreVoice && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => setCurrentVoicePage(currentVoicePage - 1)}
+            disabled={currentVoicePage === 1}
+            className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+            style={{
+              background: "var(--background)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-color)",
+            }}
+          >
+            {"<"}
+          </button>
+          {Array.from({ length: totalVoicePages }, (_, index) => (
+            <button
+              key={index + 1}
+              onClick={() => setCurrentVoicePage(index + 1)}
+              className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                currentVoicePage === index + 1
+                  ? "shadow hover:shadow-lg"
+                  : "shadow-sm hover:shadow-md"
+              }`}
+              style={{
+                background:
+                  currentVoicePage === index + 1
+                    ? "var(--accent-color)"
+                    : "var(--background)",
+                color:
+                  currentVoicePage === index + 1
+                    ? "var(--background)"
+                    : "var(--text-color)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              {index + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => setCurrentVoicePage(currentVoicePage + 1)}
+            disabled={currentVoicePage === totalVoicePages}
+            className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+            style={{
+              background: "var(--background)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-color)",
+            }}
+          >
+            {">"}
+          </button>
+        </div>
+      )}
+    </div>
+
+    {contextMenu && (
+      <div
+        className="fixed rounded-lg shadow-lg p-2 z-50"
+        style={{
+          top: contextMenu.y,
+          left: contextMenu.x,
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <button
+          onClick={() => hideNote(contextMenu.noteId)}
+          className="block w-full text-left px-4 py-2 transition-colors duration-200"
+          style={{ color: "var(--text-color)" }}
+        >
+          Ẩn ghi chú
+        </button>
+      </div>
+    )}
+
+    {showPinModal && (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div
-          className="fixed rounded-lg shadow-lg p-2 z-50"
+          className="p-6 rounded-lg shadow-lg"
           style={{
-            top: contextMenu.y,
-            left: contextMenu.x,
             background: "var(--background)",
             border: "1px solid var(--border-color)",
           }}
         >
-          <button
-            onClick={() => hideNote(contextMenu.noteId)}
-            className="block w-full text-left px-4 py-2 transition-colors duration-200"
+          <h3
+            className="text-lg font-semibold mb-4"
             style={{ color: "var(--text-color)" }}
           >
-            Ẩn ghi chú
-          </button>
-        </div>
-      )}
-
-      {showPinModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div
-            className="p-6 rounded-lg shadow-lg"
-            style={{ background: "var(--background)", border: "1px solid var(--border-color)" }}
-          >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-color)" }}>
-              Nhập mã PIN để xem ghi chú
-            </h3>
-            <input
-              type="text"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              className="w-full p-2 rounded mb-4"
-              placeholder="Mã PIN"
+            Nhập mã PIN để xem ghi chú
+          </h3>
+          <input
+            type="text"
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value)}
+            className="w-full p-2 rounded mb-4"
+            placeholder="Mã PIN"
+            style={{
+              background: "var(--background)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setShowPinModal(false);
+                setPinInput("");
+              }}
+              className="px-4 py-2 rounded transition-colors duration-200"
               style={{
                 background: "var(--background)",
+                border: "1px solid var(--border-color)",
                 color: "var(--text-color)",
+              }}
+            >
+              Hủy
+            </button>
+            <button
+              onClick={verifyPin}
+              className="px-4 py-2 rounded transition-colors duration-200"
+              style={{
+                background: "var(--accent-color)",
+                color: "var(--background)",
                 border: "1px solid var(--border-color)",
               }}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowPinModal(false);
-                  setPinInput("");
-                }}
-                className="px-4 py-2 rounded transition-colors duration-200"
-                style={{
-                  background: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                  color: "var(--text-color)",
-                }}
-              >
-                Hủy
-              </button>
-              <button
-                onClick={verifyPin}
-                className="px-4 py-2 rounded transition-colors duration-200"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Xác nhận
-              </button>
-            </div>
+            >
+              Xác nhận
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {viewDetailNoteId && (
         <ChiTiet noteId={viewDetailNoteId} onClose={() => setViewDetailNoteId(null)} />

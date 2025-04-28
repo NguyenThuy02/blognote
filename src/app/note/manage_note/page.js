@@ -1,12 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase2 } from "../../../lib/supabase";
 import ChiTiet from "../../components/details";
 import ThemeSettings from "../../components/ThemeSettings";
-import { openDB } from 'idb'; // Thư viện IndexedDB
+import { openDB } from "idb";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function ManageNotes() {
-  // Trạng thái hiện có
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [notes, setNotes] = useState([]);
   const [editingNote, setEditingNote] = useState(null);
@@ -16,8 +18,6 @@ export default function ManageNotes() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Trạng thái cho chế độ ngoại tuyến
   const [isOffline, setIsOffline] = useState(false);
   const [offlineChanges, setOfflineChanges] = useState([]);
   const [advancedSearch, setAdvancedSearch] = useState({
@@ -34,6 +34,8 @@ export default function ManageNotes() {
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const categoryRefs = useRef({});
+
   const categoryMap = {
     1: "personal",
     2: "study",
@@ -41,7 +43,6 @@ export default function ManageNotes() {
     4: "upload",
   };
 
-  // Hàm hiển thị thông báo tùy chỉnh
   const showNotification = (message) => {
     setNotification(message);
     setTimeout(() => {
@@ -49,38 +50,34 @@ export default function ManageNotes() {
     }, 3000);
   };
 
-  // Khởi tạo IndexedDB
   const initDB = async () => {
-    const db = await openDB('notesDB', 1, {
+    const db = await openDB("notesDB", 1, {
       upgrade(db) {
-        db.createObjectStore('notes', { keyPath: 'id' });
-        db.createObjectStore('changes', { autoIncrement: true });
+        db.createObjectStore("notes", { keyPath: "id" });
+        db.createObjectStore("changes", { autoIncrement: true });
       },
     });
     return db;
   };
 
-  // Lưu ghi chú vào IndexedDB
   const saveToIndexedDB = async (notes) => {
     const db = await initDB();
-    const tx = db.transaction('notes', 'readwrite');
-    const store = tx.objectStore('notes');
+    const tx = db.transaction("notes", "readwrite");
+    const store = tx.objectStore("notes");
     notes.forEach((note) => store.put(note));
     await tx.done;
-    console.log('Saved notes to IndexedDB:', notes);
+    console.log("Saved notes to IndexedDB:", notes);
   };
 
-  // Lưu thay đổi ngoại tuyến vào IndexedDB
   const saveOfflineChange = async (change) => {
     const db = await initDB();
-    const tx = db.transaction('changes', 'readwrite');
-    const store = tx.objectStore('changes');
+    const tx = db.transaction("changes", "readwrite");
+    const store = tx.objectStore("changes");
     await store.add(change);
     setOfflineChanges((prev) => [...prev, change]);
     await tx.done;
   };
 
-  // Hàm retry cho Supabase requests
   const withRetry = async (fn, retries = 3, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
       try {
@@ -93,16 +90,15 @@ export default function ManageNotes() {
     }
   };
 
-  // Đồng bộ thay đổi khi online
   const syncOfflineChanges = async () => {
     const db = await initDB();
-    const tx = db.transaction('changes', 'readwrite');
-    const store = tx.objectStore('changes');
+    const tx = db.transaction("changes", "readwrite");
+    const store = tx.objectStore("changes");
     const changes = await store.getAll();
-    
+
     for (const change of changes) {
       try {
-        if (change.type === 'update') {
+        if (change.type === "update") {
           const { error } = await supabase2
             .from("notess")
             .update({
@@ -110,29 +106,22 @@ export default function ManageNotes() {
               updated_at: new Date().toISOString(),
             })
             .eq("id", change.id);
-          if (error) {
-            console.error('Supabase update error:', error.message, error.code, error.details, error.hint);
-            throw error;
-          }
-        } else if (change.type === 'delete') {
+          if (error) throw error;
+        } else if (change.type === "delete") {
           const { error } = await supabase2
             .from("notess")
             .update({ deleted_at: new Date().toISOString() })
             .eq("id", change.id);
-          if (error) {
-            console.error('Supabase delete error:', error.message, error.code, error.details, error.hint);
-            throw error;
-          }
+          if (error) throw error;
         }
       } catch (err) {
-        console.error("Error syncing change:", err.message, err.stack);
-        showNotification("Lỗi khi đồng bộ thay đổi: " + (err.message || 'Unknown error'));
+        console.error("Error syncing change:", err.message);
+        showNotification("Lỗi khi đồng bộ thay đổi: " + err.message);
       }
     }
 
-    // Clear store in a new transaction
-    const clearTx = db.transaction('changes', 'readwrite');
-    const clearStore = clearTx.objectStore('changes');
+    const clearTx = db.transaction("changes", "readwrite");
+    const clearStore = clearTx.objectStore("changes");
     await clearStore.clear();
     await clearTx.done;
 
@@ -141,21 +130,7 @@ export default function ManageNotes() {
     showNotification("Đã đồng bộ tất cả thay đổi!");
   };
 
-  // Đăng ký Service Worker và xử lý trạng thái mạng
   useEffect(() => {
-    /*
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/service-worker.js')
-        .then((registration) => {
-          console.log('Service Worker registered with scope:', registration.scope);
-        })
-        .catch((error) => {
-          console.error('Service Worker registration failed:', error);
-        });
-    }
-    */
-
     const handleOnline = () => {
       setIsOffline(false);
       showNotification("Đã kết nối lại! Đang đồng bộ dữ liệu...");
@@ -163,154 +138,200 @@ export default function ManageNotes() {
     };
     const handleOffline = () => {
       setIsOffline(true);
-      showNotification("Bạn đang ở chế độ ngoại tuyến. Các thay đổi sẽ được đồng bộ khi có mạng.");
+      showNotification("Bạn đang ở chế độ ngoại tuyến.");
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
     setIsOffline(!navigator.onLine);
 
-    // Kiểm tra phiên người dùng Supabase
     const checkSession = async () => {
       const { data: { session }, error } = await supabase2.auth.getSession();
       if (error) {
-        console.error('Supabase session error:', error.message);
-        showNotification("Lỗi xác thực Supabase: " + (error.message || 'Unknown error'));
+        console.error("Supabase session error:", error.message);
+        showNotification("Lỗi xác thực Supabase: " + error.message);
       } else if (!session) {
-        console.warn('No active Supabase session');
-        showNotification("Không có phiên đăng nhập Supabase. Vui lòng đăng nhập.");
+        showNotification("Không có phiên đăng nhập Supabase.");
       }
     };
     checkSession();
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
-  // Fetch ghi chú từ Supabase hoặc IndexedDB
   const fetchNotes = async () => {
     setIsLoading(true);
     if (isOffline) {
       const db = await initDB();
-      const tx = db.transaction('notes', 'readonly');
-      const store = tx.objectStore('notes');
+      const tx = db.transaction("notes", "readonly");
+      const store = tx.objectStore("notes");
       const offlineNotes = await store.getAll();
       setNotes(offlineNotes || []);
-      showNotification("Đang tải ghi chú từ bộ nhớ cục bộ (ngoại tuyến).");
+      showNotification("Đang tải ghi chú từ bộ nhớ cục bộ.");
       setIsLoading(false);
       return;
     }
-
+  
     try {
+      // Lấy thông tin người dùng từ localStorage
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            showNotification("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          showNotification("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        showNotification("Vui lòng đăng nhập để xem ghi chú của bạn.");
+        setIsLoading(false);
+        return;
+      }
+  
       const fetchFn = async () => {
-        console.log('Fetching notes from Supabase...');
         const { data, error } = await supabase2
           .from("notess")
           .select(
-            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, versions, deleted_at"
+            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, versions, deleted_at, audio_url, audio_file_name, video_url, video_file_name"
           )
           .is("deleted_at", null)
+          .eq("user_id", user_id) // Thêm điều kiện lọc theo user_id
           .order("updated_at", { ascending: false });
-
-        if (error) {
-          console.error('Supabase fetch notes error:', error.message, error.code, error.details, error.hint);
-          throw new Error(error.message || 'Unknown Supabase error');
-        }
+  
+        if (error) throw new Error(error.message);
         return data;
       };
-
+  
       const data = await withRetry(fetchFn);
       const parsedNotes = (data || []).map((note) => {
         let parsedTodos = [];
         let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
         let parsedVersions = [];
-
+  
         if (note.todos) {
           try {
             parsedTodos = JSON.parse(note.todos);
             if (!Array.isArray(parsedTodos)) parsedTodos = [];
           } catch (e) {
-            console.error(`Error parsing todos for note ${note.id}:`, e.message, note.todos);
+            console.error(`Error parsing todos for note ${note.id}:`, e.message);
             parsedTodos = [];
           }
         }
-
+  
         if (note.spreadsheet_data) {
           try {
             parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
             if (!Array.isArray(parsedSpreadsheetData))
               parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
           } catch (e) {
-            console.error(`Error parsing spreadsheet_data for note ${note.id}:`, e.message, note.spreadsheet_data);
+            console.error(`Error parsing spreadsheet_data for note ${note.id}:`, e.message);
             parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
           }
         }
-
+  
         if (note.versions) {
           try {
             parsedVersions = JSON.parse(note.versions);
             if (!Array.isArray(parsedVersions)) parsedVersions = [];
           } catch (e) {
-            console.error(`Error parsing versions for note ${note.id}:`, e.message, note.versions);
+            console.error(`Error parsing versions for note ${note.id}:`, e.message);
             parsedVersions = [];
           }
         }
-
+  
         return {
           ...note,
           todos: parsedTodos,
           spreadsheet_data: parsedSpreadsheetData,
           versions: parsedVersions,
           category: categoryMap[note.category_id] || "personal",
+          audio_url: note.audio_url || "",
+          audio_file_name: note.audio_file_name || "",
+          video_url: note.video_url || "",
+          video_file_name: note.video_file_name || "",
         };
       });
-
+  
       setNotes(parsedNotes);
       saveToIndexedDB(parsedNotes);
       showNotification("Đã tải ghi chú từ Supabase.");
     } catch (err) {
-      console.error("Error fetching notes:", err.message, err.stack);
-      showNotification("Lỗi khi tải ghi chú từ Supabase: " + (err.message || 'Unknown error'));
+      console.error("Error fetching notes:", err.message);
+      showNotification("Lỗi khi tải ghi chú từ Supabase: " + err.message);
     } finally {
       setIsLoading(false);
     }
   };
-
-  // Fetch ghi chú trong thùng rác
+  
   const fetchTrashNotes = async () => {
     if (isOffline) {
       showNotification("Không thể tải thùng rác ở chế độ ngoại tuyến.");
       setIsLoading(false);
       return;
     }
-
+  
     setIsLoading(true);
     try {
+      // Lấy thông tin người dùng từ localStorage
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            showNotification("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          showNotification("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        showNotification("Vui lòng đăng nhập để xem thùng rác của bạn.");
+        setIsLoading(false);
+        return;
+      }
+  
       const fetchFn = async () => {
-        console.log('Fetching trash notes from Supabase...');
         const { data, error } = await supabase2
           .from("notess")
           .select(
-            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, deleted_at"
+            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, deleted_at, audio_url, audio_file_name, video_url, video_file_name"
           )
           .not("deleted_at", "is", null)
+          .eq("user_id", user_id) // Thêm điều kiện lọc theo user_id
           .order("deleted_at", { ascending: false });
-
-        if (error) {
-          console.error('Supabase fetch trash notes error:', error.message, error.code, error.details, error.hint);
-          throw new Error(error.message || 'Unknown Supabase error');
-        }
+  
+        if (error) throw new Error(error.message);
         return data;
       };
-
+  
       const data = await withRetry(fetchFn);
       setTrashNotes(data || []);
       showNotification("Đã tải ghi chú trong thùng rác.");
     } catch (err) {
-      console.error("Error fetching trash notes:", err.message, err.stack);
-      showNotification("Lỗi khi tải ghi chú trong thùng rác: " + (err.message || 'Unknown error'));
+      console.error("Error fetching trash notes:", err.message);
+      showNotification("Lỗi khi tải ghi chú trong thùng rác: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -361,13 +382,13 @@ export default function ManageNotes() {
         };
 
         if (isOffline) {
-          await saveOfflineChange({ type: 'update', id: editingNote.id, data: updatedData });
+          await saveOfflineChange({ type: "update", id: editingNote.id, data: updatedData });
           setNotes((prev) =>
             prev.map((n) =>
               n.id === editingNote.id ? { ...n, ...updatedData } : n
             )
           );
-          showNotification("Ghi chú đã được cập nhật cục bộ, sẽ đồng bộ khi có mạng.");
+          showNotification("Ghi chú đã được cập nhật cục bộ.");
           setEditingNote(null);
           return;
         }
@@ -377,16 +398,13 @@ export default function ManageNotes() {
           .update(updatedData)
           .eq("id", editingNote.id);
 
-        if (error) {
-          console.error('Supabase update note error:', error.message, error.code, error.details, error.hint);
-          throw error;
-        }
+        if (error) throw error;
         fetchNotes();
         showNotification("Ghi chú đã được cập nhật thành công!");
         setEditingNote(null);
       } catch (err) {
-        console.error("Error updating note:", err.message, err.stack);
-        showNotification("Lỗi khi cập nhật ghi chú: " + (err.message || 'Unknown error'));
+        console.error("Error updating note:", err.message);
+        showNotification("Lỗi khi cập nhật ghi chú: " + err.message);
       }
     } else {
       showNotification("Tiêu đề và nội dung không được để trống!");
@@ -401,9 +419,9 @@ export default function ManageNotes() {
     const noteId = showDeleteConfirm;
     try {
       if (isOffline) {
-        await saveOfflineChange({ type: 'delete', id: noteId });
+        await saveOfflineChange({ type: "delete", id: noteId });
         setNotes((prev) => prev.filter((n) => n.id !== noteId));
-        showNotification("Ghi chú đã được chuyển vào thùng rác cục bộ, sẽ đồng bộ khi có mạng.");
+        showNotification("Ghi chú đã được chuyển vào thùng rác cục bộ.");
         setShowDeleteConfirm(null);
         return;
       }
@@ -413,17 +431,14 @@ export default function ManageNotes() {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", noteId);
 
-      if (error) {
-        console.error('Supabase delete note error:', error.message, error.code, error.details, error.hint);
-        throw error;
-      }
+      if (error) throw error;
       fetchNotes();
       fetchTrashNotes();
-      showNotification("Ghi chú đã được chuyển vào thùng rác thành công!");
+      showNotification("Ghi chú đã được chuyển vào thùng rác!");
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error("Error moving note to trash:", err.message, err.stack);
-      showNotification("Lỗi khi chuyển ghi chú vào thùng rác: " + (err.message || 'Unknown error'));
+      console.error("Error moving note to trash:", err.message);
+      showNotification("Lỗi khi chuyển ghi chú vào thùng rác: " + err.message);
       setShowDeleteConfirm(null);
     }
   };
@@ -444,16 +459,13 @@ export default function ManageNotes() {
         .update({ deleted_at: null })
         .eq("id", noteId);
 
-      if (error) {
-        console.error('Supabase restore note error:', error.message, error.code, error.details, error.hint);
-        throw error;
-      }
+      if (error) throw error;
       fetchNotes();
       fetchTrashNotes();
-      showNotification("Ghi chú đã được khôi phục thành công!");
+      showNotification("Ghi chú đã được khôi phục!");
     } catch (err) {
-      console.error("Error restoring note:", err.message, err.stack);
-      showNotification("Lỗi khi khôi phục ghi chú: " + (err.message || 'Unknown error'));
+      console.error("Error restoring note:", err.message);
+      showNotification("Lỗi khi khôi phục ghi chú: " + err.message);
     }
   };
 
@@ -470,22 +482,19 @@ export default function ManageNotes() {
           .delete()
           .eq("id", noteId);
 
-        if (error) {
-          console.error('Supabase permanent delete error:', error.message, error.code, error.details, error.hint);
-          throw error;
-        }
+        if (error) throw error;
         fetchTrashNotes();
         showNotification("Ghi chú đã được xóa vĩnh viễn!");
       } catch (err) {
-        console.error("Error permanently deleting note:", err.message, err.stack);
-        showNotification("Lỗi khi xóa vĩnh viễn ghi chú: " + (err.message || 'Unknown error'));
+        console.error("Error permanently deleting note:", err.message);
+        showNotification("Lỗi khi xóa vĩnh viễn ghi chú: " + err.message);
       }
     }
   };
 
   const handleViewVersions = (note) => {
     if (!note.versions || note.versions.length === 0) {
-      showNotification("Không có lịch sử phiên bản cho ghi chú này.");
+      showNotification("Không có lịch sử phiên bản.");
       return;
     }
     setViewVersionNote({ ...note, selectedVersion: null });
@@ -506,13 +515,13 @@ export default function ManageNotes() {
       };
 
       if (isOffline) {
-        await saveOfflineChange({ type: 'update', id: viewVersionNote.id, data: updatedData });
+        await saveOfflineChange({ type: "update", id: viewVersionNote.id, data: updatedData });
         setNotes((prev) =>
           prev.map((n) =>
             n.id === viewVersionNote.id ? { ...n, ...updatedData } : n
           )
         );
-        showNotification("Phiên bản đã được khôi phục cục bộ, sẽ đồng bộ khi có mạng.");
+        showNotification("Phiên bản đã được khôi phục cục bộ.");
         setViewVersionNote(null);
         return;
       }
@@ -522,21 +531,39 @@ export default function ManageNotes() {
         .update(updatedData)
         .eq("id", viewVersionNote.id);
 
-      if (error) {
-        console.error('Supabase restore version error:', error.message, error.code, error.details, error.hint);
-        throw error;
-      }
+      if (error) throw error;
       fetchNotes();
-      showNotification("Phiên bản đã được khôi phục thành công!");
+      showNotification("Phiên bản đã được khôi phục!");
       setViewVersionNote(null);
     } catch (err) {
-      console.error("Error restoring version:", err.message, err.stack);
-      showNotification("Lỗi khi khôi phục phiên bản: " + (err.message || 'Unknown error'));
+      console.error("Error restoring version:", err.message);
+      showNotification("Lỗi khi khôi phục phiên bản: " + err.message);
     }
   };
 
   const handleShare = (note) => {
-    const shareText = `${note.title}\n${note.content}\nCategory: ${note.category}`;
+    let shareText = `${note.title}\n${note.content}\nCategory: ${note.category}`;
+    if (note.note_type === "whiteboard" && note.todos?.length) {
+      shareText +=
+        "\n\nTodos:\n" +
+        note.todos
+          .map((todo) => `- [${todo.completed ? "x" : " "}] ${todo.text}`)
+          .join("\n");
+    }
+    if (note.note_type === "spreadsheet" && note.spreadsheet_data?.length) {
+      shareText +=
+        "\n\nSpreadsheet Data:\n" +
+        note.spreadsheet_data.map((row) => row.join("\t")).join("\n");
+    }
+    if (note.note_type === "markdown") {
+      shareText += "\n\nMarkdown Content:\n" + note.content;
+    }
+    if (note.note_type === "voice") {
+      shareText += "\n\nVoice Attachments:\n";
+      if (note.audio_url) shareText += `- Audio: ${note.audio_file_name || "Bản ghi âm"} (${note.audio_url})\n`;
+      if (note.video_url) shareText += `- Video: ${note.video_file_name || "Video đính kèm"} (${note.video_url})\n`;
+    }
+
     if (navigator.share) {
       navigator
         .share({
@@ -548,10 +575,10 @@ export default function ManageNotes() {
     } else {
       navigator.clipboard
         .writeText(shareText)
-        .then(() => showNotification("Nội dung ghi chú đã được sao chép vào clipboard!"))
+        .then(() => showNotification("Đã sao chép nội dung vào clipboard!"))
         .catch((err) => {
           console.error("Error copying to clipboard:", err.message);
-          showNotification("Lỗi khi sao chép nội dung ghi chú.");
+          showNotification("Lỗi khi sao chép nội dung.");
         });
     }
   };
@@ -573,6 +600,16 @@ export default function ManageNotes() {
         note.spreadsheet_data.map((row) => row.join("\t")).join("\n");
     }
 
+    if (note.note_type === "markdown") {
+      content += "\n\nMarkdown Content:\n" + note.content;
+    }
+
+    if (note.note_type === "voice") {
+      content += "\n\nVoice Attachments:\n";
+      if (note.audio_url) content += `- Audio: ${note.audio_file_name || "Bản ghi âm"} (${note.audio_url})\n`;
+      if (note.video_url) content += `- Video: ${note.video_file_name || "Video đính kèm"} (${note.video_url})\n`;
+    }
+
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -583,7 +620,11 @@ export default function ManageNotes() {
   };
 
   const handleCategoryClick = (category) => {
-    setSelectedCategory(selectedCategory === category ? null : category);
+    const newCategory = selectedCategory === category ? null : category;
+    setSelectedCategory(newCategory);
+    if (newCategory && categoryRefs.current[category]) {
+      categoryRefs.current[category].scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   const handleCreateCategory = () => {
@@ -594,7 +635,7 @@ export default function ManageNotes() {
         showNotification("Danh mục này đã tồn tại!");
       } else {
         setCategories((prev) => [...prev, formattedCategory]);
-        showNotification(`Danh mục "${newCategory}" đã được tạo thành công!`);
+        showNotification(`Danh mục "${newCategory}" đã được tạo!`);
       }
     } else {
       showNotification("Tên danh mục không được để trống!");
@@ -653,7 +694,10 @@ export default function ManageNotes() {
 
   const NotesDisplay = ({ category }) => {
     return (
-      <div className="mt-6">
+      <div
+        ref={(el) => (categoryRefs.current[category] = el)}
+        className="mt-6"
+      >
         <h2
           className="text-xl font-bold mb-4 text-left"
           style={{ color: "var(--text-color)" }}
@@ -1260,6 +1304,523 @@ export default function ManageNotes() {
             ))}
           </div>
         </div>
+
+        {/* Markdown Notes */}
+        <div className="mt-6">
+          <h2
+            className="text-xl font-bold mb-4 text-left"
+            style={{ color: "var(--text-color)" }}
+          >
+            Ghi chú Markdown/Code
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {sortNotes(
+              filteredNotes.filter((note) => note.note_type === "markdown")
+            ).map((note) => (
+              <div
+                key={note.id}
+                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
+                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
+                }`}
+                style={{
+                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onMouseEnter={() => setPreviewNoteId(note.id)}
+                onMouseLeave={() => setPreviewNoteId(null)}
+              >
+                <div className="relative">
+                  <h3
+                    className="font-semibold inline"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    💻 {note.title}
+                  </h3>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`absolute top-0 right-0 text-lg ${
+                      pinnedNotes.has(note.id)
+                        ? "text-[#A78BFA]"
+                        : "text-gray-400"
+                    } hover:text-[#A78BFA]`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    📌
+                  </button>
+                </div>
+                <div
+                  className={`markdown-preview min-h-[60px] line-clamp-3 ${previewNoteId === note.id ? "hidden" : ""}`}
+                  style={{ color: "var(--text-color)" }}
+                >
+                  <ReactMarkdown
+                    components={{
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={vscDarkPlus}
+                            language={match[1]}
+                            PreTag="div"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {note.content}
+                  </ReactMarkdown>
+                </div>
+                {previewNoteId === note.id && (
+                  <div
+                    className="p-2"
+                    style={{
+                      background: "var(--background)",
+                      color: "var(--text-color)",
+                    }}
+                  >
+                    <h4 className="font-semibold">{note.title}</h4>
+                    <ReactMarkdown
+                      components={{
+                        code({ node, inline, className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          return !inline && match ? (
+                            <SyntaxHighlighter
+                              style={vscDarkPlus}
+                              language={match[1]}
+                              PreTag="div"
+                              {...props}
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code className={className} {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {note.content}
+                    </ReactMarkdown>
+                    <small>Category: {note.category}</small>
+                  </div>
+                )}
+                <button
+                  onClick={() => setViewDetailNoteId(note.id)}
+                  className="mt-2 text-left"
+                  style={{ color: "var(--accent-color)" }}
+                >
+                  Xem chi tiết →
+                </button>
+                <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
+                  <button
+                    onClick={() => handleEdit(note)}
+                    className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                    style={{
+                      background: "var(--accent-color)",
+                      color: "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(note.id)}
+                    className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                    style={{
+                      background: "var(--accent-color)",
+                      color: "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    Xóa
+                  </button>
+                  <button
+                    onClick={() => handleShare(note)}
+                    className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                    style={{
+                      background: "var(--accent-color)",
+                      color: "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    Chia sẻ
+                  </button>
+                  <button
+                    onClick={() => handleDownload(note)}
+                    className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                    style={{
+                      background: "var(--accent-color)",
+                      color: "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    Tải xuống
+                  </button>
+                  <button
+                    onClick={() => handleViewVersions(note)}
+                    className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                    style={{
+                      background: "var(--accent-color)",
+                      color: "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    Lịch sử
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Voice Notes */}
+        <div className="mt-6">
+  <h2
+    className="text-xl font-bold mb-4 text-left"
+    style={{ color: "var(--text-color)" }}
+  >
+    Ghi chú đính kèm (Voice)
+  </h2>
+
+  {/* Audio Notes Section */}
+  <div className="mb-6">
+    <h3
+      className="text-lg font-semibold mb-2 text-left"
+      style={{ color: "var(--text-color)" }}
+    >
+    </h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {sortNotes(
+        filteredNotes.filter(
+          (note) => note.note_type === "voice" && note.audio_url
+        )
+      ).map((note) => (
+        <div
+          key={`audio-${note.id}`}
+          className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
+            pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
+          }`}
+          style={{
+            background: pinnedNotes.has(note.id)
+              ? "#E0E7FF"
+              : "var(--background)",
+            border: "1px solid var(--border-color)",
+          }}
+          onMouseEnter={() => setPreviewNoteId(note.id)}
+          onMouseLeave={() => setPreviewNoteId(null)}
+        >
+          <div className="relative">
+            <h3
+              className="font-semibold inline"
+              style={{ color: "var(--text-color)" }}
+            >
+              🎙 {note.title}
+            </h3>
+            <button
+              onClick={() => togglePin(note.id)}
+              className={`absolute top-0 right-0 text-lg ${
+                pinnedNotes.has(note.id)
+                  ? "text-[#A78BFA]"
+                  : "text-gray-400"
+              } hover:text-[#A78BFA]`}
+              title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+            >
+              📌
+            </button>
+          </div>
+          <div
+            className={`flex-1 overflow-y-auto ${
+              previewNoteId === note.id ? "hidden" : ""
+            }`}
+          >
+            <p
+              className="line-clamp-2 min-h-[40px]"
+              style={{ color: "var(--text-color)" }}
+            >
+              {note.content}
+            </p>
+            {previewNoteId !== note.id && (
+              <div className="mt-2">
+                <p style={{ color: "var(--text-color)" }}>
+                  Âm thanh: {note.audio_file_name || "Bản ghi âm"}
+                </p>
+                <audio controls src={note.audio_url} className="w-full" />
+              </div>
+            )}
+          </div>
+          {previewNoteId === note.id && (
+            <div
+              className="p-2 flex-1 overflow-y-auto"
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+              }}
+            >
+              <h4 className="font-semibold">{note.title}</h4>
+              <p>{note.content}</p>
+              <small>Category: {note.category}</small>
+              <div className="mt-2">
+                <p>Âm thanh: {note.audio_file_name || "Bản ghi âm"}</p>
+                <audio controls src={note.audio_url} className="w-full" />
+              </div>
+              {note.video_url && (
+                <div className="mt-2">
+                  <p>Video: {note.video_file_name || "Video đính kèm"}</p>
+                  <video
+                    controls
+                    src={note.video_url}
+                    className="w-full h-[150px] object-cover rounded-md"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <div>
+            <button
+              onClick={() => setViewDetailNoteId(note.id)}
+              className="mt-2 text-left"
+              style={{ color: "var(--accent-color)" }}
+            >
+              Xem chi tiết →
+            </button>
+            <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
+              <button
+                onClick={() => handleEdit(note)}
+                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Sửa
+              </button>
+              <button
+                onClick={() => handleDelete(note.id)}
+                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Xóa
+              </button>
+              <button
+                onClick={() => handleShare(note)}
+                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Chia sẻ
+              </button>
+              <button
+                onClick={() => handleDownload(note)}
+                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Tải xuống
+              </button>
+              <button
+                onClick={() => handleViewVersions(note)}
+                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                style={{
+                  background: "var(--accent-color)",
+                  color: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Lịch sử
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+
+      {/* Video Notes Section */}
+        <div>
+          <h3
+            className="text-lg font-semibold mb-2 text-left"
+            style={{ color: "var(--text-color)" }}
+          >
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {sortNotes(
+              filteredNotes.filter(
+                (note) => note.note_type === "voice" && note.video_url
+              )
+            ).map((note) => (
+              <div
+                key={`video-${note.id}`}
+                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
+                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
+                }`}
+                style={{
+                  background: pinnedNotes.has(note.id)
+                    ? "#E0E7FF"
+                    : "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onMouseEnter={() => setPreviewNoteId(note.id)}
+                onMouseLeave={() => setPreviewNoteId(null)}
+              >
+                <div className="relative">
+                  <h3
+                    className="font-semibold inline"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    🎙 {note.title}
+                  </h3>
+                  <button
+                    onClick={() => togglePin(note.id)}
+                    className={`absolute top-0 right-0 text-lg ${
+                      pinnedNotes.has(note.id)
+                        ? "text-[#A78BFA]"
+                        : "text-gray-400"
+                    } hover:text-[#A78BFA]`}
+                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                  >
+                    📌
+                  </button>
+                </div>
+                <div
+                  className={`flex-1 overflow-y-auto ${
+                    previewNoteId === note.id ? "hidden" : ""
+                  }`}
+                >
+                  <p
+                    className="line-clamp-2 min-h-[40px]"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    {note.content}
+                  </p>
+                  {previewNoteId !== note.id && (
+                    <div className="mt-2">
+                      <p style={{ color: "var(--text-color)" }}>
+                        Video: {note.video_file_name || "Video đính kèm"}
+                      </p>
+                      <video
+                        controls
+                        src={note.video_url}
+                        className="w-full h-[150px] object-cover rounded-md"
+                      />
+                    </div>
+                  )}
+                </div>
+                {previewNoteId === note.id && (
+                  <div
+                    className="p-2 flex-1 overflow-y-auto"
+                    style={{
+                      background: "var(--background)",
+                      color: "var(--text-color)",
+                    }}
+                  >
+                    <h4 className="font-semibold">{note.title}</h4>
+                    <p>{note.content}</p>
+                    <small>Category: {note.category}</small>
+                    {note.audio_url && (
+                      <div className="mt-2">
+                        <p>Âm thanh: {note.audio_file_name || "Bản ghi âm"}</p>
+                        <audio controls src={note.audio_url} className="w-full" />
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <p>Video: {note.video_file_name || "Video đính kèm"}</p>
+                      <video
+                        controls
+                        src={note.video_url}
+                        className="w-full h-[150px] object-cover rounded-md"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <button
+                    onClick={() => setViewDetailNoteId(note.id)}
+                    className="mt-2 text-left"
+                    style={{ color: "var(--accent-color)" }}
+                  >
+                    Xem chi tiết →
+                  </button>
+                  <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
+                    <button
+                      onClick={() => handleEdit(note)}
+                      className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                      style={{
+                        background: "var(--accent-color)",
+                        color: "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      onClick={() => handleDelete(note.id)}
+                      className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                      style={{
+                        background: "var(--accent-color)",
+                        color: "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      Xóa
+                    </button>
+                    <button
+                      onClick={() => handleShare(note)}
+                      className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                      style={{
+                        background: "var(--accent-color)",
+                        color: "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      Chia sẻ
+                    </button>
+                    <button
+                      onClick={() => handleDownload(note)}
+                      className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                      style={{
+                        background: "var(--accent-color)",
+                        color: "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      Tải xuống
+                    </button>
+                    <button
+                      onClick={() => handleViewVersions(note)}
+                      className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                      style={{
+                        background: "var(--accent-color)",
+                        color: "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      Lịch sử
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       </div>
     );
   };
@@ -1398,6 +1959,8 @@ export default function ManageNotes() {
                     <option value="rich">Văn bản phong phú</option>
                     <option value="whiteboard">Danh sách công việc</option>
                     <option value="spreadsheet">Bảng tính</option>
+                    <option value="markdown">Markdown/Code</option>
+                    <option value="voice">Đính kèm (Voice)</option>
                   </select>
                   <select
                     value={advancedSearch.isPinned === null ? "" : advancedSearch.isPinned}
@@ -1553,10 +2116,9 @@ export default function ManageNotes() {
         {isTrashOpen && <TrashDisplay />}
       </div>
 
-      {/* Form chỉnh sửa với nền trong suốt */}
       {editingNote && (
-        <div 
-          className="fixed top-0 left-0 w-full h-full bg-transparent flex justify-center items-center z-50"
+        <div
+          className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
           onClick={() => setEditingNote(null)}
         >
           <div
@@ -1640,14 +2202,13 @@ export default function ManageNotes() {
         </div>
       )}
 
-      {/* Modal xác nhận xóa với nền trong suốt */}
-      {showDeleteConfirm && (
-        <div 
-          className="fixed top-0 left-0 w-full h-full bg-transparent flex justify-center items-center z-50"
-          onClick={cancelDelete}
+      {viewDetailNoteId && (
+        <div
+          className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
+          onClick={() => setViewDetailNoteId(null)}
         >
           <div
-            className="p-6 rounded-xl shadow-lg w-full max-w-sm animate-fadeIn"
+            className="p-6 rounded-xl shadow-lg w-full max-w-2xl animate-fadeIn"
             style={{
               background: "var(--background)",
               border: "2px solid var(--border-color)",
@@ -1655,13 +2216,40 @@ export default function ManageNotes() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold mb-4 text-center">
-              Xác nhận xóa
+            <ChiTiet
+              note={notes.find((n) => n.id === viewDetailNoteId)}
+              onClose={() => setViewDetailNoteId(null)}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onShare={handleShare}
+              onDownload={handleDownload}
+              onViewVersions={handleViewVersions}
+            />
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div
+          className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
+          onClick={cancelDelete}
+        >
+          <div
+            className="p-6 rounded-xl shadow-lg w-full max-w-md animate-fadeIn"
+            style={{
+              background: "var(--background)",
+              border: "2px solid var(--border-color)",
+              color: "var(--text-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold mb-4 text-center">
+              Xác nhận Xóa
             </h2>
-            <p className="mb-4 text-center">
+            <p className="mb-4">
               Bạn có chắc muốn chuyển ghi chú này vào thùng rác?
             </p>
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={cancelDelete}
                 className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
@@ -1674,146 +2262,110 @@ export default function ManageNotes() {
                 Hủy
               </button>
               <button
-                onClick={confirmDelete}
-                className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Xác nhận
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal xem lịch sử phiên bản với nền trong suốt */}
-      {viewVersionNote && (
-        <div 
-          className="fixed top-0 left-0 w-full h-full bg-transparent flex justify-center items-center z-50"
-          onClick={() => setViewVersionNote(null)}
-        >
-          <div
-            className="p-6 rounded-xl shadow-lg w-full max-w-lg animate-fadeIn"
-            style={{
-              background: "var(--background)",
-              border: "2px solid var(--border-color)",
-              color: "var(--text-color)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold mb-4 text-center">
-              Lịch sử phiên bản - {viewVersionNote.title}
-            </h2>
-            <div className="max-h-96 overflow-y-auto">
-              {viewVersionNote.versions.map((version, index) => (
-                <div
-                  key={index}
-                  className={`p-4 mb-2 rounded-lg cursor-pointer transition-all duration-300 hover:shadow-md ${
-                    viewVersionNote.selectedVersion === index ? "bg-[#E0E7FF]" : ""
-                  }`}
-                  style={{
-                    background: viewVersionNote.selectedVersion === index ? "#E0E7FF" : "var(--background)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                  onClick={() => setViewVersionNote({ ...viewVersionNote, selectedVersion: index })}
-                >
-                  <p><strong>Tiêu đề:</strong> {version.title}</p>
-                  <p><strong>Nội dung:</strong> {version.content}</p>
-                  <p><strong>Cập nhật lúc:</strong> {new Date(version.timestamp).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setViewVersionNote(null)}
-                className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                style={{
-                  background: "#EF4444",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Đóng
-              </button>
-              <button
-                onClick={handleRestoreVersion}
-                className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Khôi phục
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal xem chi tiết ghi chú */}
-      {viewDetailNoteId && (
-        <div 
-          className="fixed top-0 left-0 w-full h-full bg-transparent flex justify-center items-center z-50"
-          onClick={() => setViewDetailNoteId(null)}
-        >
-          <div
-            className="p-6 rounded-xl shadow-lg w-full max-w-2xl animate-fadeIn"
-            style={{
-              background: "var(--background)",
-              border: "2px solid var(--border-color)",
-              color: "var(--text-color)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChiTiet note={notes.find((note) => note.id === viewDetailNoteId)} />
-            <div className="flex justify-end mt-4">
-              <button
-                onClick={() => setViewDetailNoteId(null)}
-                className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                style={{
-                  background: "#EF4444",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Thông báo tùy chỉnh */}
-      {notification && (
-        <div 
-          className="fixed bottom-4 right-4 p-4 rounded-lg shadow-lg animate-fadeIn"
-          style={{
-            background: "var(--accent-color)",
-            color: "var(--background)",
-            border: "1px solid var(--border-color)",
-          }}
-        >
-          <p>{notification}</p>
-          <button
-            onClick={() => setNotification(null)}
-            className="mt-2 px-4 py-1 rounded-lg transition-all duration-300 hover:shadow-md"
-            style={{
-              background: "var(--background)",
-              color: "var(--text-color)",
-              border: "1px solid var(--border-color)",
-            }}
-          >
-            OK
-          </button>
-        </div>
-      )}
-
-      {/* Component ThemeSettings */}
-      <ThemeSettings />
-    </div>
-  );
-}
+                               onClick={confirmDelete}
+                               className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
+                               style={{
+                                 background: "var(--accent-color)",
+                                 color: "var(--background)",
+                                 border: "1px solid var(--border-color)",
+                               }}
+                             >
+                               Xóa
+                             </button>
+                           </div>
+                         </div>
+                       </div>
+                     )}
+               
+                     {viewVersionNote && (
+                       <div
+                         className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
+                         onClick={() => setViewVersionNote(null)}
+                       >
+                         <div
+                           className="p-6 rounded-xl shadow-lg w-full max-w-2xl animate-fadeIn"
+                           style={{
+                             background: "var(--background)",
+                             border: "2px solid var(--border-color)",
+                             color: "var(--text-color)",
+                           }}
+                           onClick={(e) => e.stopPropagation()}
+                         >
+                           <h2 className="text-2xl font-bold mb-4 text-center">
+                             Lịch sử Phiên bản
+                           </h2>
+                           <div className="max-h-[400px] overflow-y-auto">
+                             {viewVersionNote.versions.map((version, index) => (
+                               <div
+                                 key={index}
+                                 className={`p-4 mb-2 rounded-lg cursor-pointer ${
+                                   viewVersionNote.selectedVersion === index
+                                     ? "border-2 border-[var(--accent-color)]"
+                                     : ""
+                                 }`}
+                                 style={{
+                                   background: "var(--background)",
+                                   border: viewVersionNote.selectedVersion === index
+                                     ? "2px solid var(--accent-color)"
+                                     : "1px solid var(--border-color)",
+                                 }}
+                                 onClick={() =>
+                                   setViewVersionNote({
+                                     ...viewVersionNote,
+                                     selectedVersion: index,
+                                   })
+                                 }
+                               >
+                                 <h3 className="font-semibold">{version.title}</h3>
+                                 <p className="line-clamp-2">{version.content}</p>
+                                 <small>
+                                   Cập nhật: {new Date(version.timestamp).toLocaleString()}
+                                 </small>
+                               </div>
+                             ))}
+                           </div>
+                           <div className="flex justify-end gap-2 mt-4">
+                             <button
+                               onClick={() => setViewVersionNote(null)}
+                               className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
+                               style={{
+                                 background: "#EF4444",
+                                 color: "var(--background)",
+                                 border: "1px solid var(--border-color)",
+                               }}
+                             >
+                               Đóng
+                             </button>
+                             <button
+                               onClick={handleRestoreVersion}
+                               className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
+                               style={{
+                                 background: "var(--accent-color)",
+                                 color: "var(--background)",
+                                 border: "1px solid var(--border-color)",
+                               }}
+                               disabled={viewVersionNote.selectedVersion === null}
+                             >
+                               Khôi phục
+                             </button>
+                           </div>
+                         </div>
+                       </div>
+                     )}
+               
+                     {notification && (
+                       <div
+                         className="fixed bottom-4 right-4 p-4 rounded-lg shadow-lg animate-fadeIn"
+                         style={{
+                           background: "var(--accent-color)",
+                           color: "var(--background)",
+                           border: "1px solid var(--border-color)",
+                         }}
+                       >
+                         {notification}
+                       </div>
+                     )}
+                     <ThemeSettings />
+                   </div>
+                 );
+               }
