@@ -1049,7 +1049,7 @@ export default function PostPage() {
     }
 
     return (
-      <div className="bg-white/90 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+      <div className="bg-teal-50 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
         <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-400 rounded-lg">
           <h1 className="text-2xl font-bold text-white">Viết bài mới</h1>
           <div className="relative w-12 h-12">
@@ -1617,9 +1617,7 @@ export default function PostPage() {
 
   return (
     <div
-      className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 ${getThemeClasses(
-        theme
-      )}`}
+      className={`mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700 ${themes[theme]}`}
     >
       <h1
         className={`text-white text-2xl bg-gradient-to-r from-teal-400 to-indigo-400 border-2 border-blue-200 rounded-lg shadow-md font-bold text-center py-5 mb-3`}
@@ -1747,7 +1745,10 @@ export default function PostPage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className={`flex flex-col lg:flex-row gap-6 ${getThemeClasses(
+          theme,
+          "container"
+        )}`}>
             <div className="w-full lg:w-2/3 p-4">
               <div className="mb-4 flex border-b border-teal-200">
                 <button

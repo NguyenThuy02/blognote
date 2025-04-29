@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
@@ -13,6 +14,11 @@ import {
   VideoCameraOutlined,
 } from "@ant-design/icons";
 import { FaTimes } from "react-icons/fa";
+
+// Cấu hình Cloudinary
+const CLOUDINARY_CLOUD_NAME = "your_cloud_name"; // Thay bằng cloud_name của bạn
+const CLOUDINARY_UPLOAD_PRESET = "your_upload_preset"; // Thay bằng upload_preset của bạn
+const CLOUDINARY_API_BASE = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}`;
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -51,18 +57,6 @@ const getMediaType = (url) => {
   if (videoExt.includes(extension)) return "video";
   if (fileExt.includes(extension)) return "file";
   return "file";
-};
-
-// Hàm kiểm tra bucket tồn tại
-const checkBucketExists = async () => {
-  try {
-    const { data: buckets, error } = await supabase.storage.listBuckets();
-    if (error) throw error;
-    return buckets.some((b) => b.name === "posts");
-  } catch (err) {
-    console.error("Check bucket error:", err);
-    return false;
-  }
 };
 
 // Hàm hiển thị media
@@ -361,15 +355,6 @@ export default function ManageApp() {
       return;
     }
 
-    const bucketExists = await checkBucketExists();
-    if (!bucketExists) {
-      setNotification({
-        message: "Bucket 'posts' không tồn tại. Vui lòng liên hệ quản trị viên!",
-        type: "error",
-      });
-      return;
-    }
-
     const validTypes = ["image", "video", "file"];
     if (!validTypes.includes(type)) {
       console.error("Loại tệp không hợp lệ:", type);
@@ -416,6 +401,35 @@ export default function ManageApp() {
       setUploadingState(true);
       setUploadingCount((prev) => ({ ...prev, [type + "s"]: files.length }));
 
+      // Xóa các tệp cũ trên Cloudinary nếu có
+      const oldUrls = newArticle[mediaField];
+      if (oldUrls.length > 0) {
+        const oldPublicIds = oldUrls
+          .map((url) => {
+            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean);
+        for (const publicId of oldPublicIds) {
+          const resourceType = type === "image" ? "image" : type === "video" ? "video" : "raw";
+          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              public_id: publicId,
+              api_key: "your_api_key", // Thay bằng API key của bạn
+              signature: "your_signature", // Cần tạo signature nếu dùng signed request
+            }),
+          });
+          const result = await response.json();
+          if (result.result !== "ok") {
+            console.error("Lỗi khi xóa tệp cũ:", result);
+            throw new Error(`Không thể xóa tệp cũ: ${publicId}`);
+          }
+          console.log("Đã xóa tệp cũ:", publicId);
+        }
+      }
+
       const uploadPromises = Array.from(files).map(async (file) => {
         if (!(file instanceof File)) {
           throw new Error(`Tệp không hợp lệ: ${file.name || "Unknown"}`);
@@ -424,7 +438,7 @@ export default function ManageApp() {
         const fileExt = file.name.split(".").pop()?.toLowerCase();
         if (!fileExt || !validExts.includes(fileExt)) {
           throw new Error(
-            `Định dạng tệp không hợp lệ cho ${file.name}: ${fileExt}`
+            `Định dạng tệp không hợp lệ: ${fileExt}. Chỉ hỗ trợ ${validExts.join(", ")}.`
           );
         }
 
@@ -436,53 +450,34 @@ export default function ManageApp() {
           throw new Error(`Tệp ${file.name} rỗng`);
         }
 
-        const fileName = `${Date.now()}_${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
-        console.log("Đang tải lên tệp:", fileName);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-        const { data, error } = await supabase.storage
-          .from("posts")
-          .upload(fileName, file, {
-            cacheControl: "3600",
-            upsert: false,
-          });
+        const resourceType = type === "image" ? "image" : type === "video" ? "video" : "raw";
+        const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/upload`, {
+          method: "POST",
+          body: formData,
+        });
 
-        if (error) {
-          console.error("Lỗi tải lên Supabase:", {
-            message: error.message,
-            status: error.statusCode,
-            details: error,
-            file: fileName,
-          });
-          throw new Error(`Lỗi tải lên tệp ${file.name}: ${error.message}`);
+        const result = await response.json();
+        if (!result.secure_url) {
+          throw new Error(`Lỗi tải lên tệp ${file.name}: ${result.error?.message || "Unknown error"}`);
         }
 
-        const { data: publicData } = supabase.storage
-          .from("posts")
-          .getPublicUrl(fileName);
-
-        if (!publicData?.publicUrl) {
-          throw new Error(`Không lấy được URL công khai cho ${file.name}`);
-        }
-
-        console.log("Đã tải lên tệp:", fileName, "URL:", publicData.publicUrl);
-        return publicData.publicUrl;
+        console.log("Đã tải lên tệp:", file.name, "URL:", result.secure_url);
+        return result.secure_url;
       });
 
       const uploadedUrls = await Promise.all(uploadPromises);
 
       setNewArticle((prev) => {
-        const updatedMedia = [...prev[mediaField], ...uploadedUrls];
+        const updatedMedia = uploadedUrls; // Thay thế hoàn toàn danh sách cũ
         console.log(`Đã cập nhật ${mediaField}:`, updatedMedia);
         return { ...prev, [mediaField]: updatedMedia };
       });
 
-      updateMediaState((prev) => {
-        const updatedMedia = [...prev, ...uploadedUrls];
-        console.log(`Đã cập nhật trạng thái ${type}:`, updatedMedia);
-        return updatedMedia;
-      });
+      updateMediaState(uploadedUrls); // Thay thế trạng thái cũ
 
       setNotification({
         message: `Đã tải lên ${uploadedUrls.length} ${type} thành công!`,
@@ -494,7 +489,7 @@ export default function ManageApp() {
         stack: err.stack,
         details: err,
       });
-      const errorMessage = `Lỗi tải lên ${type}: ${err.message}`;
+      const errorMessage = `Lỗi tải lên ${type}: ${err.message}. Vui lòng kiểm tra định dạng tệp và kết nối mạng.`;
       setNotification({
         message: errorMessage,
         type: "error",
@@ -606,6 +601,39 @@ export default function ManageApp() {
       return;
     }
     try {
+      // Xóa các tệp liên quan trên Cloudinary
+      const article = articles.find((article) => article.id === deletingArticleId);
+      const allUrls = [
+        ...(article.images || []),
+        ...(article.videos || []),
+        ...(article.files || []),
+      ];
+      if (allUrls.length > 0) {
+        const publicIds = allUrls
+          .map((url) => {
+            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean);
+        for (const publicId of publicIds) {
+          const resourceType = getMediaType(allUrls.find((url) => url.includes(publicId))) === "image" ? "image" : "video" ? "video" : "raw";
+          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              public_id: publicId,
+              api_key: "your_api_key", // Thay bằng API key của bạn
+              signature: "your_signature", // Cần tạo signature nếu dùng signed request
+            }),
+          });
+          const result = await response.json();
+          if (result.result !== "ok") {
+            console.error("Lỗi khi xóa tệp:", result);
+            throw new Error(`Không thể xóa tệp: ${publicId}`);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from("posts")
         .delete()
@@ -673,6 +701,41 @@ export default function ManageApp() {
 
   const confirmBulkDelete = async () => {
     try {
+      // Xóa các tệp liên quan trên Cloudinary
+      const articlesToDelete = articles.filter((article) =>
+        selectedArticles.includes(article.id)
+      );
+      const allUrls = articlesToDelete.flatMap((article) => [
+        ...(article.images || []),
+        ...(article.videos || []),
+        ...(article.files || []),
+      ]);
+      if (allUrls.length > 0) {
+        const publicIds = allUrls
+          .map((url) => {
+            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean);
+        for (const publicId of publicIds) {
+          const resourceType = getMediaType(allUrls.find((url) => url.includes(publicId))) === "image" ? "image" : "video" ? "video" : "raw";
+          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              public_id: publicId,
+              api_key: "your_api_key", // Thay bằng API key của bạn
+              signature: "your_signature", // Cần tạo signature nếu dùng signed request
+            }),
+          });
+          const result = await response.json();
+          if (result.result !== "ok") {
+            console.error("Lỗi khi xóa tệp:", result);
+            throw new Error(`Không thể xóa tệp: ${publicId}`);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from("posts")
         .delete()
@@ -739,13 +802,18 @@ export default function ManageApp() {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
       if (!userData.name && !userData.email) {
-        throw new Error("User name or email is required");
+        throw new Error("Tên người dùng hoặc email là bắt buộc");
       }
+
+      // Chuyển đổi created_at sang định dạng timestamp
+      const createdAt = newArticle.created_at
+        ? new Date(newArticle.created_at).toISOString()
+        : new Date().toISOString();
 
       const articleData = {
         title: newArticle.title,
         content: newArticle.content,
-        created_at: newArticle.created_at,
+        created_at: createdAt,
         images: newArticle.images.join(",") || null,
         videos: newArticle.videos.join(",") || null,
         files: newArticle.files.join(",") || null,
@@ -763,6 +831,7 @@ export default function ManageApp() {
       const updatedArticle = {
         ...newArticle,
         content: newArticle.content.slice(0, 100) + "...",
+        created_at: createdAt.split("T")[0], // Giữ định dạng hiển thị
       };
       setArticles(
         articles.map((article) =>
@@ -784,7 +853,7 @@ export default function ManageApp() {
       });
       resetForm();
     } catch (err) {
-      console.error("Save changes error:", err);
+      console.error("Lỗi khi lưu thay đổi:", err);
       setNotification({
         message: `Không thể cập nhật bài viết: ${err.message}`,
         type: "error",
@@ -1631,7 +1700,7 @@ export default function ManageApp() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
-            className={`p-4 rounded-lg shadow-sm flex-1  bg-white`}
+            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
           >
             <h3 className="text-lg font-bold text-orange-700 wrap-text">
               Từ khóa phổ biến
@@ -1743,4 +1812,3 @@ export default function ManageApp() {
     </div>
   );
 }
-

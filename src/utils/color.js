@@ -105,7 +105,7 @@ export const getThemeClasses = (theme, type) => {
 };
 
 export default function ThemeSelector({ currentTheme, onThemeChange }) {
-  const [theme, setTheme] = useState(currentTheme || "light");
+  const [theme, setTheme] = useState("light");
   const [showSelector, setShowSelector] = useState(false);
   const selectorRef = useRef(null); // Tham chiếu
 
