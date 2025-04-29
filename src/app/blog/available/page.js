@@ -1127,7 +1127,7 @@ export default function CreatePost() {
     };
 
     return (
-      <div className="mt-8 p-6 rounded-lg shadow-lg bg-gradient-to-br from-teal-50 via-white to-teal-50 border border-teal-200">
+      <div className="mt-8 p-6 z-20 rounded-lg shadow-lg bg-gradient-to-br from-teal-50 via-white to-teal-50 border border-teal-200">
         <h2 className="text-xl font-bold text-teal-600 mb-4">
           Xem trước bài viết
         </h2>
@@ -1212,8 +1212,8 @@ export default function CreatePost() {
         </div>
       )}
 
-      <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg mb-5">
-        <h1 className="text-2xl font-bold text-white">Mẫu bài viết</h1>
+      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg mb-5">
+        <h1 className="text-2xl z-10 font-bold text-white">Mẫu bài viết</h1>
         <div className="relative w-12 h-12">
           <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
             <circle

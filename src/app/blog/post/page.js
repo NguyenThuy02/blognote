@@ -349,8 +349,8 @@ export default function PostPage() {
   const fetchEntries = async (userName) => {
     try {
       setLoading(true);
-
-      // Fetch from demos (giữ nguyên logic gốc)
+  
+      // Fetch từ bảng demos
       const { data: demosData, error: demosError } = await supabase
         .from("demos")
         .select(
@@ -359,16 +359,7 @@ export default function PostPage() {
         .eq("name", userName)
         .order("created_at", { ascending: false });
       if (demosError) throw demosError;
-
-      // Fetch from demopurpose where purpose = 'draft'
-      const { data: demoPurposeData, error: demoPurposeError } = await supabase
-        .from("demopurpose")
-        .select("id, topics, tags, story_description, images, name, created_at")
-        .eq("name", userName)
-        .eq("purpose", "draft")
-        .order("created_at", { ascending: false });
-      if (demoPurposeError) throw demoPurposeError;
-
+  
       const normalizeMedia = (media) => {
         if (!media) return [];
         if (typeof media === "string") {
@@ -376,8 +367,8 @@ export default function PostPage() {
         }
         return [];
       };
-
-      // Normalize demos data (giữ nguyên logic gốc)
+  
+      // Normalize dữ liệu từ demos
       const demosFormatted = demosData.map((entry) => ({
         id: entry.id,
         table: "demos",
@@ -385,12 +376,10 @@ export default function PostPage() {
         content: entry.content || "",
         topics: capitalizeFirstLetter(entry.topics || ""),
         tags: entry.tags
-          ? Array.isArray(entry.tags)
+          ? typeof entry.tags === "string"
+            ? entry.tags.split(",").map((tag) => capitalizeFirstLetter(tag.trim()))
+            : Array.isArray(entry.tags)
             ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
-            : typeof entry.tags === "string"
-            ? entry.tags
-                .split(",")
-                .map((tag) => capitalizeFirstLetter(tag.trim()))
             : []
           : [],
         images: normalizeMedia(entry.images),
@@ -399,37 +388,9 @@ export default function PostPage() {
         created_at: entry.created_at,
         name: entry.name,
       }));
-
-      // Normalize demopurpose data
-      const demoPurposeFormatted = demoPurposeData.map((entry) => ({
-        id: entry.id,
-        table: "demopurpose",
-        title: entry.story_description || "Không có tiêu đề",
-        content: entry.story_description || "",
-        topics: capitalizeFirstLetter(entry.topics || ""),
-        tags: entry.tags
-          ? typeof entry.tags === "string"
-            ? entry.tags
-                .split(",")
-                .map((tag) => capitalizeFirstLetter(tag.trim()))
-            : Array.isArray(entry.tags)
-            ? entry.tags.map((tag) => capitalizeFirstLetter(tag.trim()))
-            : []
-          : [],
-        images: normalizeMedia(entry.images),
-        files: [],
-        videos: [],
-        created_at: entry.created_at,
-        name: entry.name,
-      }));
-
-      // Combine and sort entries
-      const combinedEntries = [...demosFormatted, ...demoPurposeFormatted].sort(
-        (a, b) => new Date(b.created_at) - new Date(a.created_at)
-      );
-
-      setEntries(combinedEntries);
-      setFilteredEntries(combinedEntries);
+  
+      setEntries(demosFormatted);
+      setFilteredEntries(demosFormatted);
     } catch (err) {
       console.error("Lỗi trong fetchEntries:", err);
       setNotification({
@@ -494,53 +455,34 @@ export default function PostPage() {
       const finalTopic = capitalizeFirstLetter(
         topic === "Khác" ? customTopic : topic
       );
-      const table = editingTable || "demopurpose"; // Mặc định lưu vào demopurpose nếu không chỉnh sửa
-      const draftData =
-        table === "demos"
-          ? {
-              title: title || "Không có tiêu đề",
-              content: content || "",
-              topics: finalTopic,
-              tags: tags.join(","),
-              images:
-                uploadedImages.length > 0 ? uploadedImages.join(",") : null,
-              files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
-              videos:
-                uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
-              name,
-            }
-          : {
-              topics: finalTopic,
-              tags: tags.join(","),
-              story_description: content || title || "Không có nội dung",
-              images:
-                uploadedImages.length > 0 ? uploadedImages.join(",") : null,
-              purpose: "draft",
-              name,
-            };
+      const draftData = {
+        title: title || "Không có tiêu đề",
+        content: content || "",
+        topics: finalTopic,
+        tags: tags.join(","),
+        images: uploadedImages.length > 0 ? uploadedImages.join(",") : null,
+        files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
+        videos: uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
+        name,
+      };
 
       if (editingId !== null) {
         const { data, error } = await supabase
-          .from(table)
+          .from("demos")
           .update(draftData)
           .eq("id", editingId)
-          .eq(
-            table === "demos" ? "name" : "purpose",
-            table === "demos" ? name : "draft"
-          )
+          .eq("name", name)
           .select()
           .single();
         if (error) throw error;
         setEntries(
           entries.map((entry) =>
-            entry.id === editingId && entry.table === table
+            entry.id === editingId && entry.table === "demos"
               ? {
                   ...data,
-                  table,
-                  title:
-                    table === "demos" ? data.title : data.story_description,
-                  content:
-                    table === "demos" ? data.content : data.story_description,
+                  table: "demos",
+                  title: data.title,
+                  content: data.content,
                 }
               : entry
           )
@@ -551,18 +493,13 @@ export default function PostPage() {
         });
       } else {
         const { data, error } = await supabase
-          .from(table)
+          .from("demos")
           .insert([draftData])
           .select()
           .single();
         if (error) throw error;
         setEntries([
-          {
-            ...data,
-            table,
-            title: table === "demos" ? data.title : data.story_description,
-            content: table === "demos" ? data.content : data.story_description,
-          },
+          { ...data, table: "demos", title: data.title, content: data.content },
           ...entries,
         ]);
         setNotification({
@@ -596,13 +533,14 @@ export default function PostPage() {
         title,
         content,
         topics: finalTopic,
-        tags,
+        tags: tags.join(","), // Lưu tags dưới dạng chuỗi
         images: uploadedImages.length > 0 ? uploadedImages.join(",") : null,
         files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
         videos: uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
         name,
       };
 
+      // Lưu vào bảng posts
       const { data, error } = await supabase
         .from("posts")
         .insert([publishedData])
@@ -611,7 +549,8 @@ export default function PostPage() {
 
       if (error) throw error;
 
-      if (editingId !== null) {
+      // Nếu đang chỉnh sửa bản nháp, xóa bản nháp từ bảng tương ứng
+      if (editingId !== null && editingTable) {
         await supabase
           .from(editingTable)
           .delete()
@@ -627,7 +566,7 @@ export default function PostPage() {
         type: "success",
       });
       resetForm();
-      await fetchEntries(name);
+      await fetchEntries(name); // Cập nhật lại danh sách bản nháp
       await fetchTopics();
       await fetchTags();
       router.push("/blog/post");
@@ -787,11 +726,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, images: prev.images - 1 }));
       }
 
-      const { error } = await supabase.from("demopurpose").upsert({
+      // Lưu vào bảng demos
+      const { error } = await supabase.from("demos").upsert({
         name,
-        story_description: title || "Không có tiêu đề",
+        title: title || "Không có tiêu đề",
         images: uploadedUrls.join(","),
-        purpose: "draft",
       });
       if (error) throw error;
 
@@ -875,11 +814,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, files: prev.files - 1 }));
       }
 
-      const { error } = await supabase.from("demopurpose").upsert({
+      // Lưu vào bảng demos
+      const { error } = await supabase.from("demos").upsert({
         name,
-        story_description: title || "Không có tiêu đề",
+        title: title || "Không có tiêu đề",
         files: uploadedFileUrls.join(","),
-        purpose: "draft",
       });
       if (error) throw error;
     } catch (err) {
@@ -958,11 +897,11 @@ export default function PostPage() {
         setUploadingCount((prev) => ({ ...prev, videos: prev.videos - 1 }));
       }
 
-      const { error } = await supabase.from("demopurpose").upsert({
+      // Lưu vào bảng demos
+      const { error } = await supabase.from("demos").upsert({
         name,
-        story_description: title || "Không có tiêu đề",
+        title: title || "Không có tiêu đề",
         videos: uploadedVideoUrls.join(","),
-        purpose: "draft",
       });
       if (error) throw error;
     } catch (err) {
@@ -1049,8 +988,8 @@ export default function PostPage() {
     }
 
     return (
-      <div className="bg-teal-50 backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-        <div className="sticky top-0 z-30 flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-400 rounded-lg">
+      <div className="backdrop-blur-lg rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-400 rounded-lg">
           <h1 className="text-2xl font-bold text-white">Viết bài mới</h1>
           <div className="relative w-12 h-12">
             <svg
@@ -1308,9 +1247,7 @@ export default function PostPage() {
 
           {/* Tải lên phương tiện */}
           <div className="mb-8 text-sm">
-            <h3 className="font-bold text-teal-600 mb-4">
-              Tệp đa phương tiện
-            </h3>
+            <h3 className="font-bold text-teal-600 mb-4">Tệp đa phương tiện</h3>
             <div className="flex flex-wrap gap-4">
               <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
                 <FileOutlined className="mr-2" /> Ảnh
@@ -1745,10 +1682,12 @@ export default function PostPage() {
             </div>
           </div>
         ) : (
-          <div className={`flex flex-col lg:flex-row gap-6 ${getThemeClasses(
-          theme,
-          "container"
-        )}`}>
+          <div
+            className={`flex flex-col lg:flex-row gap-6 ${getThemeClasses(
+              theme,
+              "container"
+            )}`}
+          >
             <div className="w-full lg:w-2/3 p-4">
               <div className="mb-4 flex border-b border-teal-200">
                 <button
