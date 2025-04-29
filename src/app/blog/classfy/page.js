@@ -2,59 +2,187 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
+import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
+import ScrollToTop from "../../../utils/scroll";
+import { Carousel } from "react-responsive-carousel";
+import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 export default function ClassfyApp() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
+  const [sortOption, setSortOption] = useState(""); // none, a-z, z-a, newest, oldest
+  const [mediaFilter, setMediaFilter] = useState(""); // none, images, videos, files
+  const [viewMode, setViewMode] = useState("grid"); // grid, list
   const [articles, setArticles] = useState([]);
   const [topics, setTopics] = useState([]);
   const [tags, setTags] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [itemsPerPage] = useState(9);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [theme, setTheme] = useState("light");
+  const [searchQuery, setSearchQuery] = useState("");
   const detailRef = useRef(null);
 
+  // Tải chủ đề từ localStorage
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("theme") || "light";
+      setTheme(savedTheme);
+    } catch (err) {
+      setErrorMessage("Không thể tải giao diện: " + err.message);
+    }
+  }, []);
+
+  // Lưu chủ đề vào localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("theme", theme);
+    } catch (err) {
+      setErrorMessage("Không thể lưu giao diện: " + err.message);
+    }
+  }, [theme]);
+
+  // Hàm rút gọn văn bản
+  const truncateText = (text, maxLength) => {
+    if (!text) return "Không có nội dung";
+    return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
+  };
+
+  // Hàm chuyển đổi chuỗi/JSON thành mảng
+  const parseArray = (data) => {
+    if (Array.isArray(data))
+      return data.filter((item) => item && typeof item === "string");
+    if (typeof data === "string") {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed))
+          return parsed.filter((item) => item && typeof item === "string");
+      } catch (e) {
+        return data
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item);
+      }
+    }
+    return [];
+  };
+
+  // Hàm kiểm tra URL hợp lệ
+  const isValidUrl = (url) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Tải bài viết từ Supabase
   useEffect(() => {
     const fetchArticles = async () => {
-      const { data, error } = await supabase.from("posts").select("*");
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select(
+            "id, title, content, topics, tags, name, images, videos, files, created_at"
+          );
 
-      if (error) {
-        console.error("Error fetching articles:", error);
-      } else {
-        setArticles(data);
-        const uniqueTopics = [
-          ...new Set(data.flatMap((article) => article.topics || [])),
-        ];
-        const allTags = data.flatMap((article) => {
-          if (typeof article.tags === "string") {
-            return article.tags.split(",").map((tag) => tag.trim());
+        if (error) throw error;
+
+        const processedData = data.map((article) => {
+          const images = parseArray(article.images).filter(isValidUrl);
+          const videos = parseArray(article.videos).filter(isValidUrl);
+          const files = parseArray(article.files).filter(isValidUrl);
+
+          if (
+            article.images &&
+            images.length === 0 &&
+            article.images.length > 0
+          ) {
+            console.warn(
+              `URL hình ảnh không hợp lệ trong bài viết ${article.id}:`,
+              article.images
+            );
           }
-          return article.tags || [];
-        });
-        const uniqueTags = [...new Set(allTags)];
 
-        setTopics(uniqueTopics);
-        setTags(uniqueTags);
+          return {
+            ...article,
+            topics: parseArray(article.topics),
+            tags: parseArray(article.tags),
+            images,
+            videos,
+            files,
+            created_at: article.created_at
+              ? new Date(article.created_at)
+              : new Date(),
+          };
+        });
+
+        setArticles(processedData);
+        setTopics([
+          ...new Set(processedData.flatMap((article) => article.topics)),
+        ]);
+        setTags([...new Set(processedData.flatMap((article) => article.tags))]);
+      } catch (error) {
+        console.error("Lỗi khi tải bài viết:", error.message);
+        setErrorMessage("Không thể tải bài viết. Vui lòng thử lại sau.");
       }
     };
 
     fetchArticles();
   }, []);
 
-  const filteredArticles = articles.filter((article) => {
-    const articleTopics = Array.isArray(article.topics) ? article.topics : [];
-    const articleTags = Array.isArray(article.tags)
-      ? article.tags
-      : typeof article.tags === "string"
-      ? article.tags.split(",").map((tag) => tag.trim())
-      : [];
+  // Lọc và sắp xếp bài viết
+  const filteredArticles = articles
+    .filter((article) => {
+      const matchesCategory = selectedCategory
+        ? article.topics.includes(selectedCategory)
+        : true;
+      const matchesTag = selectedTag
+        ? article.tags.includes(selectedTag)
+        : true;
+      const matchesSearch = searchQuery
+        ? article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          article.content.toLowerCase().includes(searchQuery.toLowerCase())
+        : true;
+      const matchesMedia = mediaFilter
+        ? (mediaFilter === "images" && article.images.length > 0) ||
+          (mediaFilter === "videos" && article.videos.length > 0) ||
+          (mediaFilter === "files" && article.files.length > 0)
+        : true;
+      return matchesCategory && matchesTag && matchesSearch && matchesMedia;
+    })
+    .sort((a, b) => {
+      if (sortOption === "newest") return b.created_at - a.created_at;
+      else if (sortOption === "oldest") return a.created_at - b.created_at;
+      else if (sortOption === "a-z") return a.title.localeCompare(b.title);
+      else if (sortOption === "z-a") return b.title.localeCompare(b.title);
+      return 0;
+    });
 
-    const matchesCategory = selectedCategory
-      ? articleTopics.includes(selectedCategory)
-      : true;
-    const matchesTag = selectedTag ? articleTags.includes(selectedTag) : true;
-    return matchesCategory && matchesTag;
-  });
+  // Bài viết nổi bật cho carousel
+  const featuredArticles = articles
+    .filter(
+      (article) =>
+        article.images.length + article.videos.length + article.files.length >=
+        2
+    )
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, 5);
+
+  // Gợi ý bài viết liên quan
+  const getRelatedArticles = (article) => {
+    if (!article) return [];
+    return articles
+      .filter(
+        (a) =>
+          a.id !== article.id &&
+          (a.topics.some((t) => article.topics.includes(t)) ||
+            a.tags.some((t) => article.tags.includes(t)))
+      )
+      .slice(0, 3);
+  };
 
   const totalPages = Math.ceil(filteredArticles.length / itemsPerPage);
   const paginatedArticles = filteredArticles.slice(
@@ -62,12 +190,12 @@ export default function ClassfyApp() {
     currentPage * itemsPerPage
   );
 
+  // Xử lý phân trang
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
+    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
   };
 
+  // Xử lý chọn bài viết
   const handleArticleClick = (article) => {
     setSelectedArticle(article);
     setTimeout(() => {
@@ -75,27 +203,160 @@ export default function ClassfyApp() {
     }, 100);
   };
 
+  // Đóng chi tiết bài viết
   const closeDetailForm = () => {
     setSelectedArticle(null);
   };
 
-  return (
-    <div className="text-gray-700 mt-[97px] flex flex-col">
-      {/* Background cho danh sách bài viết, co dãn theo nội dung */}
-      <div className="p-5 rounded-lg shadow-md border border-gray-200 bg-gray-100">
-        <h1 className="text-2xl font-bold mb-5 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-          Phân loại bài viết
-        </h1>
+  // Lấy tên tệp từ URL
+  const getFileName = (url) => {
+    if (!url) return "Tệp không xác định";
+    const fileName = url.split("/").pop();
+    return fileName ? decodeURIComponent(fileName) : "Tệp không xác định";
+  };
 
-        <div className="flex items-center mb-6">
-          <div className="mr-12">
-            <label className="mr-2 text-xl font-semibold text-gray-700">
+  return (
+    <div
+      className={`mt-[97px] p-5 mb-[-7px] max-w-7xl mx-auto rounded-lg shadow-md border border-blue-200 relative ${themes[theme]} animate-fade-in`}
+    >
+      <div
+        className={`p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
+          theme,
+          "container"
+        )}`}
+      >
+        {/* Tiêu đề với hiệu ứng parallax */}
+        <div className="relative h-32 mb-6 overflow-hidden rounded-xl parallax-header">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 transform translate-y-0 transition-transform duration-1000 ease-out"></div>
+          <h1
+            className={`relative text-3xl font-bold text-white text-center pt-10 z-10 wrap-text ${getThemeClasses(
+              theme,
+              "title"
+            )}`}
+          >
+            Khám phá bài viết
+          </h1>
+        </div>
+
+        {/* Carousel bài viết nổi bật */}
+        {featuredArticles.length > 0 && (
+          <div className="mb-8">
+            <h2
+              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
+              Bài viết nổi bật
+            </h2>
+            <Carousel
+              showThumbs={false}
+              autoPlay
+              infiniteLoop
+              interval={5000}
+              showStatus={false}
+              className="rounded-lg shadow-md"
+            >
+              {featuredArticles.map((article) => (
+                <div
+                  key={article.id}
+                  className="relative h-64 cursor-pointer"
+                  onClick={() => handleArticleClick(article)}
+                >
+                  {article.images.length > 0 ? (
+                    <Image
+                      src={article.images[0]}
+                      alt={`Hình ảnh nổi bật cho ${article.title}`}
+                      layout="fill"
+                      className="object-cover rounded-lg"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-full bg-gray-200 flex items-center justify-center rounded-lg">
+                      <p className="text-gray-500 wrap-text">
+                        Không có hình ảnh
+                      </p>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-opacity-50 p-4 rounded-b-lg">
+                    <h3 className="text-purple-700 font-bold wrap-text">
+                      {truncateText(article.title, 50)}
+                    </h3>
+                    <p className="text-purple-600 text-sm wrap-text">
+                      {truncateText(article.content, 80)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </Carousel>
+          </div>
+        )}
+
+        {/* Thanh công cụ lọc */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between p-4 rounded-lg bg-gradient-to-r from-blue-100 to-purple-100 shadow-sm">
+          <input
+            type="text"
+            placeholder="Tìm kiếm bài viết..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={`border-2 border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
+              theme,
+              "input"
+            )}`}
+          />
+          <div className="flex gap-4 items-center">
+            <button
+              onClick={() => {
+                setSelectedCategory("");
+                setSelectedTag("");
+                setSortOption("");
+                setMediaFilter("");
+                setSearchQuery("");
+                setCurrentPage(1);
+              }}
+              className={`bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded-lg transition duration-200 hover:from-blue-500 hover:to-purple-500 text-white shadow-sm ${getThemeClasses(
+                theme,
+                "button"
+              )}`}
+            >
+              Xóa bộ lọc
+            </button>
+            <button
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+              className={`bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded-lg transition duration-200 hover:from-blue-500 hover:to-purple-500 text-white shadow-sm ${getThemeClasses(
+                theme,
+                "button"
+              )}`}
+            >
+              {viewMode === "grid" ? "Xem dạng danh sách" : "Xem dạng lưới"}
+            </button>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="bg-red-100 text-red-700 p-4 rounded-lg mx-8 mb-4 wrap-text">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Bộ lọc chi tiết */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <label
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
               Chọn chủ đề:
             </label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="text-gray-700 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-blue-400 focus:ring focus:ring-blue-300 transition duration-200 bg-white"
+              className={`w-full border-2 border-purple-400 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
             >
               <option value="">Tất cả</option>
               {topics.map((topic) => (
@@ -106,14 +367,22 @@ export default function ClassfyApp() {
             </select>
           </div>
 
-          <div>
-            <label className="mr-2 text-xl font-semibold text-gray-700">
+          <div className="flex-1 min-w-0">
+            <label
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
               Chọn tag:
             </label>
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="text-gray-700 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:border-blue-400 focus:ring focus:ring-blue-300 transition duration-200 bg-white"
+              className={`w-full border-2 border-purple-400 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
             >
               <option value="">Tất cả</option>
               {tags.map((tag) => (
@@ -123,240 +392,634 @@ export default function ClassfyApp() {
               ))}
             </select>
           </div>
+
+          <div className="flex-1 min-w-0">
+            <label
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
+              Lọc theo media:
+            </label>
+            <select
+              value={mediaFilter}
+              onChange={(e) => setMediaFilter(e.target.value)}
+              className={`w-full border-2 border-purple-400 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            >
+              <option value="">Tất cả</option>
+              <option value="images">Có hình ảnh</option>
+              <option value="videos">Có video</option>
+              <option value="files">Có tệp tin</option>
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <label
+              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
+              Sắp xếp theo:
+            </label>
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              className={`w-full border-2 border-purple-400 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
+                theme,
+                "select"
+              )}`}
+            >
+              <option value="none">Không sắp xếp</option>
+              <option value="a-z">A-Z</option>
+              <option value="z-a">Z-A</option>
+              <option value="newest">Mới nhất trước</option>
+              <option value="oldest">Cũ nhất trước</option>
+            </select>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-16 mx-8">
+        {/* Danh sách bài viết */}
+        <div
+          className={`mx-4 sm:mx-8 ${
+            viewMode === "grid"
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              : "flex flex-col gap-4"
+          }`}
+        >
+          {paginatedArticles.length === 0 && (
+            <p className="col-span-full text-center text-gray-500 wrap-text">
+              Không tìm thấy bài viết nào.
+            </p>
+          )}
           {paginatedArticles.map((article) => (
             <div
               key={article.id}
               onClick={() => handleArticleClick(article)}
-              className="bg-white p-4 text-gray-700 rounded-lg shadow transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col cursor-pointer relative"
+              className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white ${
+                viewMode === "list"
+                  ? "flex items-center gap-4"
+                  : "flex flex-col"
+              } ${getThemeClasses(theme, "preview")}`}
             >
-              {/* Chủ đề ở góc trên bên phải */}
-              {article.topics &&
-                Array.isArray(article.topics) &&
-                article.topics.length > 0 && (
-                  <div className="absolute top-4 right-4 text-blue-500">
-                    {article.topics.map((topic) => (
-                      <span
-                        key={topic}
-                        className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-1 mb-1"
+              {/* Media (hiển thị bên trái trong chế độ danh sách) */}
+              {viewMode === "list" && (
+                <div className="relative w-[150px] h-[100px] mx-auto flex-shrink-0">
+                  {article.images.length > 0 ? (
+                    <Image
+                      src={article.images[0]}
+                      alt={`Hình ảnh xem trước cho ${article.title}`}
+                      width={150}
+                      height={100}
+                      className="w-full h-full rounded-md object-cover"
+                      loading="lazy"
+                      onError={() =>
+                        console.warn(
+                          `Không thể tải hình ảnh: ${article.images[0]}`
+                        )
+                      }
+                    />
+                  ) : article.videos.length > 0 ? (
+                    <video
+                      className="w-full h-full rounded-md object-cover"
+                      controls
+                      loading="lazy"
+                      onError={() =>
+                        console.warn(
+                          `Không thể tải video: ${article.videos[0]}`
+                        )
+                      }
+                    >
+                      <source src={article.videos[0]} type="video/mp4" />
+                      Trình duyệt của bạn không hỗ trợ video.
+                    </video>
+                  ) : article.files.length > 0 ? (
+                    <div className="relative w-[150px] h-[100px] mx-auto flex items-center justify-center rounded-md bg-gray-100">
+                      <a
+                        href={article.files[0]}
+                        className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              {!article.topics && (
-                <div className="absolute top-4 right-4 text-blue-500">
-                  Không có chủ đề
+                        {getFileName(article.files[0])}
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md mx-auto">
+                      <p className="text-gray-500 text-xs wrap-text">
+                        Không có media
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <h3 className="text-lg font-semibold text-gray-800 pr-20">
-                {article.title}
-              </h3>
-              <div className="mt-3 flex items-baseline">
-                <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
-                <p>{article.content || "Không có mô tả"}</p>
-              </div>
-
-              {/* Tags ở giữa */}
-              <div className="mt-3 flex flex-wrap">
-                {article.tags &&
-                (Array.isArray(article.tags) ||
-                  typeof article.tags === "string") ? (
-                  (Array.isArray(article.tags)
-                    ? article.tags
-                    : article.tags.split(",").map((tag) => tag.trim())
-                  ).map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-2 mb-1"
-                    >
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <p>Không có tags</p>
-                )}
-              </div>
-
-              {/* Tác giả ở góc dưới bên phải */}
-              <p className="absolute bottom-4 right-4 text-blue-500 font-semibold">
-                {article.author || "Không rõ tác giả"}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 mr-2"
-          >
-            Trước
-          </button>
-          <span className="px-4 py-2 text-lg">{`${currentPage} of ${totalPages}`}</span>
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded transition duration-200 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 ml-2"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
-
-      {/* Background riêng cho chi tiết bài viết với hiệu ứng, co dãn theo nội dung */}
-      {selectedArticle && (
-        <div
-          ref={detailRef}
-          className="p-5 bg-gray-50 border-t border-gray-200 slide-up relative"
-        >
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 relative">
-            {/* Chủ đề ở góc trên bên phải */}
-            {selectedArticle.topics &&
-              Array.isArray(selectedArticle.topics) &&
-              selectedArticle.topics.length > 0 && (
-                <div className="absolute top-6 right-6 text-blue-500">
-                  {selectedArticle.topics.map((topic) => (
+              {/* Nội dung bài viết */}
+              <div className={viewMode === "list" ? "flex-1" : ""}>
+                {/* Chủ đề */}
+                <div className="absolute top-4 right-4 flex gap-2">
+                  {article.topics.map((topic) => (
                     <span
                       key={topic}
-                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-1 mb-1"
+                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
                     >
                       {topic}
                     </span>
                   ))}
                 </div>
-              )}
 
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800 pr-20">
-                Chi tiết bài viết
-              </h2>
-              <button
-                onClick={closeDetailForm}
-                className="text-gray-500 hover:text-red-500 transition duration-200"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
+                <h3
+                  className={`text-lg font-bold text-gray-800 ${
+                    viewMode === "grid" ? "pr-20" : ""
+                  } wrap-text`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <strong className="text-gray-700">Tiêu đề:</strong>
-                <p className="mt-1">{selectedArticle.title}</p>
-              </div>
-              <div>
-                <strong className="text-gray-700">Mô tả:</strong>
-                <p className="mt-1">
-                  {selectedArticle.content || "Không có mô tả"}
-                </p>
-              </div>
+                  {truncateText(article.title, viewMode === "grid" ? 50 : 100)}
+                </h3>
+                <div className="mt-3 flex items-baseline">
+                  <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
+                  <p className="wrap-text line-clamp-2">
+                    {truncateText(
+                      article.content,
+                      viewMode === "grid" ? 100 : 150
+                    )}
+                  </p>
+                </div>
 
-              {/* Tags ở giữa */}
-              <div className="mt-3 flex flex-wrap">
-                {selectedArticle.tags &&
-                (Array.isArray(selectedArticle.tags) ||
-                  typeof selectedArticle.tags === "string") ? (
-                  (Array.isArray(selectedArticle.tags)
-                    ? selectedArticle.tags
-                    : selectedArticle.tags.split(",").map((tag) => tag.trim())
-                  ).map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm mr-2 mb-1"
-                    >
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <p>Không có tags</p>
-                )}
-              </div>
-
-              {/* Hiển thị hình ảnh */}
-              {selectedArticle.images &&
-                Array.isArray(selectedArticle.images) &&
-                selectedArticle.images.length > 0 && (
-                  <div>
-                    <strong className="text-gray-700">Hình ảnh:</strong>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedArticle.images.map((image, index) => (
-                        <Image
-                          key={index}
-                          src={image}
-                          alt={`image-${index}`}
-                          width={150}
-                          height={100}
-                          className="rounded-md"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {/* Hiển thị video */}
-              {selectedArticle.videos &&
-                Array.isArray(selectedArticle.videos) &&
-                selectedArticle.videos.length > 0 && (
-                  <div>
-                    <strong className="text-gray-700">Video:</strong>
-                    <div className="mt-2">
-                      {selectedArticle.videos.map((video, index) => (
-                        <video key={index} controls className="w-full mt-2">
-                          <source src={video} type="video/mp4" />
-                          Không được hỗ trợ!
+                {/* Media (trong chế độ lưới) */}
+                {viewMode === "grid" && (
+                  <div className="mt-3">
+                    {article.images.length > 0 ? (
+                      <div className="relative w-[150px] h-[100px] mx-auto">
+                        <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
+                          <Image
+                            src={article.images[0]}
+                            alt={`Hình ảnh xem trước cho ${article.title}`}
+                            width={150}
+                            height={100}
+                            className="rounded-md object-cover"
+                            loading="lazy"
+                            onError={() =>
+                              console.warn(
+                                `Không thể tải hình ảnh: ${article.images[0]}`
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    ) : article.videos.length > 0 ? (
+                      <div className="relative w-[150px] h-[100px] mx-auto">
+                        <video
+                          className="w-full h-full rounded-md object-cover"
+                          controls
+                          loading="lazy"
+                          onError={() =>
+                            console.warn(
+                              `Không thể tải video: ${article.videos[0]}`
+                            )
+                          }
+                        >
+                          <source src={article.videos[0]} type="video/mp4" />
+                          Trình duyệt của bạn không hỗ trợ video.
                         </video>
+                      </div>
+                    ) : article.files.length > 0 ? (
+                      <div className="relative w-[150px] h-[100px] mx-auto flex items-center justify-center rounded-md">
+                        <a
+                          href={article.files[0]}
+                          className="text-blue-500 hover:underline text-xs text-center px-2 wrap-text"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {getFileName(article.files[0])}
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Tags và tác giả */}
+                <div className="mt-3 flex justify-between items-center">
+                  <div className="flex flex-wrap gap-2">
+                    {article.tags.length > 0 ? (
+                      article.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
+                        >
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm wrap-text">
+                        Không có tags
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-blue-500 font-bold wrap-text">
+                    {article.name || "Chưa có tác giả"}
+                  </p>
+                </div>
+
+                {/* Badges media */}
+                {(article.images.length > 1 ||
+                  article.videos.length > 1 ||
+                  article.files.length > 1) && (
+                  <div className="mt-2 flex gap-2">
+                    {article.images.length > 1 && (
+                      <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                        +{article.images.length - 1} hình ảnh
+                      </span>
+                    )}
+                    {article.videos.length > 1 && (
+                      <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                        +{article.videos.length - 1} video
+                      </span>
+                    )}
+                    {article.files.length > 1 && (
+                      <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                        +{article.files.length - 1} tệp
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Phân trang */}
+        {totalPages > 1 && (
+          <div className="mt-6 flex justify-center items-center gap-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded-lg transition duration-200 hover:from-blue-500 hover:to-purple-500 text-white disabled:opacity-50 ${getThemeClasses(
+                theme,
+                "button"
+              )}`}
+            >
+              Trước
+            </button>
+            <span className="px-4 py-2 text-lg wrap-text">{`${currentPage} / ${totalPages}`}</span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`bg-gradient-to-r from-blue-400 to-purple-400 px-4 py-2 rounded-lg transition duration-200 hover:from-blue-500 hover:to-purple-500 text-white disabled:opacity-50 ${getThemeClasses(
+                theme,
+                "button"
+              )}`}
+            >
+              Sau
+            </button>
+          </div>
+        )}
+
+        {/* Gợi ý bài viết liên quan */}
+        {selectedArticle && getRelatedArticles(selectedArticle).length > 0 && (
+          <div className="mt-8">
+            <h2
+              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 wrap-text ${getThemeClasses(
+                theme,
+                "subtitle"
+              )}`}
+            >
+              Bài viết liên quan
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mx-4 sm:mx-8">
+              {getRelatedArticles(selectedArticle).map((article) => (
+                <div
+                  key={article.id}
+                  onClick={() => handleArticleClick(article)}
+                  className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col cursor-pointer relative bg-white ${getThemeClasses(
+                    theme,
+                    "preview"
+                  )}`}
+                >
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    {article.topics.map((topic) => (
+                      <span
+                        key={topic}
+                        className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 pr-20 wrap-text">
+                    {truncateText(article.title, 50)}
+                  </h3>
+                  <div className="mt-3 flex items-baseline">
+                    <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
+                    <p className="wrap-text line-clamp-2">
+                      {truncateText(article.content, 100)}
+                    </p>
+                  </div>
+                  <div className="mt-3">
+  {article.images.length > 0 && (
+    <div className="relative w-[150px] h-[100px] mx-auto">
+      <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
+        <Image
+          src={article.images[0]}
+          alt={`Hình ảnh xem trước cho ${article.title}`}
+          width={150}
+          height={100}
+          className="rounded-md object-cover"
+          loading="lazy"
+          onError={() =>
+            console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)
+          }
+        />
+      </div>
+    </div>
+  )}
+</div>
+
+                  <div className="mt-3 flex justify-between items-center">
+                    <div className="flex flex-wrap gap-2">
+                      {article.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-blue-500 font-bold wrap-text">
+                      {article.name || "Chưa có tác giả"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chi tiết bài viết */}
+        {selectedArticle && (
+          <div
+            ref={detailRef}
+            className={`mt-5 p-8 rounded-lg shadow-lg border border-gray-200 animate-fade-in ${getThemeClasses(
+              theme,
+              "editor"
+            )}`}
+          >
+            <div className="max-w-4xl mx-auto p-8 rounded-xl shadow-lg bg-white">
+              <div className="absolute top-8 right-8 flex gap-2">
+                {selectedArticle.topics.map((topic) => (
+                  <span
+                    key={topic}
+                    className="inline-block bg-blue-100 text-blue-800 rounded-full px-3 py-1 text-sm wrap-text"
+                  >
+                    {topic}
+                  </span>
+                ))}
+              </div>
+              <div className="flex justify-between items-center mb-8">
+                <h2
+                  className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 wrap-text ${getThemeClasses(
+                    theme,
+                    "title"
+                  )}`}
+                >
+                  Chi tiết bài viết
+                </h2>
+                <button
+                  onClick={closeDetailForm}
+                  className="bg-gray-100 p-2 rounded-full text-gray-500 hover:bg-red-100 hover:text-red-500 transition-all duration-300"
+                  aria-label="Đóng chi tiết bài viết"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-8">
+                <div>
+                  <strong
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                      theme,
+                      "subtitle"
+                    )}`}
+                  >
+                    Tiêu đề
+                    <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                  </strong>
+                  <p className="mt-3 text-lg text-gray-700 wrap-text">
+                    {selectedArticle.title}
+                  </p>
+                </div>
+                <div>
+                  <strong
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                      theme,
+                      "subtitle"
+                    )}`}
+                  >
+                    Mô tả
+                    <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                  </strong>
+                  <p className="mt-3 text-gray-700 leading-relaxed wrap-text">
+                    {selectedArticle.content || "Không có mô tả"}
+                  </p>
+                </div>
+                <div>
+                  <strong
+                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text mb-4 ${getThemeClasses(
+                      theme,
+                      "subtitle"
+                    )}`}
+                  >
+                    Tags
+                    <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                  </strong>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedArticle.tags.length > 0 ? (
+                      selectedArticle.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-block bg-blue-100 text-blue-800 rounded-full px-3 py-1 text-sm transition-all duration-300 hover:bg-blue-200 wrap-text"
+                        >
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-gray-700 wrap-text">Không có tags</p>
+                    )}
+                  </div>
+                </div>
+                {selectedArticle.images.length > 0 && (
+                  <div>
+                    <strong
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                        theme,
+                        "subtitle"
+                      )}`}
+                    >
+                      Hình ảnh
+                      <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                    </strong>
+                    <div className="mt-4 flex flex-wrap justify-center gap-4">
+                      {selectedArticle.images.map((image, index) => (
+                        <div
+                          key={index}
+                          className="relative w-full max-w-[300px] h-[200px] rounded-lg overflow-hidden shadow-md transition-transform duration-300 hover:scale-105"
+                        >
+                          <Image
+                            src={image}
+                            alt={`Hình ảnh ${index + 1} cho ${
+                              selectedArticle.title
+                            }`}
+                            layout="fill"
+                            className="rounded-lg object-cover"
+                            loading="lazy"
+                            onError={() =>
+                              console.warn(`Không thể tải hình ảnh: ${image}`)
+                            }
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
-
-              {/* Hiển thị file */}
-              {selectedArticle.files &&
-                Array.isArray(selectedArticle.files) &&
-                selectedArticle.files.length > 0 && (
+                {selectedArticle.videos.length > 0 && (
                   <div>
-                    <strong className="text-gray-700">Tệp tin:</strong>
-                    <div className="mt-2">
+                    <strong
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                        theme,
+                        "subtitle"
+                      )}`}
+                    >
+                      Video
+                      <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                    </strong>
+                    <div className="mt-4 flex flex-col gap-4">
+                      {selectedArticle.videos.map((video, index) => (
+                        <div
+                          key={index}
+                          className="relative w-full max-w-[600px] h-[400px] mx-auto rounded-lg overflow-hidden shadow-md"
+                        >
+                          <video
+                            className="w-full h-full rounded-lg object-cover"
+                            controls
+                            loading="lazy"
+                            onError={() =>
+                              console.warn(`Không thể tải video: ${video}`)
+                            }
+                          >
+                            <source src={video} type="video/mp4" />
+                            Trình duyệt của bạn không hỗ trợ video.
+                          </video>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedArticle.files.length > 0 && (
+                  <div>
+                    <strong
+                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                        theme,
+                        "subtitle"
+                      )}`}
+                    >
+                      Tệp tin
+                      <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                    </strong>
+                    <div className="mt-3 grid grid-cols-1 gap-3">
                       {selectedArticle.files.map((file, index) => (
                         <a
                           key={index}
                           href={file}
-                          className="block text-blue-500 hover:underline"
+                          className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Tệp {index + 1}
+                          <svg
+                            className="w-5 h-5 text-blue-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          <span className="truncate">{getFileName(file)}</span>
                         </a>
                       ))}
                     </div>
                   </div>
                 )}
-
-              {/* Tác giả ở góc dưới bên phải */}
-              <p className="absolute bottom-6 right-6 text-blue-500 font-semibold">
-                {selectedArticle.author || "Không rõ tác giả"}
-              </p>
+                <div className="text-right">
+                  <p className="text-blue-500 font-bold wrap-text">
+                    Tác giả: {selectedArticle.name || "Chưa có tác giả"}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
+        )}
+
+        {/* Phần chọn giao diện */}
+
+        <div className="grid grid-cols-1 gap-4">
+          <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+          <ScrollToTop />
         </div>
-      )}
+      </div>
+
+      <style jsx>{`
+        .parallax-header {
+          background-attachment: fixed;
+          background-position: center;
+          background-size: cover;
+        }
+        .parallax-header:hover .bg-gradient-to-r {
+          transform: translateY(-10px);
+        }
+        .no-scrollbar {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease-out;
+        }
+        .wrap-text {
+          word-break: break-word;
+          overflow-wrap: break-word;
+        }
+      `}</style>
     </div>
   );
 }

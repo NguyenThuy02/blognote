@@ -72,17 +72,9 @@ function Header() {
             <div className="absolute right-0 mt-2 w-40 bg-white text-black shadow-lg rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <ul className="space-y-2 p-2">
                 <li>
-                  <Link
-                    href="/auth/profile"
-                    className="block px-4 py-2 hover:bg-blue-300"
-                  >
-                    Hồ sơ
-                  </Link>
-                </li>
-                <li>
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 hover:bg-red-300"
+                    className="block rounded-lg w-full text-left px-4 py-2 hover:bg-red-300"
                   >
                     Đăng xuất
                   </button>
