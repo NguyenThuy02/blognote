@@ -355,17 +355,128 @@ export default function ManageNotes() {
   };
 
   const handleEdit = (note) => {
-    setEditingNote({
-      ...note,
-      newTitle: note.title,
-      newContent: note.content,
-    });
+    if (note.note_type === "rich") {
+      setEditingNote({
+        ...note,
+        newTitle: note.title,
+        newContent: note.content,
+        newImageFile: null,
+        currentImageUrl: note.image_url,
+      });
+    } else if (note.note_type === "voice") {
+      setEditingNote({
+        ...note,
+        newTitle: note.title,
+        newContent: note.content,
+        newAudioFile: null,
+        newVideoFile: null,
+        currentAudioUrl: note.audio_url,
+        currentVideoUrl: note.video_url,
+        hasAudio: !!note.audio_url, // Flag to determine which media to show
+        hasVideo: !!note.video_url,
+      });
+    } else {
+      setEditingNote({
+        ...note,
+        newTitle: note.title,
+        newContent: note.content,
+      });
+    }
+  };
+
+  const handleImageChange = (file) => {
+    if (!file) return;
+  
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64String = e.target.result;
+      setEditingNote((prev) => ({
+        ...prev,
+        newImageFile: file,
+        currentImageUrl: base64String,
+        uploadFailed: false,
+      }));
+      showNotification("Hình ảnh đã được chọn thành công!");
+    };
+    reader.onerror = (err) => {
+      console.error("Error reading image file:", err);
+      showNotification("Lỗi khi đọc hình ảnh!");
+      setEditingNote((prev) => ({
+        ...prev,
+        uploadFailed: true,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleVideoChange = (file) => {
+    if (!file) return;
+  
+    // Optional: Add size validation to prevent overly large videos
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      showNotification("Video quá lớn! Vui lòng chọn video dưới 50MB.");
+      return;
+    }
+  
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64String = e.target.result;
+      setEditingNote((prev) => ({
+        ...prev,
+        newVideoFile: file,
+        currentVideoUrl: base64String,
+        video_file_name: file.name,
+      }));
+      showNotification("Video đã được chọn thành công!");
+    };
+    reader.onerror = (err) => {
+      console.error("Error reading video file:", err);
+      showNotification("Lỗi khi đọc video!");
+      setEditingNote((prev) => ({
+        ...prev,
+        uploadFailed: true,
+      }));
+    };
+    reader.readAsDataURL(file); // Convert video to Base64
+  };
+  
+  // sửa âm thanh
+  const handleAudioChange = (file) => {
+    if (!file) return;
+  
+    // Optional: Add size validation to prevent overly large audio files
+    if (file.size > 20 * 1024 * 1024) { // 20MB limit
+      showNotification("Tệp âm thanh quá lớn! Vui lòng chọn tệp dưới 20MB.");
+      return;
+    }
+  
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64String = e.target.result;
+      setEditingNote((prev) => ({
+        ...prev,
+        newAudioFile: file,
+        currentAudioUrl: base64String,
+        audio_file_name: file.name,
+      }));
+      showNotification("Tệp âm thanh đã được chọn thành công!");
+    };
+    reader.onerror = (err) => {
+      console.error("Error reading audio file:", err);
+      showNotification("Lỗi khi đọc tệp âm thanh!");
+      setEditingNote((prev) => ({
+        ...prev,
+        uploadFailed: true,
+      }));
+    };
+    reader.readAsDataURL(file); // Convert audio to Base64
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (editingNote.newTitle && editingNote.newContent) {
       try {
+        // Prepare version history
         const currentVersions = editingNote.versions || [];
         const newVersion = {
           title: editingNote.title,
@@ -373,15 +484,33 @@ export default function ManageNotes() {
           updated_at: editingNote.updated_at,
           timestamp: new Date().toISOString(),
         };
-
-        const updatedData = {
+  
+        // Prepare updated data
+        let updatedData = {
           title: editingNote.newTitle,
           content: editingNote.newContent,
           versions: JSON.stringify([...currentVersions, newVersion]),
           updated_at: new Date().toISOString(),
         };
-
+  
+        // Handle image, audio, and video based on note type
+        if (editingNote.note_type === "rich") {
+          updatedData.image_url = editingNote.currentImageUrl || "";
+          console.log("Saving note with image URL (Base64):", updatedData.image_url.slice(0, 50) + "...");
+        } else if (editingNote.note_type === "voice") {
+          // Handle audio as Base64
+          updatedData.audio_url = editingNote.currentAudioUrl || "";
+          updatedData.audio_file_name = editingNote.newAudioFile?.name || editingNote.audio_file_name || "";
+          console.log("Saving note with audio URL (Base64):", updatedData.audio_url.slice(0, 50) + "...");
+  
+          // Handle video as Base64
+          updatedData.video_url = editingNote.currentVideoUrl || "";
+          updatedData.video_file_name = editingNote.newVideoFile?.name || editingNote.video_file_name || "";
+          console.log("Saving note with video URL (Base64):", updatedData.video_url.slice(0, 50) + "...");
+        }
+  
         if (isOffline) {
+          // Save changes locally for offline mode
           await saveOfflineChange({ type: "update", id: editingNote.id, data: updatedData });
           setNotes((prev) =>
             prev.map((n) =>
@@ -392,12 +521,14 @@ export default function ManageNotes() {
           setEditingNote(null);
           return;
         }
-
+  
+        // Update note in Supabase
+        console.log("Updating note in database with data:", updatedData);
         const { error } = await supabase2
           .from("notess")
           .update(updatedData)
           .eq("id", editingNote.id);
-
+  
         if (error) throw error;
         fetchNotes();
         showNotification("Ghi chú đã được cập nhật thành công!");
@@ -410,7 +541,7 @@ export default function ManageNotes() {
       showNotification("Tiêu đề và nội dung không được để trống!");
     }
   };
-
+  
   const handleDelete = async (noteId) => {
     setShowDeleteConfirm(noteId);
   };
@@ -2117,90 +2248,179 @@ export default function ManageNotes() {
       </div>
 
       {editingNote && (
-        <div
-          className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
-          onClick={() => setEditingNote(null)}
-        >
-          <div
-            className="p-6 rounded-xl shadow-lg w-full max-w-md animate-fadeIn"
-            style={{
-              background: "var(--background)",
-              border: "2px solid var(--border-color)",
-              color: "var(--text-color)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold mb-4 text-center">
-              Chỉnh sửa Ghi Chú
-            </h2>
-            <form onSubmit={handleEditSubmit}>
-              <div className="mb-4">
-                <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
-                  Tiêu đề
-                </label>
-                <input
-                  type="text"
-                  value={editingNote.newTitle}
-                  onChange={(e) =>
-                    setEditingNote({ ...editingNote, newTitle: e.target.value })
-                  }
-                  className="w-full p-2 rounded-lg"
-                  style={{
-                    background: "var(--background)",
-                    color: "var(--text-color)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
-                  Nội dung
-                </label>
-                <textarea
-                  value={editingNote.newContent}
-                  onChange={(e) =>
-                    setEditingNote({ ...editingNote, newContent: e.target.value })
-                  }
-                  className="w-full p-2 rounded-lg resize-none"
-                  style={{
-                    background: "var(--background)",
-                    color: "var(--text-color)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                  rows="5"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingNote(null)}
-                  className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                  style={{
-                    background: "#EF4444",
-                    color: "var(--background)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
-                  style={{
-                    background: "var(--accent-color)",
-                    color: "var(--background)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  Lưu
-                </button>
-              </div>
-            </form>
+    <div
+      className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50"
+      onClick={() => setEditingNote(null)}
+    >
+      <div
+        className="p-6 rounded-xl shadow-lg w-full max-w-md animate-fadeIn"
+        style={{
+          background: "var(--background)",
+          border: "2px solid var(--border-color)",
+          color: "var(--text-color)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-2xl font-bold mb-4 text-center">
+          Chỉnh sửa Ghi Chú
+        </h2>
+        <form onSubmit={handleEditSubmit}>
+          <div className="mb-4">
+            <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
+              Tiêu đề
+            </label>
+            <input
+              type="text"
+              value={editingNote.newTitle}
+              onChange={(e) =>
+                setEditingNote({ ...editingNote, newTitle: e.target.value })
+              }
+              className="w-full p-2 rounded-lg"
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+              }}
+              required
+            />
           </div>
-        </div>
+          <div className="mb-4">
+            <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
+              Nội dung
+            </label>
+            <textarea
+              value={editingNote.newContent}
+              onChange={(e) =>
+                setEditingNote({ ...editingNote, newContent: e.target.value })
+              }
+              className="w-full p-2 rounded-lg resize-none"
+              style={{
+                background: "var(--background)",
+                color: "var(--text-color)",
+                border: "1px solid var(--border-color)",
+              }}
+              rows="5"
+              required
+            />
+          </div>
+          {editingNote.note_type === "rich" && (
+            <div className="mb-4">
+              <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
+                Hình ảnh
+              </label>
+              {editingNote.currentImageUrl && (
+                <div className="mb-2">
+                  <img
+                    src={editingNote.currentImageUrl}
+                    alt="Preview"
+                    className="w-full h-32 object-cover rounded-xl"
+                  />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    setEditingNote({ ...editingNote, newImageFile: file });
+                    handleImageChange(file);
+                  }
+                }}
+                className="w-full p-2 rounded-lg"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              />
+            </div>
+          )}
+          {editingNote.note_type === "voice" && (
+  <>
+          {editingNote.hasAudio && !editingNote.hasVideo && (
+            <div className="mb-4">
+              <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
+                Âm thanh
+              </label>
+              {editingNote.currentAudioUrl && (
+                <div className="mb-2">
+                  <p>{editingNote.audio_file_name}</p>
+                  <audio controls src={editingNote.currentAudioUrl} className="w-full" />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => handleAudioChange(e.target.files[0])}
+                className="w-full p-2 rounded-lg"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              />
+            </div>
+          )}
+          {editingNote.hasVideo && !editingNote.hasAudio && (
+            <div className="mb-4">
+              <label className="block mb-2 font-semibold" style={{ color: "var(--text-color)" }}>
+                Video
+              </label>
+              {editingNote.currentVideoUrl && (
+                <div className="mb-2">
+                  <p>{editingNote.video_file_name}</p>
+                  <video
+                    controls
+                    src={editingNote.currentVideoUrl}
+                    className="w-full h-32 object-cover rounded-xl"
+                  />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => handleVideoChange(e.target.files[0])}
+                className="w-full p-2 rounded-lg"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              />
+            </div>
+          )}
+        </>
       )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingNote(null)}
+              className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
+              style={{
+                background: "#EF4444",
+                color: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg transition-all duration-300 hover:shadow-md"
+              style={{
+                background: "var(--accent-color)",
+                color: "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              Lưu
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
 
       {viewDetailNoteId && (
         <div
@@ -2369,3 +2589,5 @@ export default function ManageNotes() {
                    </div>
                  );
                }
+
+

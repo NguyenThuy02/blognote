@@ -389,117 +389,139 @@ const NoteApp = () => {
     };
   }, []);
 
-    const fetchNotes = async () => {
-      if (isOffline) {
-        try {
-          const offlineNotes = await db.notes.toArray();
-          setNotes(
-            offlineNotes.map(note => {
-              let parsedTodos = [];
-              let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-      
-              if (note.todos && typeof note.todos === 'string') {
-                try {
-                  parsedTodos = JSON.parse(note.todos);
-                  if (!Array.isArray(parsedTodos)) parsedTodos = [];
-                } catch (e) {
-                  console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
-                  parsedTodos = [];
-                }
-              }
-      
-              if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
-                try {
-                  parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-                  if (!Array.isArray(parsedSpreadsheetData)) {
-                    parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-                  }
-                } catch (e) {
-                  console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
-                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-                }
-              }
-      
-              return {
-                ...note,
-                todos: parsedTodos,
-                spreadsheet_data: parsedSpreadsheetData,
-                isPinned: note.isPinned || false,
-                audio_url: note.audio_url || "",
-                audio_file_name: note.audio_file_name || "",
-                video_url: note.video_url || "",
-                video_file_name: note.video_file_name || "", // Thêm tên file video
-              };
-            }) || []
-          );
-        } catch (err) {
-          console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
-          setError('Không thể tải ghi chú cục bộ: ' + err.message);
-        }
+  const fetchNotes = async () => {
+    // Lấy user_id từ localStorage
+    const userData = localStorage.getItem("user");
+    let user_id = null;
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        user_id = parsedUser.id; // Giả sử id là UUID của người dùng
+      } catch (err) {
+        console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+        setError("Không thể lấy thông tin người dùng. Vui lòng đăng nhập lại.");
         return;
       }
-      
+    } else {
+      setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+      return;
+    }
+  
+    if (isOffline) {
       try {
-        const { data, error } = await supabase2
-          .from("notess")
-          .select(
-            "id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, audio_file_name, video_url, video_file_name"
-          )
-          .order("updated_at", { ascending: false });
-        if (error) {
-          console.error("Chi tiết lỗi Supabase:", error);
-          throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
-        }
-      
-        const parsedNotes = data.map((note) => {
-          let parsedTodos = [];
-          let parsedSpreadsheetData = Array(10)
-            .fill()
-            .map(() => Array(10).fill(""));
-      
-          if (note.todos && typeof note.todos === 'string') {
-            try {
-              parsedTodos = JSON.parse(note.todos);
-              if (!Array.isArray(parsedTodos)) parsedTodos = [];
-            } catch (e) {
-              console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
-              parsedTodos = [];
+        // Lấy ghi chú từ IndexedDB, lọc theo user_id
+        const offlineNotes = await db.notes.where('user_id').equals(user_id).toArray();
+        setNotes(
+          offlineNotes.map(note => {
+            let parsedTodos = [];
+            let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+  
+            if (note.todos && typeof note.todos === 'string') {
+              try {
+                parsedTodos = JSON.parse(note.todos);
+                if (!Array.isArray(parsedTodos)) parsedTodos = [];
+              } catch (e) {
+                console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+                parsedTodos = [];
+              }
             }
-          }
-      
-          if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
-            try {
-              parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-              if (!Array.isArray(parsedSpreadsheetData)) {
+  
+            if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+              try {
+                parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+                if (!Array.isArray(parsedSpreadsheetData)) {
+                  parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+                }
+              } catch (e) {
+                console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
                 parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
               }
-            } catch (e) {
-              console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+            }
+  
+            return {
+              ...note,
+              todos: parsedTodos,
+              spreadsheet_data: parsedSpreadsheetData,
+              isPinned: note.isPinned || false,
+              audio_url: note.audio_url || "",
+              audio_file_name: note.audio_file_name || "",
+              video_url: note.video_url || "",
+              video_file_name: note.video_file_name || "",
+            };
+          }) || []
+        );
+      } catch (err) {
+        console.error('Lỗi khi lấy ghi chú từ IndexedDB:', err);
+        setError('Không thể tải ghi chú cục bộ: ' + err.message);
+      }
+      return;
+    }
+  
+    try {
+      // Truy vấn Supabase, lọc theo user_id
+      const { data, error } = await supabase2
+        .from("notess")
+        .select(
+          "id, user_id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, audio_file_name, video_url, video_file_name"
+        )
+        .eq("user_id", user_id) // Lọc ghi chú theo user_id
+        .order("updated_at", { ascending: false });
+  
+      if (error) {
+        console.error("Chi tiết lỗi Supabase:", error);
+        throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
+      }
+  
+      const parsedNotes = data.map((note) => {
+        let parsedTodos = [];
+        let parsedSpreadsheetData = Array(10)
+          .fill()
+          .map(() => Array(10).fill(""));
+  
+        if (note.todos && typeof note.todos === 'string') {
+          try {
+            parsedTodos = JSON.parse(note.todos);
+            if (!Array.isArray(parsedTodos)) parsedTodos = [];
+          } catch (e) {
+            console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+            parsedTodos = [];
+          }
+        }
+  
+        if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+          try {
+            parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
+            if (!Array.isArray(parsedSpreadsheetData)) {
               parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
             }
+          } catch (e) {
+            console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+            parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
           }
-      
-          return {
-            ...note,
-            todos: parsedTodos,
-            spreadsheet_data: parsedSpreadsheetData,
-            isPinned: false,
-            audio_url: note.audio_url || "",
-            audio_file_name: note.audio_file_name || "",
-            video_url: note.video_url || "",
-            video_file_name: note.video_file_name || "", // Thêm tên file video
-          };
-        }) || [];
-      
-        setNotes(parsedNotes);
-      
-        await db.notes.clear();
-        await db.notes.bulkPut(parsedNotes);
-      } catch (err) {
-        console.error("Chi tiết lỗi khi lấy ghi chú:", err);
-        setError("Không thể tải ghi chú: " + (err.message || "Lỗi không xác định"));
-      }
-    };
+        }
+  
+        return {
+          ...note,
+          todos: parsedTodos,
+          spreadsheet_data: parsedSpreadsheetData,
+          isPinned: false,
+          audio_url: note.audio_url || "",
+          audio_file_name: note.audio_file_name || "",
+          video_url: note.video_url || "",
+          video_file_name: note.video_file_name || "",
+        };
+      }) || [];
+  
+      setNotes(parsedNotes);
+  
+      // Cập nhật IndexedDB
+      await db.notes.clear();
+      await db.notes.bulkPut(parsedNotes);
+    } catch (err) {
+      console.error("Chi tiết lỗi khi lấy ghi chú:", err);
+      setError("Không thể tải ghi chú: " + (err.message || "Lỗi không xác định"));
+    }
+  };
 
   const handleSaveNote = async () => {
   if (!title.trim()) {
@@ -3337,5 +3359,6 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
 
 
