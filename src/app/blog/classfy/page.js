@@ -429,12 +429,12 @@ export default function ClassfyApp() {
               key={article.id}
               onClick={() => handleArticleClick(article)}
               className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white ${
-                viewMode === "list"
-                  ? "flex items-center gap-4"
-                  : "flex flex-col"
+                viewMode === "grid"
+                  ? "flex flex-col h-full"
+                  : "flex items-center gap-4"
               } ${getThemeClasses(theme, "preview")}`}
             >
-              {/* Media (hiển thị bên trái trong chế độ danh sách) */}
+              {/* Media (chỉ hiển thị bên trái trong chế độ list) */}
               {viewMode === "list" && (
                 <div className="relative w-[150px] h-[100px] mx-auto flex-shrink-0">
                   {article.images.length > 0 ? (
@@ -500,16 +500,29 @@ export default function ClassfyApp() {
                   ))}
                 </div>
 
+                {/* Tiêu đề */}
                 <h3
-                  className={`text-lg font-bold text-gray-800 ${
-                    viewMode === "grid" ? "pr-20" : ""
-                  } wrap-text`}
+                  className={`text-lg font-bold text-gray-800 wrap-text ${
+                    viewMode === "grid"
+                      ? "pr-20 line-clamp-2 min-h-[3rem]"
+                      : "pr-0"
+                  }`}
                 >
                   {truncateText(article.title, viewMode === "grid" ? 50 : 100)}
                 </h3>
-                <div className="mt-3 flex items-baseline">
+
+                {/* Mô tả */}
+                <div
+                  className={`mt-3 flex items-baseline ${
+                    viewMode === "grid" ? "min-h-[4rem]" : ""
+                  }`}
+                >
                   <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
-                  <p className="wrap-text line-clamp-2">
+                  <p
+                    className={`wrap-text ${
+                      viewMode === "grid" ? "line-clamp-3" : ""
+                    }`}
+                  >
                     {truncateText(
                       article.content,
                       viewMode === "grid" ? 100 : 150
@@ -517,29 +530,27 @@ export default function ClassfyApp() {
                   </p>
                 </div>
 
-                {/* Media (trong chế độ lưới) */}
+                {/* Media (chỉ hiển thị trong chế độ grid) */}
                 {viewMode === "grid" && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex justify-center">
                     {article.images.length > 0 ? (
-                      <div className="relative w-[150px] h-[100px] mx-auto">
-                        <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
-                          <Image
-                            src={article.images[0]}
-                            alt={`Hình ảnh xem trước cho ${article.title}`}
-                            width={150}
-                            height={100}
-                            className="rounded-md object-cover"
-                            loading="lazy"
-                            onError={() =>
-                              console.warn(
-                                `Không thể tải hình ảnh: ${article.images[0]}`
-                              )
-                            }
-                          />
-                        </div>
+                      <div className="relative w-[150px] h-[100px]">
+                        <Image
+                          src={article.images[0]}
+                          alt={`Hình ảnh xem trước cho ${article.title}`}
+                          width={150}
+                          height={100}
+                          className="rounded-md object-cover w-full h-full"
+                          loading="lazy"
+                          onError={() =>
+                            console.warn(
+                              `Không thể tải hình ảnh: ${article.images[0]}`
+                            )
+                          }
+                        />
                       </div>
                     ) : article.videos.length > 0 ? (
-                      <div className="relative w-[150px] h-[100px] mx-auto">
+                      <div className="relative w-[150px] h-[100px]">
                         <video
                           className="w-full h-full rounded-md object-cover"
                           controls
@@ -555,22 +566,34 @@ export default function ClassfyApp() {
                         </video>
                       </div>
                     ) : article.files.length > 0 ? (
-                      <div className="relative w-[150px] h-[100px] mx-auto flex items-center justify-center rounded-md">
+                      <div className="relative w-[150px] h-[100px] flex items-center justify-center rounded-md bg-gray-100">
                         <a
                           href={article.files[0]}
-                          className="text-blue-500 hover:underline text-xs text-center px-2 wrap-text"
+                          className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
                           {getFileName(article.files[0])}
                         </a>
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="relative w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
+                        <p className="text-gray-500 text-xs wrap-text">
+                          Không có media
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Tags và tác giả */}
-                <div className="mt-3 flex justify-between items-center">
+                <div
+                  className={`mt-3 ${
+                    viewMode === "grid"
+                      ? "align-bottom-container flex-1 flex flex-col justify-end"
+                      : "flex justify-between items-end"
+                  }`}
+                >
                   <div className="flex flex-wrap gap-2">
                     {article.tags.length > 0 ? (
                       article.tags.map((tag) => (
@@ -587,7 +610,11 @@ export default function ClassfyApp() {
                       </p>
                     )}
                   </div>
-                  <p className="text-blue-500 font-bold wrap-text">
+                  <p
+                    className={`text-blue-500 font-bold wrap-text ${
+                      viewMode === "grid" ? "text-right mt-2" : ""
+                    }`}
+                  >
                     {article.name || "Chưa có tác giả"}
                   </p>
                 </div>
@@ -662,11 +689,12 @@ export default function ClassfyApp() {
                 <div
                   key={article.id}
                   onClick={() => handleArticleClick(article)}
-                  className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 flex flex-col cursor-pointer relative bg-white ${getThemeClasses(
+                  className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white flex flex-col h-full ${getThemeClasses(
                     theme,
                     "preview"
                   )}`}
                 >
+                  {/* Chủ đề */}
                   <div className="absolute top-4 right-4 flex gap-2">
                     {article.topics.map((topic) => (
                       <span
@@ -677,52 +705,92 @@ export default function ClassfyApp() {
                       </span>
                     ))}
                   </div>
-                  <h3 className="text-lg font-bold text-gray-800 pr-20 wrap-text">
+
+                  {/* Tiêu đề */}
+                  <h3 className="text-lg font-bold text-gray-800 pr-20 wrap-text line-clamp-2 min-h-[3rem]">
                     {truncateText(article.title, 50)}
                   </h3>
-                  <div className="mt-3 flex items-baseline">
+
+                  {/* Mô tả */}
+                  <div className="mt-3 flex items-baseline min-h-[4rem]">
                     <strong className="mr-2 whitespace-nowrap">Mô tả:</strong>
-                    <p className="wrap-text line-clamp-2">
+                    <p className="wrap-text line-clamp-3">
                       {truncateText(article.content, 100)}
                     </p>
                   </div>
-                  <div className="mt-3">
-                    {article.images.length > 0 && (
-                      <div className="relative w-[150px] h-[100px] mx-auto">
-                        <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
-                          <Image
-                            src={article.images[0]}
-                            alt={`Hình ảnh xem trước cho ${article.title}`}
-                            width={150}
-                            height={100}
-                            className="rounded-md object-cover"
-                            loading="lazy"
-                            onError={() =>
-                              console.warn(
-                                `Không thể tải hình ảnh: ${article.images[0]}`
-                              )
-                            }
-                          />
-                        </div>
+
+                  {/* Media */}
+                  <div className="mt-3 flex justify-center">
+                    {article.images.length > 0 ? (
+                      <div className="relative w-[150px] h-[100px]">
+                        <Image
+                          src={article.images[0]}
+                          alt={`Hình ảnh xem trước cho ${article.title}`}
+                          width={150}
+                          height={100}
+                          className="rounded-md object-cover w-full h-full"
+                          loading="lazy"
+                          onError={() =>
+                            console.warn(
+                              `Không thể tải hình ảnh: ${article.images[0]}`
+                            )
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
+                        <p className="text-gray-500 text-xs wrap-text">
+                          Không có media
+                        </p>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-3 flex justify-between items-center">
+                  {/* Tags và tác giả */}
+                  <div className="mt-3 align-bottom-container flex-1 flex flex-col justify-end">
                     <div className="flex flex-wrap gap-2">
-                      {article.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
-                        >
-                          {tag}
-                        </span>
-                      ))}
+                      {article.tags.length > 0 ? (
+                        article.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-gray-500 text-sm wrap-text">
+                          Không có tags
+                        </p>
+                      )}
                     </div>
-                    <p className="text-blue-500 font-bold wrap-text">
+                    <p className="text-blue-500 font-bold wrap-text text-right mt-2">
                       {article.name || "Chưa có tác giả"}
                     </p>
                   </div>
+
+                  {/* Badges media */}
+                  {(article.images.length > 1 ||
+                    article.videos.length > 1 ||
+                    article.files.length > 1) && (
+                    <div className="mt-2 flex gap-2">
+                      {article.images.length > 1 && (
+                        <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                          +{article.images.length - 1} hình ảnh
+                        </span>
+                      )}
+                      {article.videos.length > 1 && (
+                        <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                          +{article.videos.length - 1} video
+                        </span>
+                      )}
+                      {article.files.length > 1 && (
+                        <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                          +{article.files.length - 1} tệp
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -938,18 +1006,16 @@ export default function ClassfyApp() {
                     </div>
                   </div>
                 )}
-                <div className="text-right">
-                  <p className="text-blue-500 font-bold wrap-text">
-                    Tác giả: {selectedArticle.name || "Chưa có tác giả"}
-                  </p>
-                </div>
+
+                <p className="text-blue-500 font-bold wrap-text text-right mt-2">
+                  Tác giả: {selectedArticle.name || "Chưa có tác giả"}
+                </p>
               </div>
             </div>
           </div>
         )}
 
         {/* Phần chọn giao diện */}
-
         <div className="grid grid-cols-1 gap-4">
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
           <ScrollToTop />
@@ -988,6 +1054,40 @@ export default function ClassfyApp() {
         .wrap-text {
           word-break: break-word;
           overflow-wrap: break-word;
+        }
+        /* Class để căn lề dưới cho tags và tên tác giả */
+        .align-bottom-container {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          min-height: 4rem; /* Chiều cao tối thiểu cho tags và tác giả trong grid */
+        }
+        .align-bottom-container > p {
+          margin: 0; /* Loại bỏ margin mặc định của tên tác giả */
+        }
+        /* Đảm bảo thẻ bài viết trong grid có chiều cao đồng đều */
+        .grid > div {
+          display: flex;
+          flex-direction: column;
+          min-height: 350px; /* Chiều cao tối thiểu cho mỗi thẻ bài viết trong grid */
+        }
+        /* Giới hạn chiều cao của tags trong grid */
+        .grid .align-bottom-container .flex {
+          max-height: 2.5rem; /* Giới hạn chiều cao khu vực tags trong grid */
+          overflow: hidden;
+        }
+        /* Đảm bảo chế độ list giữ nguyên UI */
+        .flex.items-center {
+          display: flex;
+          align-items: center;
+        }
+        .flex.items-center .align-bottom-container {
+          min-height: auto; /* Loại bỏ chiều cao tối thiểu trong list */
+          flex-direction: row; /* Giữ layout ngang cho list */
+          justify-content: space-between; /* Giữ căn lề giữa tags và tác giả */
+        }
+        .flex.items-center .align-bottom-container .flex {
+          max-height: none; /* Loại bỏ giới hạn chiều cao tags trong list */
         }
       `}</style>
     </div>
