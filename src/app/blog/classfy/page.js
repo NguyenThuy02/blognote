@@ -11,7 +11,6 @@ export default function ClassfyApp() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [sortOption, setSortOption] = useState(""); // none, a-z, z-a, newest, oldest
-  const [mediaFilter, setMediaFilter] = useState(""); // none, images, videos, files
   const [viewMode, setViewMode] = useState("grid"); // grid, list
   const [articles, setArticles] = useState([]);
   const [topics, setTopics] = useState([]);
@@ -146,18 +145,13 @@ export default function ClassfyApp() {
         ? article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           article.content.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
-      const matchesMedia = mediaFilter
-        ? (mediaFilter === "images" && article.images.length > 0) ||
-          (mediaFilter === "videos" && article.videos.length > 0) ||
-          (mediaFilter === "files" && article.files.length > 0)
-        : true;
-      return matchesCategory && matchesTag && matchesSearch && matchesMedia;
+      return matchesCategory && matchesTag && matchesSearch;
     })
     .sort((a, b) => {
       if (sortOption === "newest") return b.created_at - a.created_at;
       else if (sortOption === "oldest") return a.created_at - b.created_at;
       else if (sortOption === "a-z") return a.title.localeCompare(b.title);
-      else if (sortOption === "z-a") return b.title.localeCompare(b.title);
+      else if (sortOption === "z-a") return b.title.localeCompare(a.title);
       return 0;
     });
 
@@ -310,7 +304,6 @@ export default function ClassfyApp() {
                 setSelectedCategory("");
                 setSelectedTag("");
                 setSortOption("");
-                setMediaFilter("");
                 setSearchQuery("");
                 setCurrentPage(1);
               }}
@@ -339,7 +332,6 @@ export default function ClassfyApp() {
           </div>
         )}
 
-        {/* Bộ lọc chi tiết */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
             <label
@@ -390,30 +382,6 @@ export default function ClassfyApp() {
                   {tag}
                 </option>
               ))}
-            </select>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <label
-              className={`block mb-1 text-lg font-bold text-gray-700 wrap-text ${getThemeClasses(
-                theme,
-                "subtitle"
-              )}`}
-            >
-              Lọc theo media:
-            </label>
-            <select
-              value={mediaFilter}
-              onChange={(e) => setMediaFilter(e.target.value)}
-              className={`w-full border-2 border-purple-400 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 shadow-sm ${getThemeClasses(
-                theme,
-                "select"
-              )}`}
-            >
-              <option value="">Tất cả</option>
-              <option value="images">Có hình ảnh</option>
-              <option value="videos">Có video</option>
-              <option value="files">Có tệp tin</option>
             </select>
           </div>
 
@@ -719,24 +687,26 @@ export default function ClassfyApp() {
                     </p>
                   </div>
                   <div className="mt-3">
-  {article.images.length > 0 && (
-    <div className="relative w-[150px] h-[100px] mx-auto">
-      <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
-        <Image
-          src={article.images[0]}
-          alt={`Hình ảnh xem trước cho ${article.title}`}
-          width={150}
-          height={100}
-          className="rounded-md object-cover"
-          loading="lazy"
-          onError={() =>
-            console.warn(`Không thể tải hình ảnh: ${article.images[0]}`)
-          }
-        />
-      </div>
-    </div>
-  )}
-</div>
+                    {article.images.length > 0 && (
+                      <div className="relative w-[150px] h-[100px] mx-auto">
+                        <div className="flex justify-center items-center w-full h-full rounded-md overflow-hidden">
+                          <Image
+                            src={article.images[0]}
+                            alt={`Hình ảnh xem trước cho ${article.title}`}
+                            width={150}
+                            height={100}
+                            className="rounded-md object-cover"
+                            loading="lazy"
+                            onError={() =>
+                              console.warn(
+                                `Không thể tải hình ảnh: ${article.images[0]}`
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="mt-3 flex justify-between items-center">
                     <div className="flex flex-wrap gap-2">
