@@ -1079,7 +1079,7 @@ export default function PostPage() {
                 className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
               />
             </svg>
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
+            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-green-500">
               {Math.round(calculateProgress())}%
             </span>
           </div>
@@ -1308,7 +1308,7 @@ export default function PostPage() {
 
           {/* Tải lên phương tiện */}
           <div className="mb-8 text-sm">
-            <h3 className="font-semibold text-teal-600 mb-4">
+            <h3 className="font-bold text-teal-600 mb-4">
               Tệp đa phương tiện
             </h3>
             <div className="flex flex-wrap gap-4">
@@ -1534,7 +1534,7 @@ export default function PostPage() {
         <div className="text-gray-700 prose max-w-none mb-4">
           {content || "Mô tả bài viết..."}
         </div>
-        <h3 className="text-base font-semibold text-teal-600 mb-4">
+        <h3 className="text-base font-bold text-teal-600 mb-4">
           Tệp đa phương tiện
         </h3>
         {uploadedImages.length > 0 && (
@@ -1756,7 +1756,7 @@ export default function PostPage() {
                     setActiveTab("post");
                     resetForm();
                   }}
-                  className={`px-6 py-3 text-lg font-semibold transition-all duration-200 ${
+                  className={`px-6 py-3 text-lg font-bold transition-all duration-200 ${
                     activeTab === "post"
                       ? "border-b-2 border-teal-500 text-teal-600"
                       : "text-gray-500 hover:text-teal-500"
@@ -1770,7 +1770,7 @@ export default function PostPage() {
                     setActiveTab("sample");
                     resetForm();
                   }}
-                  className={`px-6 py-3 text-lg font-semibold transition-all duration-200 ${
+                  className={`px-6 py-3 text-lg font-bold transition-all duration-200 ${
                     activeTab === "sample"
                       ? "border-b-2 border-teal-500 text-teal-600"
                       : "text-gray-500 hover:text-teal-500"
@@ -1865,7 +1865,7 @@ export default function PostPage() {
                               )}
                             </div>
                             <div className="flex-1">
-                              <strong className="text-teal-600 text-sm font-semibold">
+                              <strong className="text-teal-600 text-sm font-bold">
                                 {entry.title || "Không có tiêu đề"}
                               </strong>
                               <p className="text-gray-600 text-xs mt-1 line-clamp-2">

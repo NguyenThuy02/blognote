@@ -1110,7 +1110,7 @@ export default function BloglistApp() {
               placeholder="Tìm kiếm bài viết..."
               value={searchTerm}
               onChange={handleSearchChange}
-              className="w-full bg-gray-100 border border-gray-300 rounded-full px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-base"
+              className="w-full bg-blue-100 border border-gray-300 rounded-full px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-base"
             />
             <Image
               src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681498/nkydita1doyqs2igrdbd.svg"
@@ -1136,7 +1136,7 @@ export default function BloglistApp() {
             .map((post) => (
               <div key={post.id} className="relative">
                 <div
-                  className="rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-shadow duration-200 cursor-pointer bg-white"
+                  className="rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-shadow duration-200 cursor-pointer bg-blue-50"
                   onClick={() => handlePostClick(post)}
                 >
                   <div className="flex items-center mb-3">
@@ -1149,14 +1149,14 @@ export default function BloglistApp() {
                         : post.author[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-semibold text-blue-600 text-sm">
+                      <p className="font-bold text-blue-600 text-sm">
                         {post.author}
                       </p>
                       <p className="text-sm text-gray-500">{post.created_at}</p>
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">
                     {post.title}
                   </h3>
                   <p className="text-gray-600 mb-3 text-base">{post.content}</p>
@@ -1305,7 +1305,7 @@ export default function BloglistApp() {
 
                           {!isWriting && (
                             <button
-                              className="text-sm text-blue-600 hover:text-blue-800 font-semibold mb-4"
+                              className="text-sm text-blue-600 hover:text-blue-800 font-bold mb-4"
                               onClick={() => setIsWriting(true)}
                             >
                               ✍️ Viết bình luận
@@ -1425,7 +1425,7 @@ export default function BloglistApp() {
                                   {comment.author[0]?.toUpperCase() || "?"}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-blue-600 text-sm">
+                                  <p className="font-bold text-blue-600 text-sm">
                                     {comment.author}
                                   </p>
                                   {editingCommentId === comment.id ? (
@@ -1659,7 +1659,7 @@ export default function BloglistApp() {
                                                 "?"}
                                             </div>
                                             <div className="flex-1">
-                                              <p className="font-semibold text-blue-600 text-sm">
+                                              <p className="font-bold text-blue-600 text-sm">
                                                 {reply.author}
                                               </p>
                                               <p
@@ -1793,7 +1793,7 @@ export default function BloglistApp() {
           <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
             Thông tin tác giả
           </h2>
-          <div className={`p-4 rounded-md bg-white  border-gray-200 shadow-sm`}>
+          <div className={`p-4 rounded-md bg-blue-50  border-gray-200 shadow-sm`}>
             <div className="space-y-2 text-gray-600 text-sm">
               <p>
                 <strong>Tên:</strong>{" "}
@@ -1814,7 +1814,7 @@ export default function BloglistApp() {
               Bài viết đã lưu
             </h2>
             <div
-              className={`p-4 rounded-md bg-white border-gray-200 shadow-sm max-h-[400px] overflow-y-auto scrollbar-hidden`}
+              className={`p-4 rounded-md bg-blue-50 border-gray-200 shadow-sm max-h-[400px] overflow-y-auto scrollbar-hidden`}
             >
               {savedArticles.length === 0 ? (
                 <p className="text-gray-500 text-sm">
@@ -1864,7 +1864,7 @@ export default function BloglistApp() {
           <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
             Đề xuất
           </h2>
-          <div className={`p-4 rounded-md bg-white border-gray-200 shadow-sm`}>
+          <div className={`p-4 rounded-md bg-blue-50 border-gray-200 shadow-sm`}>
             <div className="space-y-4">
               {topAuthors.map((author, index) => (
                 <div key={index} className="flex items-center">

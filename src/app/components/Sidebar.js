@@ -121,22 +121,6 @@ export default function Sidebar() {
                 📈 Thống kê ghi chú
               </Link>
             </li>
-            <li>
-              <Link
-                href="/blog/comment"
-                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
-              >
-                cmt
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/blog/detail"
-                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
-              >
-                detail
-              </Link>
-            </li>
           </ul>
         </div>
       </nav>

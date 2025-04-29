@@ -169,7 +169,7 @@ export default function ThemeSelector({ currentTheme, onThemeChange }) {
         >
           <div className="flex items-center gap-2 mb-3">
             {getThemeIcon()}
-            <h3 className="text-lg font-semibold text-indigo-700">
+            <h3 className="text-lg font-bold text-indigo-700">
               Chế độ hiển thị
             </h3>
           </div>

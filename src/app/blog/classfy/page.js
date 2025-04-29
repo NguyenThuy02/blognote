@@ -211,7 +211,7 @@ export default function ClassfyApp() {
 
   return (
     <div
-      className={`mt-[97px] p-5 mb-[-7px] max-w-7xl mx-auto rounded-lg shadow-md border border-blue-200 relative ${themes[theme]} animate-fade-in`}
+      className={`mt-[97px] p-5 mb-[-7px] max-w-7xl text-gray-800 mx-auto rounded-lg shadow-md border border-blue-200 relative ${themes[theme]} animate-fade-in`}
     >
       <div
         className={`p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
@@ -236,7 +236,7 @@ export default function ClassfyApp() {
         {featuredArticles.length > 0 && (
           <div className="mb-8">
             <h2
-              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-500 wrap-text ${getThemeClasses(
+              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-blue-500 wrap-text ${getThemeClasses(
                 theme,
                 "subtitle"
               )}`}
