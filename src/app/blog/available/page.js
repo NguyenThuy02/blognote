@@ -3,10 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { DiffOutlined } from "@ant-design/icons";
 import {
-  DiffOutlined,
-} from "@ant-design/icons";
-import { FaTimes, FaPaperPlane, FaSave, FaSearch, FaTrash, FaEye } from "react-icons/fa";
+  FaTimes,
+  FaPaperPlane,
+  FaSave,
+  FaSearch,
+  FaTrash,
+  FaEye,
+} from "react-icons/fa";
 import { FileImageOutlined, FileTextOutlined } from "@ant-design/icons";
 import { supabase } from "../../../lib/supabase";
 import Notification from "../../../utils/notification";
@@ -71,24 +76,28 @@ export default function CreatePost() {
   // New state for drafts
   const [drafts, setDrafts] = useState([]);
   const searchInputRef = useRef(null);
-const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-const handleSearchDrafts = (e) => {
-  setSearchQuery(e.target.value);
-};
+  const handleSearchDrafts = (e) => {
+    setSearchQuery(e.target.value);
+  };
 
-const filteredDrafts = drafts.filter((draft) => {
-  const searchLower = searchQuery.toLowerCase();
-  return (
-    draft.purpose?.toLowerCase().includes(searchLower) ||
-    draft.topics?.toLowerCase().includes(searchLower) ||
-    draft.story_description?.toLowerCase().includes(searchLower) ||
-    draft.poll?.title?.toLowerCase().includes(searchLower) ||
-    draft.questions?.some((q) => q.question.toLowerCase().includes(searchLower)) ||
-    draft.quizzes?.some((q) => q.question.toLowerCase().includes(searchLower)) ||
-    draft.timeline?.title?.toLowerCase().includes(searchLower)
-  );
-});
+  const filteredDrafts = drafts.filter((draft) => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      draft.purpose?.toLowerCase().includes(searchLower) ||
+      draft.topics?.toLowerCase().includes(searchLower) ||
+      draft.story_description?.toLowerCase().includes(searchLower) ||
+      draft.poll?.title?.toLowerCase().includes(searchLower) ||
+      draft.questions?.some((q) =>
+        q.question.toLowerCase().includes(searchLower)
+      ) ||
+      draft.quizzes?.some((q) =>
+        q.question.toLowerCase().includes(searchLower)
+      ) ||
+      draft.timeline?.title?.toLowerCase().includes(searchLower)
+    );
+  });
 
   // Fetch drafts from Supabase
   const fetchDrafts = async () => {
@@ -102,7 +111,10 @@ const filteredDrafts = drafts.filter((draft) => {
       if (error) throw error;
       setDrafts(data || []);
     } catch (err) {
-      addNotification(`Không thể tải danh sách bản nháp: ${err.message}`, "error");
+      addNotification(
+        `Không thể tải danh sách bản nháp: ${err.message}`,
+        "error"
+      );
     }
   };
 
@@ -112,16 +124,31 @@ const filteredDrafts = drafts.filter((draft) => {
     setShowForm(true);
     setFormData({
       topics: draft.topics || "",
-      customTopic: draft.topics && !topicsList.some(t => t.value === draft.topics) ? draft.topics : "",
-      tags: draft.tags ? (typeof draft.tags === "string" ? draft.tags.split(",").map(tag => tag.trim()) : draft.tags) : [],
+      customTopic:
+        draft.topics && !topicsList.some((t) => t.value === draft.topics)
+          ? draft.topics
+          : "",
+      tags: draft.tags
+        ? typeof draft.tags === "string"
+          ? draft.tags.split(",").map((tag) => tag.trim())
+          : draft.tags
+        : [],
       selectedTag: "",
       customTag: "",
-      questions: draft.questions || [{ question: "", options: ["", ""], multipleChoice: false }],
-      poll: draft.poll || { title: "", options: ["", ""], multipleChoice: false },
+      questions: draft.questions || [
+        { question: "", options: ["", ""], multipleChoice: false },
+      ],
+      poll: draft.poll || {
+        title: "",
+        options: ["", ""],
+        multipleChoice: false,
+      },
       quizzes: draft.quizzes || [{ question: "", answer: "" }],
       storyType: draft.story_type || "Truyện chữ",
       storyDescription: draft.story_description || "",
-      storyDoc: draft.story_doc ? { url: draft.story_doc, name: "Uploaded Document" } : null,
+      storyDoc: draft.story_doc
+        ? { url: draft.story_doc, name: "Uploaded Document" }
+        : null,
       timeline: draft.timeline || {
         title: "",
         milestones: [
@@ -132,7 +159,11 @@ const filteredDrafts = drafts.filter((draft) => {
           },
         ],
       },
-      images: draft.images ? draft.images.split(",").map(url => ({ url, name: "Uploaded Image" })) : [],
+      images: draft.images
+        ? draft.images
+            .split(",")
+            .map((url) => ({ url, name: "Uploaded Image" }))
+        : [],
     });
     addNotification("Đã tải bản nháp vào form!", "success");
   };
@@ -148,7 +179,7 @@ const filteredDrafts = drafts.filter((draft) => {
             .delete()
             .eq("id", draftId);
           if (error) throw error;
-          setDrafts(drafts.filter(draft => draft.id !== draftId));
+          setDrafts(drafts.filter((draft) => draft.id !== draftId));
           addNotification("Đã xóa bản nháp!", "success");
         } catch (err) {
           addNotification(`Không thể xóa bản nháp: ${err.message}`, "error");
@@ -893,14 +924,20 @@ const filteredDrafts = drafts.filter((draft) => {
             topics: finalTopic,
             tags: formData.tags.join(","),
             purpose: selectedPurpose,
-            questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-            poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            questions:
+              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll:
+              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
             quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-            story_type: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_type:
+              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
             story_description:
-              selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
+              selectedPurpose === "Truyện tranh"
+                ? formData.storyDescription
+                : "",
             story_doc: formData.storyDoc ? formData.storyDoc.url : null,
-            timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
+            timeline:
+              selectedPurpose === "Hành trình" ? formData.timeline : null,
             images:
               formData.images.length > 0
                 ? formData.images.map((img) => img.url).join(",")
@@ -951,14 +988,20 @@ const filteredDrafts = drafts.filter((draft) => {
             topics: finalTopic,
             tags: formData.tags.join(","),
             purpose: selectedPurpose,
-            questions: selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
-            poll: selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
+            questions:
+              selectedPurpose === "Đặt câu hỏi" ? formData.questions : [],
+            poll:
+              selectedPurpose === "Tạo cuộc bình chọn" ? formData.poll : null,
             quizzes: selectedPurpose === "Câu đố" ? formData.quizzes : [],
-            story_type: selectedPurpose === "Truyện tranh" ? formData.storyType : "",
+            story_type:
+              selectedPurpose === "Truyện tranh" ? formData.storyType : "",
             story_description:
-              selectedPurpose === "Truyện tranh" ? formData.storyDescription : "",
+              selectedPurpose === "Truyện tranh"
+                ? formData.storyDescription
+                : "",
             story_doc: formData.storyDoc ? formData.storyDoc.url : null,
-            timeline: selectedPurpose === "Hành trình" ? formData.timeline : null,
+            timeline:
+              selectedPurpose === "Hành trình" ? formData.timeline : null,
             images:
               formData.images.length > 0
                 ? formData.images.map((img) => img.url).join(",")
@@ -1270,7 +1313,7 @@ const filteredDrafts = drafts.filter((draft) => {
             onClose={() => removeNotification(notif.id)}
           />
         ))}
-  
+
         {showConfirm.isOpen && (
           <Confirm
             message={showConfirm.message}
@@ -1282,7 +1325,7 @@ const filteredDrafts = drafts.filter((draft) => {
             }
           />
         )}
-  
+
         {showLoginModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full relative">
@@ -1315,11 +1358,16 @@ const filteredDrafts = drafts.filter((draft) => {
             </div>
           </div>
         )}
-  
+
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-500 to-indigo-500 rounded-lg mb-5">
           <h1 className="text-2xl z-10 font-bold text-white">Mẫu bài viết</h1>
           <div className="relative w-12 h-12">
-            <svg width="48" height="48" viewBox="0 0 48 48" className="absolute">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 48 48"
+              className="absolute"
+            >
               <circle
                 cx="24"
                 cy="24"
@@ -1345,7 +1393,7 @@ const filteredDrafts = drafts.filter((draft) => {
             </span>
           </div>
         </div>
-  
+
         <div className="mb-8 flex flex-col md:flex-row items-center justify-center gap-6">
           <div className="w-full md:w-1/3">
             <select
@@ -1363,7 +1411,7 @@ const filteredDrafts = drafts.filter((draft) => {
             </select>
           </div>
         </div>
-  
+
         {showForm && selectedPurpose && (
           <form onSubmit={handlePublishPost}>
             <div className="flex flex-col md:flex-row gap-6 mb-8">
@@ -1409,7 +1457,7 @@ const filteredDrafts = drafts.filter((draft) => {
                   </p>
                 )}
               </div>
-  
+
               <div className="flex-1">
                 <div className="relative">
                   <select
@@ -1492,7 +1540,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 )}
               </div>
             </div>
-  
+
             {selectedPurpose === "Đặt câu hỏi" && (
               <>
                 <div className="mb-8">
@@ -1613,7 +1661,9 @@ const filteredDrafts = drafts.filter((draft) => {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1649,7 +1699,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 </div>
               </>
             )}
-  
+
             {selectedPurpose === "Tạo cuộc bình chọn" && (
               <>
                 <div className="mb-8">
@@ -1738,7 +1788,9 @@ const filteredDrafts = drafts.filter((draft) => {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1774,7 +1826,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 </div>
               </>
             )}
-  
+
             {selectedPurpose === "Câu đố" && (
               <>
                 <div className="mb-8">
@@ -1853,7 +1905,9 @@ const filteredDrafts = drafts.filter((draft) => {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -1889,7 +1943,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 </div>
               </>
             )}
-  
+
             {selectedPurpose === "Truyện tranh" && (
               <>
                 <div className="mb-8">
@@ -2040,7 +2094,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 )}
               </>
             )}
-  
+
             {selectedPurpose === "Hành trình" && (
               <>
                 <div className="mb-8">
@@ -2146,7 +2200,9 @@ const filteredDrafts = drafts.filter((draft) => {
                   {isUploadingImage && (
                     <div className="mt-4 flex items-center">
                       <div className="w-6 h-6 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-3"></div>
-                      <span className="text-teal-600">Đang tải hình ảnh...</span>
+                      <span className="text-teal-600">
+                        Đang tải hình ảnh...
+                      </span>
                     </div>
                   )}
                   {formData.images.length > 0 && !isUploadingImage && (
@@ -2182,7 +2238,7 @@ const filteredDrafts = drafts.filter((draft) => {
                 </div>
               </>
             )}
-  
+
             {/* Form control buttons */}
             <div className="flex flex-wrap justify-center gap-4 mt-8">
               <button
@@ -2213,13 +2269,13 @@ const filteredDrafts = drafts.filter((draft) => {
                 <FaPaperPlane /> Đăng bài
               </button>
             </div>
-  
+
             {/* Live preview section */}
             {livePreview && <LivePreview />}
           </form>
         )}
       </div>
-  
+
       {/* Sidebar for Drafts */}
       <div className="w-full lg:w-1/3 bg-teal-50 p-4 shadow-md rounded-2xl order-1 lg:order-none lg:sticky lg:top-24 max-h-[calc(100vh-2rem)]">
         <div className="flex-shrink-0">
@@ -2249,84 +2305,87 @@ const filteredDrafts = drafts.filter((draft) => {
             </p>
           ) : (
             <ul className="space-y-4 pb-8">
-              {filteredDrafts.map((draft) => {
-                const imageUrls = draft.images ? draft.images.split(",") : [];
-                const tags = draft.tags
-                  ? draft.tags.split(",").map((tag) => tag.trim())
-                  : [];
-                const contentPreview =
-                  draft.story_description ||
-                  draft.timeline?.title ||
-                  draft.poll?.title ||
-                  draft.questions?.[0]?.question ||
-                  draft.quizzes?.[0]?.question ||
-                  "Chưa có nội dung";
-                return (
-                  <li
-                    key={`draft-${draft.id}`}
-                    className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
-                  >
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-12">
-                        {imageUrls.length > 0 && isValidUrl(imageUrls[0]) ? (
-                          <Image
-                            src={imageUrls[0]}
-                            alt={`Hình ảnh bản nháp ${draft.id}`}
-                            width={48}
-                            height={48}
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs px-1">
-                            Không có media
+              {filteredDrafts
+                .slice()
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .map((draft) => {
+                  const imageUrls = draft.images ? draft.images.split(",") : [];
+                  const tags = draft.tags
+                    ? draft.tags.split(",").map((tag) => tag.trim())
+                    : [];
+                  const contentPreview =
+                    draft.story_description ||
+                    draft.timeline?.title ||
+                    draft.poll?.title ||
+                    draft.questions?.[0]?.question ||
+                    draft.quizzes?.[0]?.question ||
+                    "Chưa có nội dung";
+                  return (
+                    <li
+                      key={`draft-${draft.id}`}
+                      className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                    >
+                      <div className="flex gap-4">
+                        <div className="flex-shrink-0 w-12">
+                          {imageUrls.length > 0 && isValidUrl(imageUrls[0]) ? (
+                            <Image
+                              src={imageUrls[0]}
+                              alt={`Hình ảnh bản nháp ${draft.id}`}
+                              width={48}
+                              height={48}
+                              className="w-12 h-12 object-cover rounded-lg"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs px-1">
+                              Không có media
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <strong className="text-teal-600 text-sm font-bold">
+                            {draft.purpose || "Không có mục đích"}
+                          </strong>
+                          <p className="text-gray-600 text-xs mt-1 line-clamp-2">
+                            {contentPreview.slice(0, 50) + "..."}
+                          </p>
+                          {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {tags.slice(0, 3).map((tag, index) => (
+                                <span
+                                  key={`${tag}-${index}`}
+                                  className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <small className="text-gray-500 text-xs block mt-2">
+                            {draft.created_at
+                              ? new Date(draft.created_at).toLocaleString()
+                              : new Date().toLocaleString()}
+                          </small>
+                          <div className="flex justify-end gap-3 mt-3">
+                            <button
+                              onClick={() => handleSelectDraft(draft)}
+                              className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
+                              aria-label={`Chỉnh sửa bản nháp ${draft.purpose}`}
+                            >
+                              Chỉnh sửa
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDraft(draft.id)}
+                              className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
+                              aria-label={`Xóa bản nháp ${draft.purpose}`}
+                            >
+                              Xóa
+                            </button>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <strong className="text-teal-600 text-sm font-bold">
-                          {draft.purpose || "Không có mục đích"}
-                        </strong>
-                        <p className="text-gray-600 text-xs mt-1 line-clamp-2">
-                          {contentPreview.slice(0, 50) + "..."}
-                        </p>
-                        {tags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {tags.slice(0, 3).map((tag, index) => (
-                              <span
-                                key={`${tag}-${index}`}
-                                className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <small className="text-gray-500 text-xs block mt-2">
-                          {draft.created_at
-                            ? new Date(draft.created_at).toLocaleString()
-                            : new Date().toLocaleString()}
-                        </small>
-                        <div className="flex justify-end gap-3 mt-3">
-                          <button
-                            onClick={() => handleSelectDraft(draft)}
-                            className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
-                            aria-label={`Chỉnh sửa bản nháp ${draft.purpose}`}
-                          >
-                            Chỉnh sửa
-                          </button>
-                          <button
-                            onClick={() => handleDeleteDraft(draft.id)}
-                            className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
-                            aria-label={`Xóa bản nháp ${draft.purpose}`}
-                          >
-                            Xóa
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
+                    </li>
+                  );
+                })}
             </ul>
           )}
         </div>
