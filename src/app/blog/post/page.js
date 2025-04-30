@@ -25,7 +25,6 @@ import Confirm from "../../../utils/error";
 import { useRouter, useSearchParams } from "next/navigation";
 import AvailableSamples from "../available/page";
 
-// Tích hợp thành phần Emoji với nhập động
 const Emoji = dynamic(() => import("../emoji/page"), {
   ssr: false,
   loading: () => <div>Đang tải biểu tượng cảm xúc...</div>,
@@ -57,7 +56,6 @@ export default function PostPage() {
   const [notification, setNotification] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [confirmDeleteTable, setConfirmDeleteTable] = useState(null);
   const [imageError, setImageError] = useState("");
   const [titleError, setTitleError] = useState("");
   const [contentError, setContentError] = useState("");
@@ -70,7 +68,6 @@ export default function PostPage() {
   const [name, setName] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showDrafts, setShowDrafts] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState("");
   const [livePreview, setLivePreview] = useState(false);
@@ -78,13 +75,13 @@ export default function PostPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isTitleHidden, setIsTitleHidden] = useState(false);
   const [theme, setTheme] = useState(themes[0]?.value || "default");
+  const [isSaving, setIsSaving] = useState(false);
   const searchInputRef = useRef(null);
   const sidebarRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Ghi nhớ tham số tìm kiếm
   const memoizedSearchParams = useMemo(() => {
     return {
       title: searchParams.get("title"),
@@ -94,7 +91,6 @@ export default function PostPage() {
     };
   }, [searchParams]);
 
-  // Xử lý tự động đóng thông báo
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => setNotification(null), 3000);
@@ -102,7 +98,6 @@ export default function PostPage() {
     }
   }, [notification]);
 
-  // Kiểm tra trạng thái đăng nhập và đồng bộ sự kiện
   useEffect(() => {
     const checkLoginStatus = () => {
       const userData = JSON.parse(localStorage.getItem("user"));
@@ -179,7 +174,6 @@ export default function PostPage() {
     };
   }, [memoizedSearchParams]);
 
-  // Gợi ý thẻ dựa trên nội dung
   useEffect(() => {
     const keywords = content
       .toLowerCase()
@@ -193,7 +187,6 @@ export default function PostPage() {
     setTagSuggestions(suggestions);
   }, [content, tagsList]);
 
-  // Xử lý cuộn để ẩn thẻ
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 100);
@@ -203,9 +196,8 @@ export default function PostPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Xử lý cuộn thanh bên để ẩn tiêu đề và tự động cuộn đến ô tìm kiếm
   useEffect(() => {
-    if (showDrafts && searchInputRef.current) {
+    if (searchInputRef.current) {
       searchInputRef.current.scrollIntoView({
         behavior: "smooth",
         block: "start",
@@ -229,7 +221,7 @@ export default function PostPage() {
         scrollContainer.removeEventListener("scroll", handleSidebarScroll);
       }
     };
-  }, [showDrafts]);
+  }, []);
 
   const capitalizeFirstLetter = (string) => {
     if (!string) return "";
@@ -238,54 +230,20 @@ export default function PostPage() {
 
   const fetchTags = async () => {
     try {
-      const { data: postsData, error: postsError } = await supabase
+      const { data, error } = await supabase
         .from("posts")
         .select("tags")
         .not("tags", "is", null);
-      if (postsError) throw postsError;
-
-      const { data: demosData, error: demosError } = await supabase
-        .from("demos")
-        .select("tags")
-        .not("tags", "is", null);
-      if (demosError) throw demosError;
-
-      const { data: demoPurposeData, error: demoPurposeError } = await supabase
-        .from("demopurpose")
-        .select("tags")
-        .not("tags", "is", null);
-      if (demoPurposeError) throw demoPurposeError;
+      if (error) throw error;
 
       const allTags = [
-        ...new Set([
-          ...(postsData || []).flatMap((item) =>
+        ...new Set(
+          data.flatMap((item) =>
             item.tags
-              ? typeof item.tags === "string"
-                ? item.tags.split(",").map((tag) => tag.trim())
-                : Array.isArray(item.tags)
-                ? item.tags
-                : []
+              ? item.tags.split(",").map((tag) => tag.trim())
               : []
-          ),
-          ...(demosData || []).flatMap((item) =>
-            item.tags
-              ? typeof item.tags === "string"
-                ? item.tags.split(",").map((tag) => tag.trim())
-                : Array.isArray(item.tags)
-                ? item.tags
-                : []
-              : []
-          ),
-          ...(demoPurposeData || []).flatMap((item) =>
-            item.tags
-              ? typeof item.tags === "string"
-                ? item.tags.split(",").map((tag) => tag.trim())
-                : Array.isArray(item.tags)
-                ? item.tags
-                : []
-              : []
-          ),
-        ]),
+          )
+        ),
       ].map((tag) => capitalizeFirstLetter(tag));
 
       setTagsList([
@@ -302,36 +260,14 @@ export default function PostPage() {
 
   const fetchTopics = async () => {
     try {
-      const { data: demosData, error: demosError } = await supabase
-        .from("demos")
-        .select("topics")
-        .not("topics", "is", null);
-      if (demosError) throw demosError;
-
-      const { data: postsData, error: postsError } = await supabase
+      const { data, error } = await supabase
         .from("posts")
         .select("topics")
         .not("topics", "is", null);
-      if (postsError) throw postsError;
-
-      const { data: demoPurposeData, error: demoPurposeError } = await supabase
-        .from("demopurpose")
-        .select("topics")
-        .not("topics", "is", null);
-      if (demoPurposeError) throw demoPurposeError;
+      if (error) throw error;
 
       const allTopics = [
-        ...new Set([
-          ...(demosData || []).map((item) =>
-            capitalizeFirstLetter(item.topics)
-          ),
-          ...(postsData || []).map((item) =>
-            capitalizeFirstLetter(item.topics)
-          ),
-          ...(demoPurposeData || []).map((item) =>
-            capitalizeFirstLetter(item.topics)
-          ),
-        ]),
+        ...new Set(data.map((item) => capitalizeFirstLetter(item.topics))),
       ];
 
       setTopicsList([
@@ -349,17 +285,13 @@ export default function PostPage() {
   const fetchEntries = async (userName) => {
     try {
       setLoading(true);
-  
-      // Fetch từ bảng demos
-      const { data: demosData, error: demosError } = await supabase
+      const { data, error } = await supabase
         .from("demos")
-        .select(
-          "id, title, content, topics, tags, images, files, videos, created_at, name"
-        )
+        .select("id, title, content, topics, tags, images, files, videos, created_at, name")
         .eq("name", userName)
         .order("created_at", { ascending: false });
-      if (demosError) throw demosError;
-  
+      if (error) throw error;
+
       const normalizeMedia = (media) => {
         if (!media) return [];
         if (typeof media === "string") {
@@ -367,11 +299,9 @@ export default function PostPage() {
         }
         return [];
       };
-  
-      // Normalize dữ liệu từ demos
-      const demosFormatted = demosData.map((entry) => ({
+
+      const formattedData = data.map((entry) => ({
         id: entry.id,
-        table: "demos",
         title: entry.title || "Không có tiêu đề",
         content: entry.content || "",
         topics: capitalizeFirstLetter(entry.topics || ""),
@@ -388,9 +318,9 @@ export default function PostPage() {
         created_at: entry.created_at,
         name: entry.name,
       }));
-  
-      setEntries(demosFormatted);
-      setFilteredEntries(demosFormatted);
+
+      setEntries(formattedData);
+      setFilteredEntries(formattedData);
     } catch (err) {
       console.error("Lỗi trong fetchEntries:", err);
       setNotification({
@@ -403,36 +333,36 @@ export default function PostPage() {
   };
 
   const validateInputs = () => {
-    let hasError = false;
+    let isValid = true;
     setTitleError("");
     setContentError("");
     setTopicError("");
     setTagError("");
 
     if (!title) {
-      setTitleError("Vui lòng điền tiêu đề bài viết.");
-      hasError = true;
+      setTitleError("Tiêu đề bài viết là bắt buộc.");
+      isValid = false;
     }
     if (!content) {
-      setContentError("Vui lòng điền nội dung bài viết.");
-      hasError = true;
+      setContentError("Nội dung bài viết là bắt buộc.");
+      isValid = false;
     }
     if (!topic || (topic === "Khác" && !customTopic)) {
-      setTopicError("Vui lòng chọn hoặc nhập chủ đề.");
-      hasError = true;
+      setTopicError("Chủ đề là bắt buộc.");
+      isValid = false;
     }
     if (tags.length === 0) {
-      setTagError("Vui lòng chọn ít nhất một thẻ.");
-      hasError = true;
+      setTagError("Cần ít nhất một thẻ.");
+      isValid = false;
     }
     if (!isLoggedIn) {
       setNotification({
         message: "Vui lòng đăng nhập để thực hiện hành động này.",
         type: "error",
       });
-      hasError = true;
+      isValid = false;
     }
-    return hasError;
+    return isValid;
   };
 
   const handleAddTag = (tagValue) => {
@@ -449,24 +379,41 @@ export default function PostPage() {
   };
 
   const handleSaveDraft = async () => {
-    if (!isLoggedIn) return;
-    if (validateInputs()) return;
+    if (!isLoggedIn || isSaving || !validateInputs()) return;
+
+    setIsSaving(true);
     try {
-      const finalTopic = capitalizeFirstLetter(
-        topic === "Khác" ? customTopic : topic
-      );
+      const finalTopic = capitalizeFirstLetter(topic === "Khác" ? customTopic : topic);
       const draftData = {
-        title: title || "Không có tiêu đề",
-        content: content || "",
+        name,
+        title,
+        content: content.trim(),
         topics: finalTopic,
         tags: tags.join(","),
         images: uploadedImages.length > 0 ? uploadedImages.join(",") : null,
         files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
         videos: uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
-        name,
+        created_at: new Date().toISOString(),
       };
 
-      if (editingId !== null) {
+      const { data: existingDrafts, error: checkError } = await supabase
+        .from("demos")
+        .select("id")
+        .eq("name", name)
+        .eq("title", draftData.title)
+        .limit(1);
+      if (checkError) throw checkError;
+
+      if (existingDrafts.length > 0 && editingId === null) {
+        setNotification({
+          message: "Bản nháp với tiêu đề này đã tồn tại. Vui lòng chọn tiêu đề khác.",
+          type: "error",
+        });
+        return;
+      }
+
+      let response;
+      if (editingId !== null && editingTable === "demos") {
         const { data, error } = await supabase
           .from("demos")
           .update(draftData)
@@ -475,22 +422,7 @@ export default function PostPage() {
           .select()
           .single();
         if (error) throw error;
-        setEntries(
-          entries.map((entry) =>
-            entry.id === editingId && entry.table === "demos"
-              ? {
-                  ...data,
-                  table: "demos",
-                  title: data.title,
-                  content: data.content,
-                }
-              : entry
-          )
-        );
-        setNotification({
-          message: "Bản nháp đã được cập nhật thành công!",
-          type: "success",
-        });
+        response = data;
       } else {
         const { data, error } = await supabase
           .from("demos")
@@ -498,18 +430,41 @@ export default function PostPage() {
           .select()
           .single();
         if (error) throw error;
-        setEntries([
-          { ...data, table: "demos", title: data.title, content: data.content },
-          ...entries,
-        ]);
-        setNotification({
-          message: "Bản nháp đã được lưu thành công!",
-          type: "success",
-        });
+        response = data;
+      }
+
+      const updatedEntry = {
+        id: response.id,
+        title: response.title,
+        content: response.content,
+        topics: response.topics,
+        tags: response.tags
+          ? response.tags.split(",").map((tag) => capitalizeFirstLetter(tag.trim()))
+          : [],
+        images: response.images ? response.images.split(",").filter(isValidUrl) : [],
+        files: response.files ? response.files.split(",").filter(isValidUrl) : [],
+        videos: response.videos ? response.videos.split(",").filter(isValidUrl) : [],
+        created_at: response.created_at,
+        name: response.name,
+      };
+
+      if (editingId !== null && editingTable === "demos") {
+        setEntries(entries.map((entry) =>
+          entry.id === editingId ? updatedEntry : entry
+        ));
+        setFilteredEntries(filteredEntries.map((entry) =>
+          entry.id === editingId ? updatedEntry : entry
+        ));
+      } else {
+        setEntries([updatedEntry, ...entries]);
+        setFilteredEntries([updatedEntry, ...filteredEntries]);
       }
 
       resetForm();
-      await fetchEntries(name);
+      setNotification({
+        message: editingId !== null ? "Bản nháp đã được cập nhật!" : "Bản nháp đã được lưu thành công!",
+        type: "success",
+      });
       await fetchTopics();
       await fetchTags();
     } catch (error) {
@@ -518,12 +473,13 @@ export default function PostPage() {
         message: `Không thể lưu bản nháp: ${error.message}`,
         type: "error",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handlePublish = async () => {
-    if (!isLoggedIn) return;
-    if (validateInputs()) return;
+    if (!validateInputs()) return;
 
     try {
       const finalTopic = capitalizeFirstLetter(
@@ -533,32 +489,32 @@ export default function PostPage() {
         title,
         content,
         topics: finalTopic,
-        tags: tags.join(","), // Lưu tags dưới dạng chuỗi
+        tags: tags.join(","),
         images: uploadedImages.length > 0 ? uploadedImages.join(",") : null,
         files: uploadedFiles.length > 0 ? uploadedFiles.join(",") : null,
         videos: uploadedVideos.length > 0 ? uploadedVideos.join(",") : null,
         name,
       };
 
-      // Lưu vào bảng posts
       const { data, error } = await supabase
         .from("posts")
         .insert([publishedData])
         .select()
         .single();
-
       if (error) throw error;
 
-      // Nếu đang chỉnh sửa bản nháp, xóa bản nháp từ bảng tương ứng
-      if (editingId !== null && editingTable) {
+      if (editingId !== null && editingTable === "demos") {
         await supabase
-          .from(editingTable)
+          .from("demos")
           .delete()
           .eq("id", editingId)
-          .eq(
-            editingTable === "demos" ? "name" : "purpose",
-            editingTable === "demos" ? name : "draft"
-          );
+          .eq("name", name);
+      } else if (editingId !== null && editingTable === "demopurpose") {
+        await supabase
+          .from("demopurpose")
+          .delete()
+          .eq("id", editingId)
+          .eq("name", name);
       }
 
       setNotification({
@@ -566,7 +522,7 @@ export default function PostPage() {
         type: "success",
       });
       resetForm();
-      await fetchEntries(name); // Cập nhật lại danh sách bản nháp
+      await fetchEntries(name);
       await fetchTopics();
       await fetchTags();
       router.push("/blog/post");
@@ -579,7 +535,7 @@ export default function PostPage() {
     }
   };
 
-  const handleEditDraft = (entry) => {
+  const handleEditDraft = (entry, table) => {
     if (!isLoggedIn) return;
     setTitle(entry.title || "");
     setContent(entry.content || "");
@@ -598,7 +554,7 @@ export default function PostPage() {
     setUploadedFiles(entry.files || []);
     setUploadedVideos(entry.videos || []);
     setEditingId(entry.id);
-    setEditingTable(entry.table);
+    setEditingTable(table);
     setImageError("");
     setTitleError("");
     setContentError("");
@@ -626,7 +582,7 @@ export default function PostPage() {
     setContentError("");
     setTopicError("");
     setTagError("");
-    setActiveTab("post");
+    setActiveTab("sample");
   };
 
   const resetForm = () => {
@@ -670,9 +626,20 @@ export default function PostPage() {
 
   const handleImageUpload = async (e) => {
     if (!isLoggedIn) return;
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
 
-    const duplicates = files.filter((file) =>
+    if (files.length === 0) {
+      setImageError("Vui lòng chọn ít nhất một tệp hình ảnh.");
+      return;
+    }
+
+    const validFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (validFiles.length !== files.length) {
+      setImageError("Vui lòng chỉ chọn các tệp hình ảnh (jpg, png, v.v.).");
+      return;
+    }
+
+    const duplicates = validFiles.filter((file) =>
       checkDuplicateFile(file, uploadedImages)
     );
     if (duplicates.length > 0) {
@@ -685,58 +652,86 @@ export default function PostPage() {
     }
 
     setIsUploadingImage(true);
-    setUploadingCount((prev) => ({ ...prev, images: files.length }));
+    setUploadingCount((prev) => ({ ...prev, images: validFiles.length }));
     setUploadingFiles((prev) =>
-      files.map((file) => ({
-        name: file.name,
+      validFiles.map((file) => ({
+        name: file.name || `image-${Date.now()}`,
         type: "image",
         status: "uploading",
       }))
     );
 
+    const uploadedUrls = [];
     try {
-      const uploadedUrls = [];
-      for (const file of files) {
+      for (const file of validFiles) {
+        if (!file.name) {
+          throw new Error("Tệp không có tên hợp lệ");
+        }
         if (file.size > 10 * 1024 * 1024) {
           throw new Error("Tệp quá lớn. Vui lòng chọn tệp nhỏ hơn 10MB");
         }
+
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", "blognote");
         formData.append("cloud_name", "dlaoxrnad");
-        const response = await fetch(
-          "https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload",
-          { method: "POST", body: formData }
-        );
-        if (!response.ok) throw new Error("Tải lên thất bại");
-        const data = await response.json();
-        if (!data.secure_url)
-          throw new Error("Không nhận được URL từ Cloudinary");
 
-        uploadedUrls.push(data.secure_url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        setUploadingFiles((prev) =>
-          prev.map((f) =>
-            f.name === file.name && f.type === "image"
-              ? { ...f, status: "completed" }
-              : f
-          )
-        );
-        setUploadedImages((prev) => [...prev, data.secure_url]);
-        setUploadingCount((prev) => ({ ...prev, images: prev.images - 1 }));
+        try {
+          const response = await fetch(
+            "https://api.cloudinary.com/v1_1/dlaoxrnad/image/upload",
+            {
+              method: "POST",
+              body: formData,
+              signal: controller.signal,
+            }
+          );
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+              `Tải lên thất bại: ${response.status} ${response.statusText}, Chi tiết: ${JSON.stringify(errorData)}`
+            );
+          }
+
+          const data = await response.json();
+          if (!data.secure_url || typeof data.secure_url !== "string" || !isValidUrl(data.secure_url)) {
+            throw new Error("URL Cloudinary không hợp lệ: " + JSON.stringify(data));
+          }
+
+          uploadedUrls.push(data.secure_url);
+
+          setUploadingFiles((prev) =>
+            prev.map((f) =>
+              f.name === file.name && f.type === "image"
+                ? { ...f, status: "completed" }
+                : f
+            )
+          );
+          setUploadedImages((prev) => [...prev, data.secure_url]);
+          setUploadingCount((prev) => ({
+            ...prev,
+            images: Math.max(prev.images - 1, 0),
+          }));
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          if (fetchErr.name === "AbortError") {
+            throw new Error("Yêu cầu tải lên đã hết thời gian.");
+          }
+          throw fetchErr;
+        }
       }
-
-      // Lưu vào bảng demos
-      const { error } = await supabase.from("demos").upsert({
-        name,
-        title: title || "Không có tiêu đề",
-        images: uploadedUrls.join(","),
-      });
-      if (error) throw error;
-
-      setImageError("");
     } catch (err) {
-      console.error("Lỗi trong handleImageUpload:", err);
+      console.error("Lỗi trong handleImageUpload:", {
+        message: err.message || "Lỗi không xác định",
+        stack: err.stack || "Không có stack trace",
+        error: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+        files: validFiles.map((f) => f.name),
+        uploadedUrls,
+      });
       setImageError(err.message || "Không thể tải lên hình ảnh.");
     } finally {
       setIsUploadingImage(false);
@@ -813,14 +808,6 @@ export default function PostPage() {
         setUploadedFiles((prev) => [...prev, data.secure_url]);
         setUploadingCount((prev) => ({ ...prev, files: prev.files - 1 }));
       }
-
-      // Lưu vào bảng demos
-      const { error } = await supabase.from("demos").upsert({
-        name,
-        title: title || "Không có tiêu đề",
-        files: uploadedFileUrls.join(","),
-      });
-      if (error) throw error;
     } catch (err) {
       console.error("Lỗi trong handleFileUpload:", err);
       setNotification({
@@ -896,14 +883,6 @@ export default function PostPage() {
         setUploadedVideos((prev) => [...prev, data.secure_url]);
         setUploadingCount((prev) => ({ ...prev, videos: prev.videos - 1 }));
       }
-
-      // Lưu vào bảng demos
-      const { error } = await supabase.from("demos").upsert({
-        name,
-        title: title || "Không có tiêu đề",
-        videos: uploadedVideoUrls.join(","),
-      });
-      if (error) throw error;
     } catch (err) {
       console.error("Lỗi trong handleVideoUpload:", err);
       setNotification({
@@ -1025,7 +1004,6 @@ export default function PostPage() {
         </div>
 
         <>
-          {/* Ô nhập tiêu đề */}
           <div className="relative mb-8">
             <div className="relative">
               <input
@@ -1033,7 +1011,7 @@ export default function PostPage() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="peer w-full p-4 pt-6 pr-12 pb-8 bg-transparent border-b-2 border-teal-300 text-teal-700 text-base focus:outline-none focus:border-teal-500 transition-colors duration-300"
+                className="peer w-full p-4 pt-10 pr-12 pb-8 bg-transparent border-b-2 border-teal-300 text-teal-700 text-base focus:outline-none focus:border-teal-500 transition-colors duration-300"
                 placeholder=" "
                 aria-label="Tiêu đề bài viết"
                 aria-invalid={!!titleError}
@@ -1059,7 +1037,6 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Ô nhập nội dung */}
           <div className="relative mb-8">
             <div className="relative">
               <textarea
@@ -1099,7 +1076,6 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Chủ đề và thẻ */}
           <div className="flex flex-col md:flex-row gap-6 mb-8">
             <div className="flex-1 relative">
               <select
@@ -1245,7 +1221,6 @@ export default function PostPage() {
             </div>
           </div>
 
-          {/* Tải lên phương tiện */}
           <div className="mb-8 text-sm">
             <h3 className="font-bold text-teal-600 mb-4">Tệp đa phương tiện</h3>
             <div className="flex flex-wrap gap-4">
@@ -1403,7 +1378,6 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Nút hành động */}
           <div className="flex justify-center items-center mt-8 flex-wrap gap-4 text-sm">
             <div className="flex gap-4">
               <button
@@ -1417,10 +1391,13 @@ export default function PostPage() {
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition-all duration-200"
+                disabled={isSaving}
+                className={`flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition-all duration-200 ${
+                  isSaving ? "opacity-50 cursor-not-allowed" : ""
+                }`}
                 aria-label="Lưu bản nháp"
               >
-                <FaSave /> Lưu bản nháp
+                <FaSave /> {isSaving ? "Đang lưu..." : "Lưu bản nháp"}
               </button>
             </div>
             <div className="flex gap-4">
@@ -1541,6 +1518,122 @@ export default function PostPage() {
     </div>
   );
 
+  const renderDrafts = () => (
+    <div className="w-full p-4 bg-teal-50 backdrop-blur-lg rounded-2xl shadow-xl h-fit lg:sticky lg:top-24">
+      <div className="flex-shrink-0">
+        <div
+          className={`flex justify-between items-center mb-6 transition-all duration-300 ${
+            isTitleHidden ? "hide-title h-0 overflow-hidden" : ""
+          }`}
+        >
+          <h2 className="text-xl font-bold text-teal-600 flex items-center">
+            <DiffOutlined className="mr-2 text-teal-500" /> Bản nháp (
+            {filteredEntries.length})
+          </h2>
+        </div>
+        <div className="relative mb-4">
+          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Tìm kiếm..."
+            value={searchQuery}
+            onChange={handleSearchDrafts}
+            className="w-full pl-12 p-3 bg-teal-50 border border-teal-200 rounded-full focus:outline-none focus:border-teal-500 text-teal-700 transition-colors duration-200"
+            aria-label="Tìm kiếm bản nháp"
+          />
+        </div>
+      </div>
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto scrollbar-hidden max-h-[calc(100vh-12rem)]"
+      >
+        <ul className="space-y-4 pb-8">
+          {filteredEntries.length > 0 ? (
+            filteredEntries.map((entry) => (
+              <li
+                key={`draft-${entry.id}`}
+                className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+              >
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-12">
+                    {Array.isArray(entry.images) &&
+                    entry.images.length > 0 &&
+                    isValidUrl(entry.images[0]) ? (
+                      <Image
+                        src={entry.images[0]}
+                        alt={`Hình ảnh bản nháp ${entry.id}`}
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs px-1">
+                        Không có media
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <strong className="text-teal-600 text-sm font-bold">
+                      {entry.title || "Không có tiêu đề"}
+                    </strong>
+                    <p className="text-gray-600 text-xs mt-1 line-clamp-2">
+                      {entry.content
+                        ? entry.content.slice(0, 50) + "..."
+                        : "Không có nội dung"}
+                    </p>
+                    {Array.isArray(entry.tags) && entry.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {entry.tags.slice(0, 3).map((tag, index) => (
+                          <span
+                            key={`${tag}-${index}`}
+                            className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <small className="text-gray-500 text-xs block mt-2">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </small>
+                    <div className="flex justify-end gap-3 mt-3">
+                      <button
+                        onClick={() => handleEditDraft(entry, "demos")}
+                        className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
+                        aria-label={`Chỉnh sửa bản nháp ${
+                          entry.title || "Không có tiêu đề"
+                        }`}
+                      >
+                        Chỉnh sửa
+                      </button>
+                      <button
+                        onClick={() => {
+                          setConfirmDeleteId(entry.id);
+                          setShowConfirm(true);
+                        }}
+                        className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
+                        aria-label={`Xóa bản nháp ${
+                          entry.title || "Không có tiêu đề"
+                        }`}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))
+          ) : (
+            <p className="text-gray-500 text-sm text-center pt-4">
+              Không tìm thấy bản nháp nào.
+            </p>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="mt-24 p-5 rounded-lg shadow-md border border-blue-200 text-gray-700">
@@ -1622,13 +1715,10 @@ export default function PostPage() {
             onConfirm={async () => {
               try {
                 const { error } = await supabase
-                  .from(confirmDeleteTable)
+                  .from("demos")
                   .delete()
                   .eq("id", confirmDeleteId)
-                  .eq(
-                    confirmDeleteTable === "demos" ? "name" : "purpose",
-                    confirmDeleteTable === "demos" ? name : "draft"
-                  );
+                  .eq("name", name);
                 if (error) throw error;
                 setEntries(
                   entries.filter((entry) => entry.id !== confirmDeleteId)
@@ -1650,14 +1740,12 @@ export default function PostPage() {
                 });
               } finally {
                 setConfirmDeleteId(null);
-                setConfirmDeleteTable(null);
                 setShowConfirm(false);
               }
             }}
             onCancel={() => {
               setShowConfirm(false);
               setConfirmDeleteId(null);
-              setConfirmDeleteTable(null);
             }}
           />
         )}
@@ -1683,12 +1771,9 @@ export default function PostPage() {
           </div>
         ) : (
           <div
-            className={`flex flex-col lg:flex-row gap-6 ${getThemeClasses(
-              theme,
-              "container"
-            )}`}
+            className={`flex flex-col lg:flex-row gap-6 ${getThemeClasses(theme, "container")}`}
           >
-            <div className="w-full lg:w-2/3 p-4">
+            <div className="flex-1 p-4">
               <div className="mb-4 flex border-b border-teal-200">
                 <button
                   onClick={() => {
@@ -1722,164 +1807,18 @@ export default function PostPage() {
               <div className="bg-white/90">{renderForm(activeTab)}</div>
 
               {livePreview && activeTab === "post" && renderLivePreview()}
+
+              {activeTab !== "sample" && (
+                <div className="lg:hidden mt-6">{renderDrafts()}</div>
+              )}
             </div>
 
-            {showDrafts && (
-              <div
-                className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-                onClick={() => setShowDrafts(false)}
-                aria-hidden="true"
-              ></div>
+            {activeTab !== "sample" && (
+              <div className="hidden lg:block mr-4 mb-4 lg:w-1/3 mt-21">{renderDrafts()}</div>
             )}
-            <div className="lg:w-1/3 mr-4">
-              <div
-                ref={sidebarRef}
-                className={`mt-[86px] fixed lg:static top-0 right-0 h-[calc(100vh-86px)] bg-teal-50 backdrop-blur-lg rounded-2xl p-6 shadow-xl transition-transform duration-300 ${
-                  showDrafts ? "translate-x-0" : "translate-x-full"
-                } lg:translate-x-0 z-40 flex flex-col`}
-                style={{
-                  WebkitOverflowScrolling: "touch",
-                  scrollbarWidth: "none",
-                  msOverflowStyle: "none",
-                }}
-              >
-                <div className="flex-shrink-0">
-                  <div
-                    className={`flex justify-between items-center mb-6 transition-all duration-300 ${
-                      isTitleHidden ? "hide-title h-0 overflow-hidden" : ""
-                    }`}
-                  >
-                    <h2 className="text-xl font-bold text-teal-600 flex items-center">
-                      <DiffOutlined className="mr-2 text-teal-500" /> Bản nháp (
-                      {filteredEntries.length})
-                    </h2>
-                    <button
-                      onClick={() => setShowDrafts(!showDrafts)}
-                      className="lg:hidden text-teal-600 hover:text-teal-700 transition-colors"
-                      aria-label="Đóng danh sách bản nháp"
-                    >
-                      <FaTimes size={24} />
-                    </button>
-                  </div>
-                  <div className="relative mb-4">
-                    <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-400" />
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      placeholder="Tìm kiếm..."
-                      value={searchQuery}
-                      onChange={handleSearchDrafts}
-                      className="w-full pl-12 p-3 bg-teal-50 border border-teal-200 rounded-full focus:outline-none focus:border-teal-500 text-teal-700 transition-colors duration-200"
-                      aria-label="Tìm kiếm bản nháp"
-                    />
-                  </div>
-                </div>
-                <div
-                  ref={scrollContainerRef}
-                  className="flex-1 overflow-y-auto scrollbar-hidden"
-                >
-                  <ul className="space-y-4 pb-8">
-                    {filteredEntries.length > 0 ? (
-                      filteredEntries.map((entry) => (
-                        <li
-                          key={`draft-${entry.table}-${entry.id}`}
-                          className="bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
-                        >
-                          <div className="flex gap-4">
-                            <div className="flex-shrink-0 w-12">
-                              {Array.isArray(entry.images) &&
-                              entry.images.length > 0 &&
-                              isValidUrl(entry.images[0]) ? (
-                                <Image
-                                  src={entry.images[0]}
-                                  alt={`Hình ảnh bản nháp ${entry.id}`}
-                                  width={48}
-                                  height={48}
-                                  className="w-12 h-12 object-cover rounded-lg"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center text-teal-500 text-xs px-1">
-                                  Không có media
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <strong className="text-teal-600 text-sm font-bold">
-                                {entry.title || "Không có tiêu đề"}
-                              </strong>
-                              <p className="text-gray-600 text-xs mt-1 line-clamp-2">
-                                {entry.content
-                                  ? entry.content.slice(0, 50) + "..."
-                                  : "Không có nội dung"}
-                              </p>
-                              {Array.isArray(entry.tags) &&
-                                entry.tags.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    {entry.tags
-                                      .slice(0, 3)
-                                      .map((tag, index) => (
-                                        <span
-                                          key={`${tag}-${index}`}
-                                          className="bg-teal-100 text-teal-700 px-2 py-1 rounded-full text-xs"
-                                        >
-                                          {tag}
-                                        </span>
-                                      ))}
-                                  </div>
-                                )}
-                              <small className="text-gray-500 text-xs block mt-2">
-                                {new Date(entry.created_at).toLocaleString()}
-                              </small>
-                              <div className="flex justify-end gap-3 mt-3">
-                                <button
-                                  onClick={() => handleEditDraft(entry)}
-                                  className="bg-teal-500 text-white px-4 py-2 rounded-full text-xs hover:bg-teal-600 transition-all duration-200"
-                                  aria-label={`Chỉnh sửa bản nháp ${
-                                    entry.title || "Không có tiêu đề"
-                                  }`}
-                                >
-                                  Chỉnh sửa
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setConfirmDeleteId(entry.id);
-                                    setConfirmDeleteTable(entry.table);
-                                    setShowConfirm(true);
-                                  }}
-                                  className="bg-red-500 text-white px-4 py-2 rounded-full text-xs hover:bg-red-600 transition-all duration-200"
-                                  aria-label={`Xóa bản nháp ${
-                                    entry.title || "Không có tiêu đề"
-                                  }`}
-                                >
-                                  Xóa
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </li>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm text-center pt-4">
-                        Không tìm thấy bản nháp nào.
-                      </p>
-                    )}
-                  </ul>
-                </div>
-              </div>
 
-              <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
-              <ScrollToTop />
-            </div>
-
-            {isLoggedIn && !showDrafts && (
-              <button
-                onClick={() => setShowDrafts(true)}
-                className="fixed bottom-8 right-8 bg-teal-500 text-white p-4 rounded-full z-50 lg:hidden shadow-lg hover:bg-teal-600 transition-all duration-200 hover:scale-110"
-                aria-label="Mở danh sách bản nháp"
-              >
-                <DiffOutlined className="text-xl" />
-              </button>
-            )}
+            <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
+            <ScrollToTop />
           </div>
         )}
       </div>
