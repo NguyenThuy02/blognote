@@ -1136,7 +1136,7 @@ export default function BloglistApp() {
             .map((post) => (
               <div key={post.id} className="relative">
                 <div
-                  className="rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-shadow duration-200 cursor-pointer"
+                  className="rounded-lg shadow-md border bg-white border-gray-200 p-4 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-shadow duration-200 cursor-pointer"
                   onClick={() => handlePostClick(post)}
                 >
                   <div className="flex items-center mb-3">
