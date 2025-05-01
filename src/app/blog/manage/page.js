@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
@@ -266,7 +265,9 @@ export default function ManageApp() {
     try {
       const { data, error } = await supabase
         .from("posts")
-        .select("id, title, content, topics, tags, images, videos, files, created_at, name")
+        .select(
+          "id, title, content, topics, tags, images, videos, files, created_at, name"
+        )
         .eq("name", userData.name || userData.email)
         .order("created_at", { ascending: false });
 
@@ -411,16 +412,20 @@ export default function ManageApp() {
           })
           .filter(Boolean);
         for (const publicId of oldPublicIds) {
-          const resourceType = type === "image" ? "image" : type === "video" ? "video" : "raw";
-          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              public_id: publicId,
-              api_key: "your_api_key", // Thay bằng API key của bạn
-              signature: "your_signature", // Cần tạo signature nếu dùng signed request
-            }),
-          });
+          const resourceType =
+            type === "image" ? "image" : type === "video" ? "video" : "raw";
+          const response = await fetch(
+            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_id: publicId,
+                api_key: "your_api_key", // Thay bằng API key của bạn
+                signature: "your_signature", // Cần tạo signature nếu dùng signed request
+              }),
+            }
+          );
           const result = await response.json();
           if (result.result !== "ok") {
             console.error("Lỗi khi xóa tệp cũ:", result);
@@ -438,7 +443,9 @@ export default function ManageApp() {
         const fileExt = file.name.split(".").pop()?.toLowerCase();
         if (!fileExt || !validExts.includes(fileExt)) {
           throw new Error(
-            `Định dạng tệp không hợp lệ: ${fileExt}. Chỉ hỗ trợ ${validExts.join(", ")}.`
+            `Định dạng tệp không hợp lệ: ${fileExt}. Chỉ hỗ trợ ${validExts.join(
+              ", "
+            )}.`
           );
         }
 
@@ -454,15 +461,23 @@ export default function ManageApp() {
         formData.append("file", file);
         formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-        const resourceType = type === "image" ? "image" : type === "video" ? "video" : "raw";
-        const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/upload`, {
-          method: "POST",
-          body: formData,
-        });
+        const resourceType =
+          type === "image" ? "image" : type === "video" ? "video" : "raw";
+        const response = await fetch(
+          `${CLOUDINARY_API_BASE}/${resourceType}/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
 
         const result = await response.json();
         if (!result.secure_url) {
-          throw new Error(`Lỗi tải lên tệp ${file.name}: ${result.error?.message || "Unknown error"}`);
+          throw new Error(
+            `Lỗi tải lên tệp ${file.name}: ${
+              result.error?.message || "Unknown error"
+            }`
+          );
         }
 
         console.log("Đã tải lên tệp:", file.name, "URL:", result.secure_url);
@@ -602,7 +617,9 @@ export default function ManageApp() {
     }
     try {
       // Xóa các tệp liên quan trên Cloudinary
-      const article = articles.find((article) => article.id === deletingArticleId);
+      const article = articles.find(
+        (article) => article.id === deletingArticleId
+      );
       const allUrls = [
         ...(article.images || []),
         ...(article.videos || []),
@@ -616,16 +633,25 @@ export default function ManageApp() {
           })
           .filter(Boolean);
         for (const publicId of publicIds) {
-          const resourceType = getMediaType(allUrls.find((url) => url.includes(publicId))) === "image" ? "image" : "video" ? "video" : "raw";
-          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              public_id: publicId,
-              api_key: "your_api_key", // Thay bằng API key của bạn
-              signature: "your_signature", // Cần tạo signature nếu dùng signed request
-            }),
-          });
+          const resourceType =
+            getMediaType(allUrls.find((url) => url.includes(publicId))) ===
+            "image"
+              ? "image"
+              : "video"
+              ? "video"
+              : "raw";
+          const response = await fetch(
+            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_id: publicId,
+                api_key: "your_api_key", // Thay bằng API key của bạn
+                signature: "your_signature", // Cần tạo signature nếu dùng signed request
+              }),
+            }
+          );
           const result = await response.json();
           if (result.result !== "ok") {
             console.error("Lỗi khi xóa tệp:", result);
@@ -718,16 +744,25 @@ export default function ManageApp() {
           })
           .filter(Boolean);
         for (const publicId of publicIds) {
-          const resourceType = getMediaType(allUrls.find((url) => url.includes(publicId))) === "image" ? "image" : "video" ? "video" : "raw";
-          const response = await fetch(`${CLOUDINARY_API_BASE}/${resourceType}/destroy`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              public_id: publicId,
-              api_key: "your_api_key", // Thay bằng API key của bạn
-              signature: "your_signature", // Cần tạo signature nếu dùng signed request
-            }),
-          });
+          const resourceType =
+            getMediaType(allUrls.find((url) => url.includes(publicId))) ===
+            "image"
+              ? "image"
+              : "video"
+              ? "video"
+              : "raw";
+          const response = await fetch(
+            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_id: publicId,
+                api_key: "your_api_key", // Thay bằng API key của bạn
+                signature: "your_signature", // Cần tạo signature nếu dùng signed request
+              }),
+            }
+          );
           const result = await response.json();
           if (result.result !== "ok") {
             console.error("Lỗi khi xóa tệp:", result);
@@ -1348,7 +1383,9 @@ export default function ManageApp() {
                 />
               </div>
               <div className="mb-3">
-                <label className="block mb-1 text-sm wrap-text">Nội dung:</label>
+                <label className="block mb-1 text-sm wrap-text">
+                  Nội dung:
+                </label>
                 <textarea
                   name="content"
                   value={newArticle.content}
@@ -1388,6 +1425,7 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
+             
               <div className="mb-3">
                 <label className="block mb-1 text-sm wrap-text">Thẻ tag:</label>
                 <input
@@ -1617,9 +1655,7 @@ export default function ManageApp() {
           Hỗ trợ quản lý bài viết
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div
-            className={`p-4 rounded-lg shadow-sm bg-gray-1 flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm bg-gray-1 flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-green-700 wrap-text">
               Bài viết yêu thích
             </h3>
@@ -1645,9 +1681,7 @@ export default function ManageApp() {
               </p>
             )}
           </div>
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-teal-700 wrap-text">
               Thống kê nhanh
             </h3>
@@ -1666,9 +1700,7 @@ export default function ManageApp() {
               </li>
             </ul>
           </div>
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-blue-700 wrap-text">
               Hoạt động gần đây
             </h3>
@@ -1699,9 +1731,7 @@ export default function ManageApp() {
           Công cụ khác
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-orange-700 wrap-text">
               Từ khóa phổ biến
             </h3>
@@ -1719,9 +1749,7 @@ export default function ManageApp() {
               </p>
             )}
           </div>
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-purple-700 wrap-text">
               Mẹo quản lý nội dung
             </h3>
@@ -1734,9 +1762,7 @@ export default function ManageApp() {
               </li>
             </ul>
           </div>
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-pink-700 wrap-text">
               Gợi ý hành động
             </h3>
@@ -1745,9 +1771,7 @@ export default function ManageApp() {
         </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div
-            className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}
-          >
+          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-yellow-700 wrap-text">
               Xuất danh sách
             </h3>
