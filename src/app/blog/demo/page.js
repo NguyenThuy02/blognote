@@ -24,7 +24,6 @@ export default function ClassfyApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const detailRef = useRef(null);
 
-  // Tải chủ đề từ localStorage
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem("theme") || "light";
@@ -34,7 +33,6 @@ export default function ClassfyApp() {
     }
   }, []);
 
-  // Lưu chủ đề vào localStorage
   useEffect(() => {
     try {
       localStorage.setItem("theme", theme);
@@ -43,68 +41,201 @@ export default function ClassfyApp() {
     }
   }, [theme]);
 
-  // Hàm rút gọn văn bản
   const truncateText = (text, maxLength) => {
     if (!text) return "Không có nội dung";
     return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
   };
 
-  // Hàm chuyển đổi chuỗi/JSON thành mảng
-  const parseArray = (data) => {
-    if (Array.isArray(data))
-      return data.filter((item) => item && typeof item === "string");
-    if (typeof data === "string") {
-      try {
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed))
-          return parsed.filter((item) => item && typeof item === "string");
-      } catch (e) {
-        return data
-          .split(",")
-          .map((item) => item.trim())
-          .filter((item) => item);
-      }
-    }
-    return [];
-  };
-
-  // Hàm kiểm tra URL hợp lệ
   const isValidUrl = (url) => {
+    if (!url || typeof url !== "string") return false;
     try {
       new URL(url);
-      return true;
+      return url.startsWith("http://") || url.startsWith("https://");
     } catch {
       return false;
     }
   };
 
-  // Hàm xác định nhãn cho description dựa trên title
-  const getDescriptionLabel = (title) => {
-    if (!title) return "Mô tả nội dung";
-    const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes("truyện") || lowerTitle.includes("câu chuyện") || lowerTitle.includes("story")) {
-      return "Nội dung truyện";
-    } else if (lowerTitle.includes("khảo sát") || lowerTitle.includes("bình chọn") || lowerTitle.includes("survey") || lowerTitle.includes("poll")) {
-      return "Mô tả khảo sát";
-    } else if (lowerTitle.includes("câu đố") || lowerTitle.includes("trắc nghiệm") || lowerTitle.includes("quiz")) {
-      return "Tóm tắt câu đố";
-    } else if (lowerTitle.includes("dòng thời gian") || lowerTitle.includes("sự kiện") || lowerTitle.includes("timeline")) {
-      return "Tóm tắt sự kiện";
-    }
-    return "Mô tả nội dung";
+  const isJsonString = (str) => {
+    if (typeof str !== "string") return false;
+    return str.trim().startsWith("{") || str.trim().startsWith("[");
   };
 
-  // Tải bài viết từ Supabase
-  useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("postpurpose")
-          .select(
-            "id, topics, tags, purpose, questions, poll, quizzes, story_type, story_description, story_doc, timeline, images, name, created_at"
-          );
+  const getImageUrl = (path) => {
+    if (!path) return null;
+    if (isValidUrl(path)) return path;
+    const { data } = supabase.storage
+      .from("postpurpose-images")
+      .getPublicUrl(path);
+    return data.publicUrl;
+  };
 
-        if (error) throw error;
+  const getDescriptionContent = (article) => {
+    if (
+      article.events_timeline?.title &&
+      Array.isArray(article.events_timeline.milestones) &&
+      article.events_timeline.milestones.some((m) => m.description)
+    ) {
+      const firstMilestone =
+        article.events_timeline.milestones.find((m) => m.description) || {};
+      return (
+        <div className="description-content events-timeline">
+          <strong className="description-label animate-fade-in">
+            Mô tả nội dung:
+          </strong>{" "}
+          <span className="animate-fade-in delay-1">
+            {article.events_timeline.title}
+          </span>
+          <br />
+          {firstMilestone.time && (
+            <>
+              <span className="animate-fade-in delay-2">
+                Thời gian:{" "}
+                <span className="text-blue-600">
+                  {new Date(firstMilestone.time).toLocaleDateString("vi-VN")}
+                </span>
+              </span>
+              <br />
+              <span className="animate-fade-in delay-3">
+                Mô tả: {firstMilestone.description}
+              </span>
+              <br />
+            </>
+          )}
+          <span className="animate-fade-in delay-4">
+            Trạng thái:{" "}
+            <span className="text-purple-600">
+              {firstMilestone.status || "Không xác định"}
+            </span>
+          </span>
+        </div>
+      );
+    }
+
+    if (
+      Array.isArray(article.quiz_questions) &&
+      article.quiz_questions.some((q) => q.question && q.options.some((o) => o))
+    ) {
+      const firstQuestion =
+        article.quiz_questions.find(
+          (q) => q.question && q.options.some((o) => o)
+        ) || {};
+      return (
+        <div className="description-content quiz-questions">
+          <strong className="description-label animate-fade-in">
+            Câu hỏi:
+          </strong>{" "}
+          <span className="animate-fade-in delay-1">
+            {firstQuestion.question || "Không có câu hỏi"}
+          </span>
+          <ul className="list-disc list-inside mt-1">
+            {Array.isArray(firstQuestion.options) &&
+              firstQuestion.options
+                .filter((o) => o)
+                .map((option, i) => (
+                  <li
+                    key={i}
+                    className="text-gray-600"
+                    style={{ animationDelay: `${0.2 * (i + 1)}s` }}
+                  >
+                    {String.fromCharCode(65 + i)}: {option}
+                  </li>
+                ))}
+          </ul>
+        </div>
+      );
+    }
+
+    if (
+      article.survey?.title &&
+      Array.isArray(article.survey.options) &&
+      article.survey.options.some((o) => o)
+    ) {
+      return (
+        <div className="description-content poll">
+          <strong className="description-label animate-fade-in">
+            Cuộc bình chọn:
+          </strong>{" "}
+          <span className="animate-fade-in delay-1">
+            {article.survey.title}
+          </span>
+          <ul className="list-disc list-inside mt-1">
+            {article.survey.options
+              .filter((o) => o)
+              .map((option, i) => (
+                <li
+                  key={i}
+                  className="text-gray-600"
+                  style={{ animationDelay: `${0.2 * (i + 1)}s` }}
+                >
+                  {option}
+                </li>
+              ))}
+          </ul>
+        </div>
+      );
+    }
+
+    if (
+      article.story_type &&
+      article.story_type.toLowerCase().includes("truyện tranh") &&
+      article.description
+    ) {
+      return (
+        <div className="description-content comics">
+          <strong className="description-label animate-fade-in">
+            Mô tả nội dung:
+          </strong>{" "}
+          <span className="animate-fade-in delay-1">{article.description}</span>
+          <br />
+          <span className="animate-fade-in delay-2">
+            <span className="text-orange-600">{article.story_type}</span>
+          </span>
+        </div>
+      );
+    }
+
+    if (
+      Array.isArray(article.short_quizzes) &&
+      article.short_quizzes.some((q) => q.question && q.answer)
+    ) {
+      const firstQuiz =
+        article.short_quizzes.find((q) => q.question && q.answer) || {};
+      return (
+        <div className="description-content short-quiz">
+          <strong className="description-label animate-fade-in">
+            Tóm tắt câu đố:
+          </strong>{" "}
+          <span className="text-purple-600 animate-fade-in delay-1">
+            {firstQuiz.question || "Không có câu đố"}
+          </span>
+          <br />
+          <span className="animate-fade-in delay-2">
+            Đáp án:{" "}
+            <span className="text-blue-600">
+              {firstQuiz.answer || "Không có đáp án"}
+            </span>
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="description-content default-content animate-shake">
+        Không có nội dung
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    const fetchArticlesAndVotes = async () => {
+      try {
+        setErrorMessage(null);
+
+        const { data: purposesData, error: purposesError } = await supabase
+          .from("postpurpose")
+          .select("*");
+        if (purposesError) throw new Error(purposesError.message);
 
         const defaultFormData = {
           quiz_questions: [
@@ -129,59 +260,107 @@ export default function ClassfyApp() {
           },
         };
 
-        const processedData = data.map((article) => {
-          const media_images = parseArray(article.images).filter(isValidUrl);
-          const keywords = parseArray(article.tags);
-          const categories = parseArray(article.topics);
-
-          if (
-            article.images &&
-            media_images.length === 0 &&
-            article.images.length > 0
-          ) {
-            console.warn(
-              `URL hình ảnh không hợp lệ trong bài viết ${article.id}:`,
-              article.images
-            );
+        const cleanedArticles = purposesData.map((purpose) => {
+          let images = [];
+          if (typeof purpose.images === "string") {
+            if (isJsonString(purpose.images)) {
+              try {
+                images = JSON.parse(purpose.images)
+                  .map((img) => getImageUrl(img))
+                  .filter(isValidUrl);
+              } catch (e) {
+                console.error(
+                  `Failed to parse images JSON for purpose ${purpose.id}:`,
+                  e
+                );
+                images = [];
+              }
+            } else if (isValidUrl(purpose.images)) {
+              images = [getImageUrl(purpose.images)];
+            }
+          } else if (Array.isArray(purpose.images)) {
+            images = purpose.images
+              .map((img) => getImageUrl(img))
+              .filter(isValidUrl);
           }
 
+          const tags =
+            typeof purpose.tags === "string"
+              ? purpose.tags
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter((tag) => tag)
+              : Array.isArray(purpose.tags)
+              ? purpose.tags.filter((tag) => tag)
+              : [];
+          const topics =
+            typeof purpose.topics === "string"
+              ? purpose.topics
+                  .split(",")
+                  .map((topic) => topic.trim())
+                  .filter((topic) => topic)
+              : Array.isArray(purpose.topics)
+              ? purpose.topics.filter((topic) => topic)
+              : [];
+
+          const storyDoc = purpose.story_doc || purpose.storyDoc;
+          const documentUrl =
+            storyDoc && !isValidUrl(storyDoc)
+              ? supabase.storage
+                  .from("postpurpose-images")
+                  .getPublicUrl(storyDoc).data.publicUrl
+              : storyDoc;
+
           return {
-            ...article,
-            title: article.purpose || "",
-            author: article.name || "Ẩn danh",
-            content_type: article.story_type || "Truyện chữ",
-            description: article.story_description || "",
-            document: article.story_doc || null,
-            categories,
-            keywords,
-            media_images,
-            quiz_questions: article.questions || defaultFormData.quiz_questions,
-            survey: article.poll || defaultFormData.survey,
-            short_quizzes: article.quizzes || defaultFormData.short_quizzes,
-            events_timeline: article.timeline || defaultFormData.events_timeline,
-            created_at: article.created_at
-              ? new Date(article.created_at)
+            id: purpose.id,
+            title: purpose.purpose || purpose.topics || "Không có tiêu đề",
+            author: purpose.name || "Ẩn danh",
+            story_type: purpose.purpose || "Không xác định",
+            description: purpose.story_description || "",
+            document: documentUrl || null,
+            categories: topics,
+            keywords: tags,
+            media_images: images,
+            quiz_questions: Array.isArray(purpose.questions)
+              ? purpose.questions.map((q) => ({
+                  ...q,
+                  image: q.image ? getImageUrl(q.image) : null,
+                  correctOptions: Array.isArray(q.correctOptions)
+                    ? q.correctOptions
+                    : [],
+                }))
+              : defaultFormData.quiz_questions,
+            survey: purpose.poll || defaultFormData.survey,
+            short_quizzes: Array.isArray(purpose.quizzes)
+              ? purpose.quizzes.map((q) => ({
+                  ...q,
+                  image: q.image ? getImageUrl(q.image) : null,
+                }))
+              : defaultFormData.short_quizzes,
+            events_timeline:
+              purpose.timeline || defaultFormData.events_timeline,
+            created_at: purpose.created_at
+              ? new Date(purpose.created_at)
               : new Date(),
-            selectedKeyword: "",
-            customKeyword: "",
           };
         });
 
-        setArticles(processedData);
+        setArticles(cleanedArticles);
         setCategories([
-          ...new Set(processedData.flatMap((article) => article.categories)),
+          ...new Set(cleanedArticles.flatMap((article) => article.categories)),
         ]);
-        setKeywords([...new Set(processedData.flatMap((article) => article.keywords))]);
+        setKeywords([
+          ...new Set(cleanedArticles.flatMap((article) => article.keywords)),
+        ]);
       } catch (error) {
-        console.error("Lỗi khi tải bài viết:", error.message);
+        console.error("Lỗi khi tải dữ liệu:", error.message);
         setErrorMessage("Không thể tải bài viết. Vui lòng thử lại sau.");
       }
     };
 
-    fetchArticles();
+    fetchArticlesAndVotes();
   }, []);
 
-  // Lọc và sắp xếp bài viết
   const filteredArticles = articles
     .filter((article) => {
       const matchesCategory = selectedCategory
@@ -191,9 +370,11 @@ export default function ClassfyApp() {
         ? article.keywords.includes(selectedKeyword)
         : true;
       const matchesSearch = searchQuery
-        ? (article.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           article.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           article.author?.toLowerCase().includes(searchQuery.toLowerCase()))
+        ? article.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          article.description
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          article.author?.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
       return matchesCategory && matchesKeyword && matchesSearch;
     })
@@ -205,27 +386,12 @@ export default function ClassfyApp() {
       return 0;
     });
 
-  // Bài viết nổi bật cho carousel
   const featuredArticles = articles
     .filter(
-      (article) =>
-        article.media_images.length + (article.document ? 1 : 0) >= 2
+      (article) => article.media_images.length + (article.document ? 1 : 0) >= 2
     )
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, 5);
-
-  // Gợi ý bài viết liên quan
-  const getRelatedArticles = (article) => {
-    if (!article) return [];
-    return articles
-      .filter(
-        (a) =>
-          a.id !== article.id &&
-          (a.categories.some((t) => article.categories.includes(t)) ||
-            a.keywords.some((t) => article.keywords.includes(t)))
-      )
-      .slice(0, 3);
-  };
 
   const totalPages = Math.ceil(filteredArticles.length / itemsPerPage);
   const paginatedArticles = filteredArticles.slice(
@@ -233,12 +399,10 @@ export default function ClassfyApp() {
     currentPage * itemsPerPage
   );
 
-  // Xử lý phân trang
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
   };
 
-  // Xử lý chọn bài viết
   const handleArticleClick = (article) => {
     setSelectedArticle(article);
     setTimeout(() => {
@@ -246,12 +410,10 @@ export default function ClassfyApp() {
     }, 100);
   };
 
-  // Đóng chi tiết bài viết
   const closeDetailForm = () => {
     setSelectedArticle(null);
   };
 
-  // Lấy tên tệp từ URL
   const getFileName = (url) => {
     if (!url) return "Tệp không xác định";
     const fileName = url.split("/").pop();
@@ -268,7 +430,6 @@ export default function ClassfyApp() {
           "container"
         )}`}
       >
-        {/* Tiêu đề với hiệu ứng parallax */}
         <div className="relative h-32 mb-6 overflow-hidden rounded-xl parallax-header">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 transform translate-y-0 transition-transform duration-1000 ease-out"></div>
           <h1
@@ -281,7 +442,6 @@ export default function ClassfyApp() {
           </h1>
         </div>
 
-        {/* Carousel bài viết nổi bật */}
         {featuredArticles.length > 0 && (
           <div className="mb-8">
             <h2
@@ -335,7 +495,6 @@ export default function ClassfyApp() {
           </div>
         )}
 
-        {/* Thanh công cụ lọc */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between p-4 rounded-lg bg-gradient-to-r from-blue-100 to-purple-100 shadow-sm">
           <input
             type="text"
@@ -460,7 +619,6 @@ export default function ClassfyApp() {
           </div>
         </div>
 
-        {/* Danh sách bài viết */}
         <div
           className={`mx-4 sm:mx-8 ${
             viewMode === "grid"
@@ -477,15 +635,12 @@ export default function ClassfyApp() {
             <div
               key={article.id}
               onClick={() => handleArticleClick(article)}
-              className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white ${
-                viewMode === "grid"
-                  ? "flex flex-col h-full"
-                  : "flex items-center gap-4"
+              className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white flex ${
+                viewMode === "grid" ? "flex-col h-[400px]" : "flex-row h-[150px]"
               } ${getThemeClasses(theme, "preview")}`}
             >
-              {/* Media (chỉ hiển thị bên trái trong chế độ list) */}
               {viewMode === "list" && (
-                <div className="relative w-[150px] h-[100px] mx-auto flex-shrink-0">
+                <div className="relative w-[150px] h-[100px] mr-2 flex-shrink-0">
                   {article.media_images.length > 0 ? (
                     <Image
                       src={article.media_images[0]}
@@ -501,18 +656,35 @@ export default function ClassfyApp() {
                       }
                     />
                   ) : article.document ? (
-                    <div className="relative w-[150px] h-[100px] mx-auto flex items-center justify-center rounded-md bg-gray-100">
-                      <a
-                        href={article.document}
-                        className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <a
+                      href={article.document}
+                      className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text w-full h-full"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Mở tài liệu ${getFileName(
+                        article.document
+                      )} trong tab mới`}
+                    >
+                      <svg
+                        className="w-5 h-5 text-blue-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span className="truncate text-xs">
                         {getFileName(article.document)}
-                      </a>
-                    </div>
+                      </span>
+                    </a>
                   ) : (
-                    <div className="w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md mx-auto">
+                    <div className="w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
                       <p className="text-gray-500 text-xs wrap-text">
                         Không có media
                       </p>
@@ -521,58 +693,38 @@ export default function ClassfyApp() {
                 </div>
               )}
 
-              {/* Nội dung bài viết */}
-              <div className={viewMode === "list" ? "flex-1" : ""}>
-                {/* Danh mục */}
-                <div className="absolute top-4 right-4 flex gap-2">
+              <div
+                className={viewMode === "list" ? "flex-1 relative" : "flex-1 flex flex-col relative"}
+              >
+                <div className="absolute top-4 right-4 flex gap-2 h-[1.7rem]">
                   {article.categories.map((category) => (
                     <span
                       key={category}
-                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
+                      className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text line-clamp-1"
                     >
                       {category}
                     </span>
                   ))}
                 </div>
 
-                {/* Tiêu đề */}
                 <h3
-                  className={`text-lg font-bold text-gray-800 wrap-text ${
-                    viewMode === "grid"
-                      ? "pr-20 line-clamp-2 min-h-[3rem]"
-                      : "pr-0"
+                  className={`text-lg font-bold text-gray-800 wrap-text line-clamp-2 h-[3rem] mt-1 ${
+                    viewMode === "grid" ? "pr-20" : "pr-0"
                   }`}
                 >
                   {truncateText(article.title, viewMode === "grid" ? 50 : 100)}
                 </h3>
 
-                {/* Tác giả */}
-                <p className="text-gray-600 text-sm wrap-text">
-                  Tác giả: {article.author}
-                </p>
-
-                {/* Mô tả (nhãn động) */}
                 <div
-                  className={`mt-3 flex items-baseline ${
-                    viewMode === "grid" ? "min-h-[4rem]" : ""
-                  }`}
+                  className={`mt-1 flex items-baseline h-[6rem] overflow-hidden`}
                 >
-                  <strong className="mr-2 whitespace-nowrap">{getDescriptionLabel(article.title)}:</strong>
-                  <p
-                    className={`wrap-text ${
-                      viewMode === "grid" ? "line-clamp-3" : ""
-                    }`}
-                  >
-                    {truncateText(
-                      article.description,
-                      viewMode === "grid" ? 100 : 150
-                    )}
-                  </p>
+                  <div className="wrap-text text-sm text-gray-700 flex-1">
+                    {getDescriptionContent(article)}
+                  </div>
                 </div>
 
-                {/* Media (chỉ hiển thị trong chế độ grid) */}
                 {viewMode === "grid" && (
-                  <div className="mt-3 flex justify-center">
+                  <div className="mt-1 flex justify-center h-[100px]">
                     {article.media_images.length > 0 ? (
                       <div className="relative w-[150px] h-[100px]">
                         <Image
@@ -590,18 +742,35 @@ export default function ClassfyApp() {
                         />
                       </div>
                     ) : article.document ? (
-                      <div className="relative w-[150px] h-[100px] flex items-center justify-center rounded-md bg-gray-100">
-                        <a
-                          href={article.document}
-                          className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      <a
+                        href={article.document}
+                        className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text w-[150px] h-[36px]"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Mở tài liệu ${getFileName(
+                          article.document
+                        )} trong tab mới`}
+                      >
+                        <svg
+                          className="w-5 h-5 text-blue-500"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        <span className="truncate text-xs">
                           {getFileName(article.document)}
-                        </a>
-                      </div>
+                        </span>
+                      </a>
                     ) : (
-                      <div className="relative w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
+                      <div className="w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
                         <p className="text-gray-500 text-xs wrap-text">
                           Không có media
                         </p>
@@ -610,53 +779,61 @@ export default function ClassfyApp() {
                   </div>
                 )}
 
-                {/* Từ khóa và loại nội dung */}
-                <div
-                  className={`mt-3 ${
-                    viewMode === "grid"
-                      ? "align-bottom-container flex-1 flex flex-col justify-end"
-                      : "flex justify-between items-end"
-                  }`}
-                >
-                  <div className="flex flex-wrap gap-2">
-                    {article.keywords.length > 0 ? (
-                      article.keywords.map((keyword) => (
-                        <span
-                          key={keyword}
-                          className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
-                        >
-                          {keyword}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm wrap-text">
-                        Không có từ khóa
-                      </p>
-                    )}
-                  </div>
-                  <p
-                    className={`text-blue-500 font-bold wrap-text ${
-                      viewMode === "grid" ? "text-right mt-2" : ""
-                    }`}
-                  >
-                    {article.content_type || "Chưa có loại nội dung"}
-                  </p>
+                <div className={`mt-0.5 flex flex-wrap gap-2 h-[2rem] overflow-hidden ${viewMode === "list" ? "mt-1" : ""}`}>
+                  {article.keywords.length > 0 ? (
+                    article.keywords.map((keyword) => (
+                      <span
+                        key={keyword}
+                        className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text line-clamp-1"
+                      >
+                        {keyword}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm wrap-text">
+                      Không có từ khóa
+                    </p>
+                  )}
                 </div>
 
-                {/* Badges media */}
-                {article.media_images.length > 1 && (
-                  <div className="mt-2 flex gap-2">
-                    <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
-                      +{article.media_images.length - 1} hình ảnh
-                    </span>
-                  </div>
+                {viewMode === "grid" ? (
+                  <>
+                    <p
+                      className="absolute bottom-2 right-4 text-blue-500 font-bold text-sm wrap-text line-clamp-1 h-[1.5rem]"
+                      style={{ zIndex: 10 }}
+                    >
+                      {article.author}
+                    </p>
+                    {article.media_images.length > 1 && (
+                      <div className="mt-0.5 h-[1.5rem]">
+                        <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                          +{article.media_images.length - 1} hình ảnh
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p
+                      className="absolute bottom-2 right-2 text-blue-500 font-bold text-sm wrap-text line-clamp-1 h-[1.5rem]"
+                      style={{ zIndex: 10 }}
+                    >
+                      {article.author}
+                    </p>
+                    {article.media_images.length > 1 && (
+                      <div className="mt-1 h-[1.5rem]">
+                        <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
+                          +{article.media_images.length - 1} hình ảnh
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           ))}
         </div>
 
-        {/* Phân trang */}
         {totalPages > 1 && (
           <div className="mt-6 flex justify-center items-center gap-4">
             <button
@@ -683,133 +860,6 @@ export default function ClassfyApp() {
           </div>
         )}
 
-        {/* Gợi ý bài viết liên quan */}
-        {selectedArticle && getRelatedArticles(selectedArticle).length > 0 && (
-          <div className="mt-8">
-            <h2
-              className={`text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 wrap-text ${getThemeClasses(
-                theme,
-                "subtitle"
-              )}`}
-            >
-              Bài viết liên quan
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mx-4 sm:mx-8">
-              {getRelatedArticles(selectedArticle).map((article) => (
-                <div
-                  key={article.id}
-                  onClick={() => handleArticleClick(article)}
-                  className={`p-4 border border-blue-300 rounded-lg shadow-md transition-transform duration-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative bg-white flex flex-col h-full ${getThemeClasses(
-                    theme,
-                    "preview"
-                  )}`}
-                >
-                  {/* Danh mục */}
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    {article.categories.map((category) => (
-                      <span
-                        key={category}
-                        className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
-                      >
-                        {category}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Tiêu đề */}
-                  <h3 className="text-lg font-bold text-gray-800 pr-20 wrap-text line-clamp-2 min-h-[3rem]">
-                    {truncateText(article.title, 50)}
-                  </h3>
-
-                  {/* Tác giả */}
-                  <p className="text-gray-600 text-sm wrap-text">
-                    Tác giả: {article.author}
-                  </p>
-
-                  {/* Mô tả (nhãn động) */}
-                  <div className="mt-3 flex items-baseline min-h-[4rem]">
-                    <strong className="mr-2 whitespace-nowrap">{getDescriptionLabel(article.title)}:</strong>
-                    <p className="wrap-text line-clamp-3">
-                      {truncateText(article.description, 100)}
-                    </p>
-                  </div>
-
-                  {/* Media */}
-                  <div className="mt-3 flex justify-center">
-                    {article.media_images.length > 0 ? (
-                      <div className="relative w-[150px] h-[100px]">
-                        <Image
-                          src={article.media_images[0]}
-                          alt={`Hình ảnh xem trước cho ${article.title}`}
-                          width={150}
-                          height={100}
-                          className="rounded-md object-cover w-full h-full"
-                          loading="lazy"
-                          onError={() =>
-                            console.warn(
-                              `Không thể tải hình ảnh: ${article.media_images[0]}`
-                            )
-                          }
-                        />
-                      </div>
-                    ) : article.document ? (
-                      <div className="relative w-[150px] h-[100px] flex items-center justify-center rounded-md bg-gray-100">
-                        <a
-                          href={article.document}
-                          className="text-blue-500 hover:underline text-xs text-center wrap-text px-2"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {getFileName(article.document)}
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="relative w-[150px] h-[100px] bg-gray-200 flex items-center justify-center rounded-md">
-                        <p className="text-gray-500 text-xs wrap-text">
-                          Không có media
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Từ khóa và loại nội dung */}
-                  <div className="mt-3 align-bottom-container flex-1 flex flex-col justify-end">
-                    <div className="flex flex-wrap gap-2">
-                      {article.keywords.length > 0 ? (
-                        article.keywords.map((keyword) => (
-                          <span
-                            key={keyword}
-                            className="inline-block bg-blue-100 text-blue-800 rounded-full px-2 py-1 text-sm wrap-text"
-                          >
-                            {keyword}
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-gray-500 text-sm wrap-text">
-                          Không có từ khóa
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-blue-500 font-bold wrap-text text-right mt-2">
-                      {article.content_type || "Chưa có loại nội dung"}
-                    </p>
-                  </div>
-
-                  {/* Badges media */}
-                  {article.media_images.length > 1 && (
-                    <div className="mt-2 flex gap-2">
-                      <span className="inline-block bg-blue-500 bg-opacity-60 text-white text-xs rounded px-1 py-0.5 wrap-text">
-                        +{article.media_images.length - 1} hình ảnh
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Chi tiết bài viết */}
         {selectedArticle && (
           <div
             ref={detailRef}
@@ -880,21 +930,7 @@ export default function ClassfyApp() {
                       "subtitle"
                     )}`}
                   >
-                    Tác giả
-                    <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
-                  </strong>
-                  <p className="mt-3 text-lg text-gray-700 wrap-text">
-                    {selectedArticle.author}
-                  </p>
-                </div>
-                <div>
-                  <strong
-                    className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
-                      theme,
-                      "subtitle"
-                    )}`}
-                  >
-                    {getDescriptionLabel(selectedArticle.title)}
+                    Mô tả
                     <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
                   </strong>
                   <p className="mt-3 text-gray-700 leading-relaxed wrap-text">
@@ -922,7 +958,9 @@ export default function ClassfyApp() {
                         </span>
                       ))
                     ) : (
-                      <p className="text-gray-700 wrap-text">Không có từ khóa</p>
+                      <p className="text-gray-700 wrap-text">
+                        Không có từ khóa
+                      </p>
                     )}
                   </div>
                 </div>
@@ -945,7 +983,9 @@ export default function ClassfyApp() {
                         >
                           <Image
                             src={image}
-                            alt={`Hình ảnh ${index + 1} cho ${selectedArticle.title}`}
+                            alt={`Hình ảnh ${index + 1} cho ${
+                              selectedArticle.title
+                            }`}
                             layout="fill"
                             className="rounded-lg object-cover"
                             loading="lazy"
@@ -972,9 +1012,12 @@ export default function ClassfyApp() {
                     <div className="mt-3 grid grid-cols-1 gap-3">
                       <a
                         href={selectedArticle.document}
-                        className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text"
+                        className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text"
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label={`Mở tài liệu ${getFileName(
+                          selectedArticle.document
+                        )} trong tab mới`}
                       >
                         <svg
                           className="w-5 h-5 text-blue-500"
@@ -989,12 +1032,16 @@ export default function ClassfyApp() {
                             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                           />
                         </svg>
-                        <span className="truncate">{getFileName(selectedArticle.document)}</span>
+                        <span className="truncate">
+                          {getFileName(selectedArticle.document)}
+                        </span>
                       </a>
                     </div>
                   </div>
                 )}
-                {selectedArticle.quiz_questions.some((q) => q.question && q.options.some((o) => o)) && (
+                {selectedArticle.quiz_questions.some(
+                  (q) => q.question && q.options.some((o) => o)
+                ) && (
                   <div>
                     <strong
                       className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
@@ -1006,57 +1053,80 @@ export default function ClassfyApp() {
                       <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
                     </strong>
                     <div className="mt-3 space-y-4">
-                      {selectedArticle.quiz_questions.map((q, index) => (
-                        q.question && q.options.some((o) => o) && (
-                          <div key={index} className="p-4 bg-blue-50 rounded-lg shadow-sm">
-                            <p className="font-semibold text-gray-800 wrap-text">{q.question}</p>
-                            <ul className="mt-2 list-disc list-inside text-gray-700">
-                              {q.options.map((option, i) => (
-                                option && (
-                                  <li key={i} className="wrap-text">
-                                    {option} {q.correctOptions.includes(i) ? "(Đúng)" : ""}
-                                  </li>
-                                )
-                              ))}
-                            </ul>
-                            <p className="mt-2 text-sm text-gray-600 wrap-text">
-                              Loại: {q.multipleChoice ? "Trắc nghiệm nhiều lựa chọn" : "Trắc nghiệm một lựa chọn"}
-                            </p>
-                          </div>
-                        )
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedArticle.survey.title && selectedArticle.survey.options.some((o) => o) && (
-                  <div>
-                    <strong
-                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
-                        theme,
-                        "subtitle"
-                      )}`}
-                    >
-                      Khảo sát
-                      <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
-                    </strong>
-                    <div className="mt-3 p-4 bg-blue-50 rounded-lg shadow-sm">
-                      <p className="font-semibold text-gray-800 wrap-text">{selectedArticle.survey.title}</p>
-                      <ul className="mt-2 list-disc list-inside text-gray-700">
-                        {selectedArticle.survey.options.map((option, i) => (
-                          option && (
-                            <li key={i} className="wrap-text">
-                              {option}
-                            </li>
+                      {selectedArticle.quiz_questions.map(
+                        (q, index) =>
+                          q.question &&
+                          q.options.some((o) => o) && (
+                            <div
+                              key={index}
+                              className="p-4 bg-blue-50 rounded-lg shadow-sm"
+                            >
+                              <p className="font-semibold text-gray-800 wrap-text">
+                                {q.question}
+                              </p>
+                              <ul className="mt-2 list-disc list-inside text-gray-700">
+                                {q.options.map(
+                                  (option, i) =>
+                                    option && (
+                                      <li key={i} className="wrap-text">
+                                        {String.fromCharCode(65 + i)}: {option}{" "}
+                                        {q.correctOptions.includes(i)
+                                          ? "(Đúng)"
+                                          : ""}
+                                      </li>
+                                    )
+                                )}
+                              </ul>
+                              <p className="mt-2 text-sm text-gray-600 wrap-text">
+                                Loại:{" "}
+                                {q.multipleChoice
+                                  ? "Trắc nghiệm nhiều lựa chọn"
+                                  : "Trắc nghiệm một lựa chọn"}
+                              </p>
+                            </div>
                           )
-                        ))}
-                      </ul>
-                      <p className="mt-2 text-sm text-gray-600 wrap-text">
-                        Loại: {selectedArticle.survey.multipleChoice ? "Khảo sát nhiều lựa chọn" : "Khảo sát một lựa chọn"}
-                      </p>
+                      )}
                     </div>
                   </div>
                 )}
-                {selectedArticle.short_quizzes.some((q) => q.question && q.answer) && (
+                {selectedArticle.survey.title &&
+                  selectedArticle.survey.options.some((o) => o) && (
+                    <div>
+                      <strong
+                        className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                          theme,
+                          "subtitle"
+                        )}`}
+                      >
+                        Khảo sát
+                        <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                      </strong>
+                      <div className="mt-3 p-4 bg-blue-50 rounded-lg shadow-sm">
+                        <p className="font-semibold text-gray-800 wrap-text">
+                          {selectedArticle.survey.title}
+                        </p>
+                        <ul className="mt-2 list-disc list-inside text-gray-700">
+                          {selectedArticle.survey.options.map(
+                            (option, i) =>
+                              option && (
+                                <li key={i} className="wrap-text">
+                                  {option}
+                                </li>
+                              )
+                          )}
+                        </ul>
+                        <p className="mt-2 text-sm text-gray-600 wrap-text">
+                          Loại:{" "}
+                          {selectedArticle.survey.multipleChoice
+                            ? "Khảo sát nhiều lựa chọn"
+                            : "Khảo sát một lựa chọn"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                {selectedArticle.short_quizzes.some(
+                  (q) => q.question && q.answer
+                ) && (
                   <div>
                     <strong
                       className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
@@ -1068,55 +1138,78 @@ export default function ClassfyApp() {
                       <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
                     </strong>
                     <div className="mt-3 space-y-4">
-                      {selectedArticle.short_quizzes.map((q, index) => (
-                        q.question && q.answer && (
-                          <div key={index} className="p-4 bg-blue-50 rounded-lg shadow-sm">
-                            <p className="font-semibold text-gray-800 wrap-text">{q.question}</p>
-                            <p className="mt-2 text-gray-700 wrap-text">Đáp án: {q.answer}</p>
-                          </div>
-                        )
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedArticle.events_timeline.title && selectedArticle.events_timeline.milestones.some((m) => m.description) && (
-                  <div>
-                    <strong
-                      className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
-                        theme,
-                        "subtitle"
-                      )}`}
-                    >
-                      Dòng thời gian sự kiện
-                      <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
-                    </strong>
-                    <div className="mt-3 p-4 bg-blue-50 rounded-lg shadow-sm">
-                      <p className="font-semibold text-gray-800 wrap-text">{selectedArticle.events_timeline.title}</p>
-                      <div className="mt-3 space-y-3">
-                        {selectedArticle.events_timeline.milestones.map((m, index) => (
-                          m.description && (
-                            <div key={index} className="flex items-start gap-3">
-                              <span className="text-blue-500 font-semibold wrap-text min-w-[100px]">{m.time}</span>
-                              <div>
-                                <p className="text-gray-700 wrap-text">{m.description}</p>
-                                <p className="text-gray-600 text-sm wrap-text">Trạng thái: {m.status}</p>
-                              </div>
+                      {selectedArticle.short_quizzes.map(
+                        (q, index) =>
+                          q.question &&
+                          q.answer && (
+                            <div
+                              key={index}
+                              className="p-4 bg-blue-50 rounded-lg shadow-sm"
+                            >
+                              <p className="font-semibold text-gray-800 wrap-text">
+                                {q.question}
+                              </p>
+                              <p className="mt-2 text-gray-700 wrap-text">
+                                Đáp án: {q.answer}
+                              </p>
                             </div>
                           )
-                        ))}
-                      </div>
+                      )}
                     </div>
                   </div>
                 )}
+                {selectedArticle.events_timeline.title &&
+                  selectedArticle.events_timeline.milestones.some(
+                    (m) => m.description
+                  ) && (
+                    <div>
+                      <strong
+                        className={`text-xl font-bold text-gray-800 relative inline-block wrap-text ${getThemeClasses(
+                          theme,
+                          "subtitle"
+                        )}`}
+                      >
+                        Dòng thời gian sự kiện
+                        <span className="absolute left-0 bottom-0 h-0.5 w-12 bg-blue-400"></span>
+                      </strong>
+                      <div className="mt-3 p-4 bg-blue-50 rounded-lg shadow-sm">
+                        <p className="font-semibold text-gray-800 wrap-text">
+                          {selectedArticle.events_timeline.title}
+                        </p>
+                        <div className="mt-3 space-y-3">
+                          {selectedArticle.events_timeline.milestones.map(
+                            (m, index) =>
+                              m.description && (
+                                <div
+                                  key={index}
+                                  className="flex items-start gap-3"
+                                >
+                                  <span className="text-blue-500 font-semibold wrap-text min-w-[100px]">
+                                    {m.time}
+                                  </span>
+                                  <div>
+                                    <p className="text-gray-700 wrap-text">
+                                      {m.description}
+                                    </p>
+                                    <p className="text-gray-600 text-sm wrap-text">
+                                      Trạng thái: {m.status}
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 <p className="text-blue-500 font-bold wrap-text text-right mt-2">
-                  Loại nội dung: {selectedArticle.content_type || "Chưa có loại nội dung"}
+                  Tác giả: {selectedArticle.author}
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Phần chọn giao diện */}
         <div className="grid grid-cols-1 gap-4">
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
           <ScrollToTop />
@@ -1149,46 +1242,164 @@ export default function ClassfyApp() {
             transform: translateY(0);
           }
         }
+        @keyframes shake {
+          0%,
+          100% {
+            transform: translateX(0);
+          }
+          10%,
+          30%,
+          50%,
+          70%,
+          90% {
+            transform: translateX(-2px);
+          }
+          20%,
+          40%,
+          60%,
+          80% {
+            transform: translateX(2px);
+          }
+        }
         .animate-fade-in {
           animation: fadeIn 0.5s ease-out;
+        }
+        .animate-shake {
+          animation: shake 1s ease-in-out;
+        }
+        .delay-1 {
+          animation-delay: 0.2s;
+        }
+        .delay-2 {
+          animation-delay: 0.4s;
+        }
+        .delay-3 {
+          animation-delay: 0.6s;
+        }
+        .delay-4 {
+          animation-delay: 0.8s;
         }
         .wrap-text {
           word-break: break-word;
           overflow-wrap: break-word;
         }
-        /* Class để căn lề dưới cho từ khóa và tên tác giả */
-        .align-bottom-container {
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-end;
-          min-height: 4rem; /* Chiều cao tối thiểu cho từ khóa và tác giả trong grid */
-        }
-        .align-bottom-container > p {
-          margin: 0; /* Loại bỏ margin mặc định của tên tác giả */
-        }
-        /* Đảm bảo thẻ bài viết trong grid có chiều cao đồng đều */
         .grid > div {
           display: flex;
           flex-direction: column;
-          min-height: 350px; /* Chiều cao tối thiểu cho mỗi thẻ bài viết trong grid */
+          height: 400px;
+          justify-content: flex-start;
         }
-        /* Giới hạn chiều cao của từ khóa trong grid */
-        .grid .align-bottom-container .flex {
-          max-height: 2.5rem; /* Giới hạn chiều cao khu vực từ khóa trong grid */
-          overflow: hidden;
-        }
-        /* Đảm bảo chế độ list giữ nguyên UI */
-        .flex.items-center {
+        .flex-row {
           display: flex;
+          flex-direction: row;
+          height: 150px;
+          justify-content: flex-start;
           align-items: center;
         }
-        .flex.items-center .align-bottom-container {
-          min-height: auto; /* Loại bỏ chiều cao tối thiểu trong list */
-          flex-direction: row; /* Giữ layout ngang cho list */
-          justify-content: space-between; /* Giữ căn lề giữa từ khóa và tác giả */
+        .grid .flex-1,
+        .flex-row .flex-1 {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          position: relative;
         }
-        .flex.items-center .align-bottom-container .flex {
-          max-height: none; /* Loại bỏ giới hạn chiều cao từ khóa trong list */
+        .grid .h-\[1\.5rem\],
+        .flex-row .h-\[1\.5rem\] {
+          height: 1.5rem;
+          overflow: hidden;
+        }
+        .grid .h-\[3rem\],
+        .flex-row .h-\[3rem\] {
+          height: 3rem;
+          overflow: hidden;
+        }
+        .grid .h-\[6rem\],
+        .flex-row .h-\[6rem\] {
+          height: 6rem;
+          overflow: hidden;
+        }
+        .grid .h-\[100px\] {
+          height: 100px;
+          overflow: hidden;
+        }
+        .grid .h-\[36px\] {
+          height: 36px;
+          overflow: hidden;
+        }
+        .grid .h-\[2rem\],
+        .flex-row .h-\[2rem\] {
+          height: 2rem;
+          overflow: hidden;
+        }
+        .line-clamp-1 {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .flex.items-baseline {
+          display: flex;
+          align-items: baseline;
+        }
+        .description-content {
+          background: linear-gradient(
+            to right,
+            rgba(219, 234, 254, 0.5),
+            rgba(233, 213, 255, 0.5)
+          );
+          padding: 8px;
+          border-radius: 8px;
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .description-content:hover {
+          transform: scale(1.02);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+          background: linear-gradient(
+            to right,
+            rgba(191, 219, 254, 0.7),
+            rgba(221, 214, 254, 0.7)
+          );
+        }
+        .events-timeline:hover {
+          border: 1px solid #3b82f6;
+        }
+        .quiz-questions:hover {
+          border: 1px solid #a855f7;
+        }
+        .poll:hover {
+          border: 1px solid #10b981;
+        }
+        .comics:hover {
+          border: 1px solid #f97316;
+        }
+        .short-quiz:hover {
+          border: 1px solid #2563eb;
+          box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+        }
+        .default-content {
+          color: #6b7280;
+        }
+        .default-content:hover {
+          color: #1f2937;
+          background: linear-gradient(
+            to right,
+            rgba(191, 219, 254, 0.9),
+            rgba(221, 214, 254, 0.9)
+          );
+        }
+        .description-label {
+          background: linear-gradient(to right, #3b82f6, #a855f7);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          font-weight: 600;
         }
       `}</style>
     </div>
