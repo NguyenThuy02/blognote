@@ -36,7 +36,14 @@ export default function CreatePost() {
     tags: [],
     selectedTag: "",
     customTag: "",
-    questions: [{ question: "", options: ["", ""], multipleChoice: false }],
+    questions: [
+      {
+        question: "",
+        options: ["", ""],
+        multipleChoice: false,
+        correctOptions: [],
+      },
+    ],
     poll: { title: "", options: ["", ""], multipleChoice: false },
     quizzes: [{ question: "", answer: "" }],
     storyType: "Truyện chữ",
@@ -136,7 +143,12 @@ export default function CreatePost() {
       selectedTag: "",
       customTag: "",
       questions: draft.questions || [
-        { question: "", options: ["", ""], multipleChoice: false },
+        {
+          question: "",
+          options: ["", ""],
+          multipleChoice: false,
+          correctOptions: [],
+        },
       ],
       poll: draft.poll || {
         title: "",
@@ -257,10 +269,11 @@ export default function CreatePost() {
 
       if (selectedPurpose === "Đặt câu hỏi") {
         formData.questions.forEach((q) => {
-          totalFields += 3;
+          totalFields += 4; // Added correctOptions
           if (q.question) filledFields++;
           if (q.options[0]) filledFields++;
           if (q.options[1]) filledFields++;
+          if (q.correctOptions.length > 0) filledFields++;
         });
       } else if (selectedPurpose === "Tạo cuộc bình chọn") {
         totalFields += 3;
@@ -437,7 +450,14 @@ export default function CreatePost() {
       ...prev,
       questions:
         newPurpose === "Đặt câu hỏi"
-          ? [{ question: "", options: ["", ""], multipleChoice: false }]
+          ? [
+              {
+                question: "",
+                options: ["", ""],
+                multipleChoice: false,
+                correctOptions: [],
+              },
+            ]
           : [],
       poll:
         newPurpose === "Tạo cuộc bình chọn"
@@ -498,7 +518,7 @@ export default function CreatePost() {
   };
 
   const handleFormChange = (e) => {
-    const { name, value, type, checked, files } = e.target;
+    const { name, value, type, checked } = e.target;
     if (name.startsWith("question-title")) {
       const index = parseInt(name.split("-")[2], 10);
       const newQuestions = [...formData.questions];
@@ -515,6 +535,32 @@ export default function CreatePost() {
       const index = parseInt(name.split("-")[1], 10);
       const newQuestions = [...formData.questions];
       newQuestions[index].multipleChoice = checked;
+      // Nếu bỏ chọn multipleChoice, đảm bảo chỉ giữ lại một đáp án đúng
+      if (!checked && newQuestions[index].correctOptions.length > 1) {
+        newQuestions[index].correctOptions = [newQuestions[index].correctOptions[0]];
+      }
+      setFormData((prev) => ({ ...prev, questions: newQuestions }));
+    } else if (name.startsWith("correctOption")) {
+      const [_, questionIndex, optionIndex] = name
+        .split("-")
+        .map((part, idx) => (idx > 0 ? parseInt(part, 10) : part));
+      const newQuestions = [...formData.questions];
+      const currentCorrectOptions = newQuestions[questionIndex].correctOptions;
+      if (checked) {
+        if (newQuestions[questionIndex].multipleChoice) {
+          // Cho phép chọn nhiều đáp án nếu multipleChoice là true
+          if (!currentCorrectOptions.includes(optionIndex)) {
+            newQuestions[questionIndex].correctOptions = [...currentCorrectOptions, optionIndex];
+          }
+        } else {
+          // Chỉ cho phép chọn một đáp án nếu multipleChoice là false
+          newQuestions[questionIndex].correctOptions = [optionIndex];
+        }
+      } else {
+        newQuestions[questionIndex].correctOptions = currentCorrectOptions.filter(
+          (idx) => idx !== optionIndex
+        );
+      }
       setFormData((prev) => ({ ...prev, questions: newQuestions }));
     } else if (name === "poll-title") {
       setFormData((prev) => ({
@@ -582,7 +628,7 @@ export default function CreatePost() {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
-
+  
   const handleAddTag = (tagValue) => {
     const finalTag = tagValue === "Khác" ? formData.customTag : tagValue;
     if (finalTag && !formData.tags.includes(finalTag)) {
@@ -630,6 +676,11 @@ export default function CreatePost() {
     newQuestions[questionIndex].options = newQuestions[
       questionIndex
     ].options.filter((_, i) => i !== optionIndex);
+    newQuestions[questionIndex].correctOptions = newQuestions[
+      questionIndex
+    ].correctOptions
+      .filter((idx) => idx !== optionIndex)
+      .map((idx) => (idx > optionIndex ? idx - 1 : idx));
     setFormData((prev) => ({ ...prev, questions: newQuestions }));
   };
 
@@ -891,6 +942,25 @@ export default function CreatePost() {
       );
       hasError = true;
     }
+
+    if (
+      selectedPurpose === "Đặt câu hỏi" &&
+      formData.questions.some(
+        (q) =>
+          !q.question ||
+          q.options.some((opt) => !opt) ||
+          q.options.length < 2 ||
+          (q.question &&
+            q.options.every((opt) => opt) &&
+            q.correctOptions.length === 0)
+      )
+    ) {
+      addNotification(
+        "Vui lòng điền đầy đủ câu hỏi, ít nhất 2 lựa chọn đáp án, và chọn ít nhất một đáp án đúng!",
+        "error"
+      );
+      hasError = true;
+    }
     return hasError;
   };
 
@@ -1041,7 +1111,14 @@ export default function CreatePost() {
       tags: [],
       selectedTag: "",
       customTag: "",
-      questions: [{ question: "", options: ["", ""], multipleChoice: false }],
+      questions: [
+        {
+          question: "",
+          options: ["", ""],
+          multipleChoice: false,
+          correctOptions: [],
+        },
+      ],
       poll: { title: "", options: ["", ""], multipleChoice: false },
       quizzes: [{ question: "", answer: "" }],
       storyType: "Truyện chữ",
@@ -1088,15 +1165,28 @@ export default function CreatePost() {
                     {q.options.map((opt, i) => (
                       <li
                         key={`preview-option-${i}`}
-                        className={opt ? "" : "text-gray-400"}
+                        className={
+                          opt
+                            ? q.correctOptions.includes(i)
+                              ? "text-green-600 font-semibold"
+                              : ""
+                            : "text-gray-400"
+                        }
                       >
-                        {opt || "Đáp án chưa được nhập"}
+                        {opt || "Đáp án chưa được nhập"}{" "}
+                        {q.correctOptions.includes(i) ? "(Đúng)" : ""}
                       </li>
                     ))}
                   </ul>
                   {q.multipleChoice && (
                     <p className="text-sm text-teal-600 mt-2">
                       Cho phép chọn nhiều đáp án
+                    </p>
+                  )}
+                  {q.correctOptions.length > 0 && (
+                    <p className="text-sm text-green-600 mt-2">
+                      Đáp án đúng:{" "}
+                      {q.correctOptions.map((i) => q.options[i]).join(", ")}
                     </p>
                   )}
                 </div>
@@ -1620,6 +1710,31 @@ export default function CreatePost() {
                           </span>
                         </label>
                       </div>
+
+                      <div className="mb-3">
+                        <label className="block text-teal-700 font-medium">
+                          Đáp án đúng:
+                        </label>
+                        {q.options.map((option, optionIndex) => (
+                          <div
+                            key={`correct-option-${questionIndex}-${optionIndex}`}
+                            className="flex items-center gap-2 mb-2"
+                          >
+                            <input
+                              type="checkbox"
+                              name={`correctOption-${questionIndex}-${optionIndex}`}
+                              checked={q.correctOptions.includes(optionIndex)}
+                              onChange={handleFormChange}
+                              className="mr-2"
+                              disabled={!option}
+                            />
+                            <span className="text-teal-700">
+                              Đáp án {optionIndex + 1}: {option || "Chưa nhập"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
                       {formData.questions.length > 1 && (
                         <button
                           type="button"
