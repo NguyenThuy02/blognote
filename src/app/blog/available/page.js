@@ -930,7 +930,7 @@ export default function CreatePost() {
         case "Đặt câu hỏi":
           return (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-teal-600">Câu hỏi</h3>
+              <h3 className="text-lg font-bold text-teal-600">Câu hỏi</h3>
               {formData.questions.map((q, index) => (
                 <div
                   key={`preview-question-${index}`}
@@ -977,7 +977,7 @@ export default function CreatePost() {
         case "Tạo cuộc bình chọn":
           return (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-teal-600">
+              <h3 className="text-lg font-bold text-teal-600">
                 {formData.poll.title || "Cuộc bình chọn chưa có tiêu đề"}
               </h3>
               <ul className="list-disc pl-5">
@@ -1016,7 +1016,7 @@ export default function CreatePost() {
         case "Câu đố":
           return (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-teal-600">Câu đố</h3>
+              <h3 className="text-lg font-bold text-teal-600">Câu đố</h3>
               {formData.quizzes.map((quiz, index) => (
                 <div
                   key={`preview-quiz-${index}`}
@@ -1051,7 +1051,7 @@ export default function CreatePost() {
         case "Truyện tranh":
           return (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-teal-600">
+              <h3 className="text-lg font-bold text-teal-600">
                 {formData.storyType === "Truyện chữ"
                   ? "Truyện chữ"
                   : "Truyện tranh"}
@@ -1089,7 +1089,7 @@ export default function CreatePost() {
         case "Hành trình":
           return (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-teal-600">
+              <h3 className="text-lg font-bold text-teal-600">
                 {formData.timeline.title || "Hành trình chưa có tiêu đề"}
               </h3>
               {formData.timeline.milestones.map((milestone, index) => (
@@ -1133,13 +1133,13 @@ export default function CreatePost() {
         </h2>
         <div className="bg-white p-4 rounded-lg shadow-inner">
           <p className="text-sm text-gray-600 mb-2">
-            <span className="font-semibold">Chủ đề:</span>{" "}
+            <span className="font-bold">Chủ đề:</span>{" "}
             {formData.topics === "Khác"
               ? formData.customTopic
               : formData.topics || "Chưa chọn"}
           </p>
           <p className="text-sm text-gray-600 mb-4">
-            <span className="font-semibold">Tags:</span>{" "}
+            <span className="font-bold">Tags:</span>{" "}
             {formData.tags.join(", ") || "Chưa có tags"}
           </p>
           {renderContent()}
@@ -1188,7 +1188,7 @@ export default function CreatePost() {
             >
               <FaTimes size={16} />
             </button>
-            <h3 className="text-lg font-semibold text-teal-600 mb-4">
+            <h3 className="text-lg font-bold text-teal-600 mb-4">
               Vui lòng đăng nhập
             </h3>
             <p className="text-gray-600 mb-6">
@@ -1236,7 +1236,7 @@ export default function CreatePost() {
               className="transform -rotate-90 origin-center transition-stroke-dashoffset duration-500"
             />
           </svg>
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-semibold text-green-500">
+          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-green-500">
             {Math.round(progress)}%
           </span>
         </div>
@@ -1392,7 +1392,7 @@ export default function CreatePost() {
           {selectedPurpose === "Đặt câu hỏi" && (
             <>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Danh sách câu hỏi:
                 </label>
                 {formData.questions.map((q, questionIndex) => (
@@ -1488,7 +1488,7 @@ export default function CreatePost() {
                 </button>
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tải lên ảnh:
                 </label>
                 <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
@@ -1549,7 +1549,7 @@ export default function CreatePost() {
           {selectedPurpose === "Tạo cuộc bình chọn" && (
             <>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tiêu đề cuộc bình chọn:
                 </label>
                 <input
@@ -1562,7 +1562,7 @@ export default function CreatePost() {
                 />
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Lựa chọn:
                 </label>
                 {formData.poll.options.map((option, optionIndex) => (
@@ -1613,7 +1613,7 @@ export default function CreatePost() {
                 </label>
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tải lên ảnh:
                 </label>
                 <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
@@ -1674,7 +1674,7 @@ export default function CreatePost() {
           {selectedPurpose === "Câu đố" && (
             <>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Danh sách câu đố:
                 </label>
                 {formData.quizzes.map((quiz, quizIndex) => (
@@ -1728,7 +1728,7 @@ export default function CreatePost() {
                 </button>
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tải lên ảnh:
                 </label>
                 <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
@@ -1789,7 +1789,7 @@ export default function CreatePost() {
           {selectedPurpose === "Truyện tranh" && (
             <>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Loại truyện:
                 </label>
                 <select
@@ -1805,7 +1805,7 @@ export default function CreatePost() {
               {formData.storyType === "Truyện chữ" && (
                 <>
                   <div className="mb-8">
-                    <label className="block text-teal-600 mb-2 font-semibold">
+                    <label className="block text-teal-600 mb-2 font-bold">
                       Mô tả truyện:
                     </label>
                     <textarea
@@ -1818,7 +1818,7 @@ export default function CreatePost() {
                     />
                   </div>
                   <div className="mb-8">
-                    <label className="block text-teal-600 mb-2 font-semibold">
+                    <label className="block text-teal-600 mb-2 font-bold">
                       Tải lên file Word/PDF truyện chữ:
                     </label>
                     <label className="bg-indigo-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md">
@@ -1862,7 +1862,7 @@ export default function CreatePost() {
               {formData.storyType === "Truyện tranh" && (
                 <>
                   <div className="mb-8">
-                    <label className="block text-teal-600 mb-2 font-semibold">
+                    <label className="block text-teal-600 mb-2 font-bold">
                       Mô tả truyện:
                     </label>
                     <textarea
@@ -1875,7 +1875,7 @@ export default function CreatePost() {
                     />
                   </div>
                   <div className="mb-8">
-                    <label className="block text-teal-600 mb-2 font-semibold">
+                    <label className="block text-teal-600 mb-2 font-bold">
                       Tải lên ảnh truyện tranh:
                     </label>
                     <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
@@ -1940,7 +1940,7 @@ export default function CreatePost() {
           {selectedPurpose === "Hành trình" && (
             <>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tiêu đề hành trình:
                 </label>
                 <input
@@ -1953,7 +1953,7 @@ export default function CreatePost() {
                 />
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Các mốc thời gian:
                 </label>
                 {formData.timeline.milestones.map((milestone, index) => (
@@ -2021,7 +2021,7 @@ export default function CreatePost() {
                 </button>
               </div>
               <div className="mb-8">
-                <label className="block text-teal-600 mb-2 font-semibold">
+                <label className="block text-teal-600 mb-2 font-bold">
                   Tải lên ảnh minh họa:
                 </label>
                 <label className="bg-teal-500 text-white px-6 py-3 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md">
