@@ -90,14 +90,6 @@ export default function Sidebar() {
                 🔍 Tìm kiếm gợi ý ghi chú
               </Link>
             </li>
-            <li>
-              <Link
-                href="/note"
-                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
-              >
-                Nháp
-              </Link>
-            </li>
           </ul>
         </div>
 
@@ -119,22 +111,6 @@ export default function Sidebar() {
                 className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
               >
                 📈 Thống kê ghi chú
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/blog/comment"
-                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
-              >
-                cmt
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/blog/detail"
-                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
-              >
-                detail
               </Link>
             </li>
           </ul>

@@ -42,16 +42,16 @@ function Header() {
     localStorage.removeItem("user");
     setIsLoggedIn(false);
     setUsername("");
-    // Gửi sự kiện tùy chỉnh để thông báo đăng xuất trong cùng tab
     window.dispatchEvent(new CustomEvent("user-logout"));
-    // Gửi sự kiện storage để đồng bộ với các tab khác
     window.dispatchEvent(new Event("storage"));
   };
 
   return (
-    <header className="fixed top-0 w-full bg-gradient-to-r from-white/80 via-purple-200 to-blue-200 text-white p-7 shadow-lg transition-shadow duration-300 flex items-center justify-between h-25 z-10">
+    <header
+      className="fixed top-0 w-full bg-gradient-to-r from-white/80 via-purple-200 to-blue-200 text-white p-7 shadow-lg transition-shadow duration-300 flex items-center justify-between h-25 z-50"
+      style={{ zIndex: 50 }}
+    >
       <Link href="/" className="flex items-center ml-11" aria-label="Trang chủ">
-
         <Image
           src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741593256/amhe1oz6r08s3lpemoqj.png"
           alt="Logo Blog & Ghi chú"

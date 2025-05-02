@@ -13,7 +13,6 @@ export default function ManageNotes() {
   const [notes, setNotes] = useState([]);
   const [editingNote, setEditingNote] = useState(null);
   const [viewDetailNoteId, setViewDetailNoteId] = useState(null);
-  const [pinnedNotes, setPinnedNotes] = useState(new Set());
   const [categories, setCategories] = useState(["personal", "study", "entertainment", "upload"]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -113,6 +112,12 @@ export default function ManageNotes() {
             .update({ deleted_at: new Date().toISOString() })
             .eq("id", change.id);
           if (error) throw error;
+        } else if (change.type === "pin") {
+          const { error } = await supabase2
+            .from("notess")
+            .update({ is_pinned: change.data.is_pinned })
+            .eq("id", change.id);
+          if (error) throw error;
         }
       } catch (err) {
         console.error("Error syncing change:", err.message);
@@ -204,13 +209,13 @@ export default function ManageNotes() {
   
       const fetchFn = async () => {
         const { data, error } = await supabase2
-          .from("notess")
-          .select(
-            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, versions, deleted_at, audio_url, audio_file_name, video_url, video_file_name"
-          )
-          .is("deleted_at", null)
-          .eq("user_id", user_id) // Thêm điều kiện lọc theo user_id
-          .order("updated_at", { ascending: false });
+        .from("notess")
+        .select(
+          "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, versions, deleted_at, audio_url, audio_file_name, video_url, video_file_name, is_pinned"
+        )
+        .is("deleted_at", null)
+        .eq("user_id", user_id)
+        .order("updated_at", { ascending: false });
   
         if (error) throw new Error(error.message);
         return data;
@@ -263,6 +268,7 @@ export default function ManageNotes() {
           audio_file_name: note.audio_file_name || "",
           video_url: note.video_url || "",
           video_file_name: note.video_file_name || "",
+          is_pinned: note.is_pinned || false,
         };
       });
   
@@ -316,10 +322,10 @@ export default function ManageNotes() {
         const { data, error } = await supabase2
           .from("notess")
           .select(
-            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, deleted_at, audio_url, audio_file_name, video_url, video_file_name"
+            "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, deleted_at, audio_url, audio_file_name, video_url, video_file_name, is_pinned"
           )
           .not("deleted_at", "is", null)
-          .eq("user_id", user_id) // Thêm điều kiện lọc theo user_id
+          .eq("user_id", user_id)
           .order("deleted_at", { ascending: false });
   
         if (error) throw new Error(error.message);
@@ -342,16 +348,45 @@ export default function ManageNotes() {
     if (!isOffline) fetchTrashNotes();
   }, [isOffline]);
 
-  const togglePin = (noteId) => {
-    setPinnedNotes((prev) => {
-      const newPinned = new Set(prev);
-      if (newPinned.has(noteId)) {
-        newPinned.delete(noteId);
-      } else {
-        newPinned.add(noteId);
+  const togglePin = async (noteId) => {
+    const note = notes.find((n) => n.id === noteId);
+    if (!note) return;
+  
+    const newPinnedState = !note.is_pinned;
+  
+    try {
+      if (isOffline) {
+        await saveOfflineChange({
+          type: "pin",
+          id: noteId,
+          data: { is_pinned: newPinnedState },
+        });
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === noteId ? { ...n, is_pinned: newPinnedState } : n
+          )
+        );
+        showNotification(`Ghi chú đã được ${newPinnedState ? "ghim" : "bỏ ghim"} cục bộ.`);
+        return;
       }
-      return newPinned;
-    });
+  
+      const { error } = await supabase2
+        .from("notess")
+        .update({ is_pinned: newPinnedState })
+        .eq("id", noteId);
+  
+      if (error) throw error;
+  
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId ? { ...n, is_pinned: newPinnedState } : n
+        )
+      );
+      showNotification(`Ghi chú đã được ${newPinnedState ? "ghim" : "bỏ ghim"}!`);
+    } catch (err) {
+      console.error("Error toggling pin:", err.message);
+      showNotification("Lỗi khi thay đổi trạng thái ghim: " + err.message);
+    }
   };
 
   const handleEdit = (note) => {
@@ -790,8 +825,8 @@ export default function ManageNotes() {
         const matchesNoteType = advancedSearch.noteType
           ? note.note_type === advancedSearch.noteType
           : true;
-        const matchesPinned = advancedSearch.isPinned !== null
-          ? pinnedNotes.has(note.id) === advancedSearch.isPinned
+          const matchesPinned = advancedSearch.isPinned !== null
+          ? note.is_pinned === advancedSearch.isPinned
           : true;
 
         return (
@@ -805,13 +840,13 @@ export default function ManageNotes() {
       })
     : [];
 
-  const sortNotes = (notes) => {
-    return [...notes].sort((a, b) => {
-      if (pinnedNotes.has(a.id) && !pinnedNotes.has(b.id)) return -1;
-      if (!pinnedNotes.has(a.id) && pinnedNotes.has(b.id)) return 1;
-      return 0;
-    });
-  };
+    const sortNotes = (notes) => {
+      return [...notes].sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1;
+        if (!a.is_pinned && b.is_pinned) return 1;
+        return 0;
+      });
+    };
 
   const chunkCategories = (categories, size) => {
     const chunks = [];
@@ -844,24 +879,40 @@ export default function ManageNotes() {
           >
             Ghi chú văn bản thuần
           </h2>
-          <div className="flex flex-col gap-4">
-            {sortNotes(
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : sortNotes(
               filteredNotes.filter(
                 (note) => !note.image_url && note.note_type === "plain"
               )
-            ).map((note) => (
-              <div
-                key={note.id}
-                className={`rounded-xl p-4 relative shadow-sm max-w-full flex flex-col transition-all duration-300 hover:shadow-lg hover:scale-105 ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+            ).length === 0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú văn bản thuần.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {sortNotes(
+                filteredNotes.filter(
+                  (note) => !note.image_url && note.note_type === "plain"
+                )
+              ).map((note) => (
+                <div
+                  key={note.id}
+                  className={`rounded-xl p-4 relative shadow-sm max-w-full flex flex-col transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+                    note.is_pinned ? "bg-[#E0E7FF]" : ""
+                  }`}
+                  style={{
+                    background: note.is_pinned ? "#E0E7FF" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onMouseEnter={() => setPreviewNoteId(note.id)}
+                  onMouseLeave={() => setPreviewNoteId(null)}
+                >
                 <div className="relative">
                   <h3
                     className="font-semibold inline"
@@ -872,11 +923,9 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
                     } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -962,12 +1011,13 @@ export default function ManageNotes() {
                     }}
                   >
                     Lịch sử
-                  </button>
+                    </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        )}
+      </div>
 
         {/* Rich Notes */}
         <div className="mt-6">
@@ -977,24 +1027,40 @@ export default function ManageNotes() {
           >
             Ghi chú văn bản phong phú
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortNotes(
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : sortNotes(
               filteredNotes.filter(
                 (note) => note.image_url && note.note_type === "rich"
               )
-            ).map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+            ).length === 0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú văn bản phong phú.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {sortNotes(
+                filteredNotes.filter(
+                  (note) => note.image_url && note.note_type === "rich"
+                )
+              ).map((note) => (
+                <div
+                  key={note.id}
+                  className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
+                    note.is_pinned ? "bg-[#E0E7FF]" : ""
+                  }`}
+                  style={{
+                    background: note.is_pinned ? "#E0E7FF" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onMouseEnter={() => setPreviewNoteId(note.id)}
+                  onMouseLeave={() => setPreviewNoteId(null)}
+                >
                 <div className="relative">
                   <img
                     src={note.image_url}
@@ -1010,11 +1076,9 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
                     } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -1105,32 +1169,47 @@ export default function ManageNotes() {
               </div>
             ))}
           </div>
+          )}
         </div>
 
-        {/* Whiteboard Notes */}
-        <div className="mt-6">
-          <h2
-            className="text-xl font-bold mb-4 text-left"
-            style={{ color: "var(--text-color)" }}
-          >
-            Ghi chú danh sách công việc
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortNotes(
-              filteredNotes.filter((note) => note.note_type === "whiteboard")
-            ).map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+      {/* Whiteboard Notes */}
+      <div className="mt-6">
+      <h2
+        className="text-xl font-bold mb-4 text-left"
+        style={{ color: "var(--text-color)" }}
+      >
+        Ghi chú danh sách công việc
+      </h2>
+      {isLoading ? (
+        <div className="pro-spinner">
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+        </div>
+      ) : sortNotes(
+          filteredNotes.filter((note) => note.note_type === "whiteboard")
+        ).length === 0 ? (
+        <p style={{ color: "var(--text-color)" }}>
+          Không có ghi chú danh sách công việc.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {sortNotes(
+            filteredNotes.filter((note) => note.note_type === "whiteboard")
+          ).map((note) => (
+            <div
+              key={note.id}
+              className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
+                note.is_pinned ? "bg-[#E0E7FF]" : ""
+              }`}
+              style={{
+                background: note.is_pinned ? "#E0E7FF" : "var(--background)",
+                border: "1px solid var(--border-color)",
+              }}
+              onMouseEnter={() => setPreviewNoteId(note.id)}
+              onMouseLeave={() => setPreviewNoteId(null)}
+            >
                 <div className="relative">
                   <h3
                     className="font-semibold inline"
@@ -1141,11 +1220,9 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
                     } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -1260,6 +1337,7 @@ export default function ManageNotes() {
               </div>
             ))}
           </div>
+        )}
         </div>
 
         {/* Spreadsheet Notes */}
@@ -1270,22 +1348,36 @@ export default function ManageNotes() {
           >
             Ghi chú bảng tính
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortNotes(
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : sortNotes(
               filteredNotes.filter((note) => note.note_type === "spreadsheet")
-            ).map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+            ).length === 0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú bảng tính.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {sortNotes(
+                filteredNotes.filter((note) => note.note_type === "spreadsheet")
+              ).map((note) => (
+                <div
+                  key={note.id}
+                  className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
+                    note.is_pinned ? "bg-[#E0E7FF]" : ""
+                  }`}
+                  style={{
+                    background: note.is_pinned ? "#E0E7FF" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onMouseEnter={() => setPreviewNoteId(note.id)}
+                  onMouseLeave={() => setPreviewNoteId(null)}
+                >
                 <div className="relative">
                   <h3
                     className="font-semibold inline"
@@ -1296,11 +1388,9 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
                     } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -1434,8 +1524,10 @@ export default function ManageNotes() {
               </div>
             ))}
           </div>
+          )}
         </div>
 
+        {/* Markdown Notes */}
         {/* Markdown Notes */}
         <div className="mt-6">
           <h2
@@ -1444,22 +1536,36 @@ export default function ManageNotes() {
           >
             Ghi chú Markdown/Code
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortNotes(
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : sortNotes(
               filteredNotes.filter((note) => note.note_type === "markdown")
-            ).map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#E0E7FF" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+            ).length === 0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú Markdown/Code.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {sortNotes(
+                filteredNotes.filter((note) => note.note_type === "markdown")
+              ).map((note) => (
+                <div
+                  key={note.id}
+                  className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col ${
+                    note.is_pinned ? "bg-[#E0E7FF]" : ""
+                  }`}
+                  style={{
+                    background: note.is_pinned ? "#E0E7FF" : "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onMouseEnter={() => setPreviewNoteId(note.id)}
+                  onMouseLeave={() => setPreviewNoteId(null)}
+                >
                 <div className="relative">
                   <h3
                     className="font-semibold inline"
@@ -1470,11 +1576,9 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
                     } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -1609,208 +1713,242 @@ export default function ManageNotes() {
               </div>
             ))}
           </div>
+          )}
         </div>
 
-        {/* Voice Notes */}
-        <div className="mt-6">
-  <h2
-    className="text-xl font-bold mb-4 text-left"
-    style={{ color: "var(--text-color)" }}
-  >
-    Ghi chú đính kèm (Voice)
-  </h2>
+       {/* Voice Notes */}
+       <div className="mt-6">
+       <h2
+         className="text-xl font-bold mb-4 text-left"
+         style={{ color: "var(--text-color)" }}
+       >
+         Ghi chú đính kèm (Voice)
+       </h2>
 
-  {/* Audio Notes Section */}
-  <div className="mb-6">
-    <h3
-      className="text-lg font-semibold mb-2 text-left"
-      style={{ color: "var(--text-color)" }}
-    >
-    </h3>
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {sortNotes(
-        filteredNotes.filter(
-          (note) => note.note_type === "voice" && note.audio_url
-        )
-      ).map((note) => (
-        <div
-          key={`audio-${note.id}`}
-          className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
-            pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-          }`}
-          style={{
-            background: pinnedNotes.has(note.id)
-              ? "#E0E7FF"
-              : "var(--background)",
-            border: "1px solid var(--border-color)",
-          }}
-          onMouseEnter={() => setPreviewNoteId(note.id)}
-          onMouseLeave={() => setPreviewNoteId(null)}
-        >
-          <div className="relative">
-            <h3
-              className="font-semibold inline"
-              style={{ color: "var(--text-color)" }}
-            >
-              🎙 {note.title}
-            </h3>
-            <button
-              onClick={() => togglePin(note.id)}
-              className={`absolute top-0 right-0 text-lg ${
-                pinnedNotes.has(note.id)
-                  ? "text-[#A78BFA]"
-                  : "text-gray-400"
-              } hover:text-[#A78BFA]`}
-              title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
-            >
-              📌
-            </button>
-          </div>
-          <div
-            className={`flex-1 overflow-y-auto ${
-              previewNoteId === note.id ? "hidden" : ""
-            }`}
-          >
-            <p
-              className="line-clamp-2 min-h-[40px]"
-              style={{ color: "var(--text-color)" }}
-            >
-              {note.content}
-            </p>
-            {previewNoteId !== note.id && (
-              <div className="mt-2">
-                <p style={{ color: "var(--text-color)" }}>
-                  Âm thanh: {note.audio_file_name || "Bản ghi âm"}
-                </p>
-                <audio controls src={note.audio_url} className="w-full" />
-              </div>
-            )}
-          </div>
-          {previewNoteId === note.id && (
+       {/* Audio Notes Section */}
+       <div className="mb-6">
+         <h3
+           className="text-lg font-semibold mb-2 text-left"
+           style={{ color: "var(--text-color)" }}
+         >
+           Ghi chú âm thanh
+         </h3>
+         {isLoading ? (
+           <div className="pro-spinner">
+             <div></div>
+             <div></div>
+             <div></div>
+             <div></div>
+           </div>
+         ) : sortNotes(
+             filteredNotes.filter(
+               (note) => note.note_type === "voice" && note.audio_url
+             )
+           ).length === 0 ? (
+           <p style={{ color: "var(--text-color)" }}>
+             Không có ghi chú âm thanh.
+           </p>
+         ) : (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+             {sortNotes(
+               filteredNotes.filter(
+                 (note) => note.note_type === "voice" && note.audio_url
+               )
+             ).map((note) => (
+               <div
+                 key={`audio-${note.id}`}
+                 className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
+                   note.is_pinned ? "bg-[#E0E7FF]" : ""
+                 }`}
+                 style={{
+                   background: note.is_pinned
+                     ? "#E0E7FF"
+                     : "var(--background)",
+                   border: "1px solid var(--border-color)",
+                 }}
+                 onMouseEnter={() => setPreviewNoteId(note.id)}
+                 onMouseLeave={() => setPreviewNoteId(null)}
+               >
+            <div className="relative">
+              <h3
+                className="font-semibold inline"
+                style={{ color: "var(--text-color)" }}
+              >
+                🎙 {note.title}
+              </h3>
+              <button
+                onClick={() => togglePin(note.id)}
+                className={`absolute top-0 right-0 text-lg ${
+                  note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"
+                } hover:text-[#A78BFA]`}
+                title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+              >
+                📌
+              </button>
+            </div>
             <div
-              className="p-2 flex-1 overflow-y-auto"
-              style={{
-                background: "var(--background)",
-                color: "var(--text-color)",
-              }}
+              className={`flex-1 overflow-y-auto ${
+                previewNoteId === note.id ? "hidden" : ""
+              }`}
             >
-              <h4 className="font-semibold">{note.title}</h4>
-              <p>{note.content}</p>
-              <small>Category: {note.category}</small>
-              <div className="mt-2">
-                <p>Âm thanh: {note.audio_file_name || "Bản ghi âm"}</p>
-                <audio controls src={note.audio_url} className="w-full" />
-              </div>
-              {note.video_url && (
+              <p
+                className="line-clamp-2 min-h-[40px]"
+                style={{ color: "var(--text-color)" }}
+              >
+                {note.content}
+              </p>
+              {previewNoteId !== note.id && (
                 <div className="mt-2">
-                  <p>Video: {note.video_file_name || "Video đính kèm"}</p>
-                  <video
-                    controls
-                    src={note.video_url}
-                    className="w-full h-[150px] object-cover rounded-md"
-                  />
+                  <p style={{ color: "var(--text-color)" }}>
+                    Âm thanh: {note.audio_file_name || "Bản ghi âm"}
+                  </p>
+                  <audio controls src={note.audio_url} className="w-full" />
                 </div>
               )}
             </div>
-          )}
-          <div>
-            <button
-              onClick={() => setViewDetailNoteId(note.id)}
-              className="mt-2 text-left"
-              style={{ color: "var(--accent-color)" }}
-            >
-              Xem chi tiết →
-            </button>
-            <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
-              <button
-                onClick={() => handleEdit(note)}
-                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+            {previewNoteId === note.id && (
+              <div
+                className="p-2 flex-1 overflow-y-auto"
                 style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
+                  background: "var(--background)",
+                  color: "var(--text-color)",
                 }}
               >
-                Sửa
-              </button>
+                <h4 className="font-semibold">{note.title}</h4>
+                <p>{note.content}</p>
+                <small>Category: {note.category}</small>
+                <div className="mt-2">
+                  <p>Âm thanh: {note.audio_file_name || "Bản ghi âm"}</p>
+                  <audio controls src={note.audio_url} className="w-full" />
+                </div>
+                {note.video_url && (
+                  <div className="mt-2">
+                    <p>Video: {note.video_file_name || "Video đính kèm"}</p>
+                    <video
+                      controls
+                      src={note.video_url}
+                      className="w-full h-[150px] object-cover rounded-md"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <div>
               <button
-                onClick={() => handleDelete(note.id)}
-                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
+                onClick={() => setViewDetailNoteId(note.id)}
+                className="mt-2 text-left"
+                style={{ color: "var(--accent-color)" }}
               >
-                Xóa
+                Xem chi tiết →
               </button>
-              <button
-                onClick={() => handleShare(note)}
-                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Chia sẻ
-              </button>
-              <button
-                onClick={() => handleDownload(note)}
-                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Tải xuống
-              </button>
-              <button
-                onClick={() => handleViewVersions(note)}
-                className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
-                style={{
-                  background: "var(--accent-color)",
-                  color: "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Lịch sử
-              </button>
+              <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
+                <button
+                  onClick={() => handleEdit(note)}
+                  className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                  style={{
+                    background: "var(--accent-color)",
+                    color: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  Sửa
+                </button>
+                <button
+                  onClick={() => handleDelete(note.id)}
+                  className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                  style={{
+                    background: "var(--accent-color)",
+                    color: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  Xóa
+                </button>
+                <button
+                  onClick={() => handleShare(note)}
+                  className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                  style={{
+                    background: "var(--accent-color)",
+                    color: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  Chia sẻ
+                </button>
+                <button
+                  onClick={() => handleDownload(note)}
+                  className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                  style={{
+                    background: "var(--accent-color)",
+                    color: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  Tải xuống
+                </button>
+                <button
+                  onClick={() => handleViewVersions(note)}
+                  className="min-w-[60px] px-2 py-1 text-sm rounded-xl transition-all duration-300 hover:shadow-md sm:px-1 sm:text-xs"
+                  style={{
+                    background: "var(--accent-color)",
+                    color: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  Lịch sử
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    )}
   </div>
 
       {/* Video Notes Section */}
-        <div>
-          <h3
-            className="text-lg font-semibold mb-2 text-left"
-            style={{ color: "var(--text-color)" }}
-          >
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sortNotes(
-              filteredNotes.filter(
-                (note) => note.note_type === "voice" && note.video_url
-              )
-            ).map((note) => (
-              <div
-                key={`video-${note.id}`}
-                className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
-                  pinnedNotes.has(note.id) ? "bg-[#E0E7FF]" : ""
-                }`}
-                style={{
-                  background: pinnedNotes.has(note.id)
-                    ? "#E0E7FF"
-                    : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onMouseEnter={() => setPreviewNoteId(note.id)}
-                onMouseLeave={() => setPreviewNoteId(null)}
-              >
+      <div>
+            <h3
+              className="text-lg font-semibold mb-2 text-left"
+              style={{ color: "var(--text-color)" }}
+            >
+              Ghi chú video
+            </h3>
+            {isLoading ? (
+              <div className="pro-spinner">
+                <div></div>
+                <div></div>
+                <div></div>
+                <div></div>
+              </div>
+            ) : sortNotes(
+                filteredNotes.filter(
+                  (note) => note.note_type === "voice" && note.video_url
+                )
+              ).length === 0 ? (
+              <p style={{ color: "var(--text-color)" }}>
+                Không có ghi chú video.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {sortNotes(
+                  filteredNotes.filter(
+                    (note) => note.note_type === "voice" && note.video_url
+                  )
+                ).map((note) => (
+                  <div
+                    key={`video-${note.id}`}
+                    className={`p-4 shadow-md rounded-xl transition-transform duration-300 hover:shadow-lg transform hover:-translate-y-1 max-w-full flex flex-col justify-between h-[300px] ${
+                      note.is_pinned ? "bg-[#E0E7FF]" : ""
+                    }`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#E0E7FF"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onMouseEnter={() => setPreviewNoteId(note.id)}
+                    onMouseLeave={() => setPreviewNoteId(null)}
+                  >
                 <div className="relative">
                   <h3
                     className="font-semibold inline"
@@ -1821,11 +1959,8 @@ export default function ManageNotes() {
                   <button
                     onClick={() => togglePin(note.id)}
                     className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-[#A78BFA]"
-                        : "text-gray-400"
-                    } hover:text-[#A78BFA]`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+                      note.is_pinned ? "text-[#A78BFA]" : "text-gray-400"} hover:text-[#A78BFA]`}
+                    title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
                   >
                     📌
                   </button>
@@ -1950,6 +2085,7 @@ export default function ManageNotes() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
       </div>
@@ -1965,16 +2101,28 @@ export default function ManageNotes() {
         >
           🗑️ Thùng Rác
         </h2>
-        <div className="flex flex-col gap-4">
-          {trashNotes.map((note) => (
-            <div
-              key={note.id}
-              className="rounded-xl p-4 shadow-sm max-w-full flex flex-col"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-              }}
-            >
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+        ) : trashNotes.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Thùng rác trống.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {trashNotes.map((note) => (
+              <div
+                key={note.id}
+                className="rounded-xl p-4 shadow-sm max-w-full flex flex-col"
+                style={{
+                  background: "var(--background)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
               <h3
                 className="font-semibold"
                 style={{ color: "var(--text-color)" }}
@@ -2017,19 +2165,49 @@ export default function ManageNotes() {
             </div>
           ))}
         </div>
+        )}
       </div>
     );
   };
 
   return (
-    <div
-      className="mt-[96px] p-5 max-w-8xl mx-auto rounded-xl shadow-lg"
-      style={{
-        background: "var(--background)",
-        border: "2px solid var(--border-color)",
-        color: "var(--text-color)",
-      }}
-    >
+      <div
+        className="mt-[96px] p-5 max-w-8xl mx-auto rounded-xl shadow-lg"
+        style={{
+          background: "var(--background)",
+          border: "2px solid var(--border-color)",
+          color: "var(--text-color)",
+        }}
+      >
+      <style jsx>{`
+        .pro-spinner {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 80px;
+          gap: 8px;
+        }
+        .pro-spinner div {
+          width: 12px;
+          height: 12px;
+          background: linear-gradient(45deg, #93C5FD, #D8B4FE);
+          border-radius: 50%;
+          animation: wave 1.2s ease-in-out infinite;
+        }
+        .pro-spinner div:nth-child(1) { animation-delay: 0s; }
+        .pro-spinner div:nth-child(2) { animation-delay: 0.1s; }
+        .pro-spinner div:nth-child(3) { animation-delay: 0.2s; }
+        .pro-spinner div:nth-child(4) { animation-delay: 0.3s; }
+        @keyframes wave {
+          0%, 60%, 100% {
+            transform: translateY(0);
+          }
+          30% {
+            transform: translateY(-10px);
+          }
+        }
+      `}</style>
+      
       <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
         🛠️ Quản lý Ghi Chú {isOffline && <span className="text-red-500">(Ngoại tuyến)</span>}
       </h1>
@@ -2318,7 +2496,8 @@ export default function ManageNotes() {
                 </div>
               )}
               <input
-                type="file"
+      
+      type="file"
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files[0];

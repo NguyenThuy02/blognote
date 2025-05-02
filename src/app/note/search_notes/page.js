@@ -585,12 +585,12 @@ export default function NotePage() {
 
   return (
     <div
-      className="mt-[97px] p-5 mb-[-7px] min-h-screen"
+      className="mt-[97px] p-5 mb-[-7px] min-h-screen rounded-xl"
       style={{ background: "var(--background)", color: "var(--text-color)" }}
     >
       <div className="container mx-auto w-full">
         <div
-          className="rounded-3xl shadow-2xl p-8 transform transition-all duration-300"
+          className="rounded-xl shadow-2xl p-8 transform transition-all duration-300"
           style={{
             background: "var(--background)",
             border: "1px solid var(--border-color)",

@@ -60,6 +60,8 @@ const NoteApp = () => {
   const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [noteIdToDelete, setNoteIdToDelete] = useState(null);
   
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
@@ -157,6 +159,33 @@ const NoteApp = () => {
   
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    const checkMicrophonePermission = async () => {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: "microphone" });
+        if (permissionStatus.state === "denied") {
+          setError("Quyền truy cập micro bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.");
+          return false;
+        }
+        return true;
+      } catch (err) {
+        setError("Không thể kiểm tra quyền micro: " + err.message);
+        return false;
+      }
+    };
+    
+    const startRecording = async () => {
+      const hasPermission = await checkMicrophonePermission();
+      if (!hasPermission) return;
+    
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        // Tiếp tục logic ghi âm...
+      } catch (err) {
+        setError("Không thể truy cập micro: " + err.message);
+      }
+    };
   
     // Lấy ghi chú từ IndexedDB khi khởi động
     const initOfflineNotes = async () => {
@@ -290,38 +319,60 @@ const NoteApp = () => {
     
       // ghi âm 
       useEffect(() => {
-        // Khởi tạo SpeechRecognition
-        if (typeof window !== "undefined" && window.SpeechRecognition) {
-          recognitionRef.current = new window.SpeechRecognition();
-          recognitionRef.current.lang = "vi-VN"; // Ngôn ngữ tiếng Việt
-          recognitionRef.current.interimResults = true; // Hiển thị kết quả tạm thời
-          recognitionRef.current.continuous = true; // Ghi âm liên tục
+        if (typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.lang = "en-US"; // Thử với tiếng Anh
+          recognitionRef.current.interimResults = true;
+          recognitionRef.current.continuous = true;
       
-          let hasSpeech = false; // Biến để kiểm tra xem có phát hiện văn bản hay không
+          let hasSpeech = false;
       
           recognitionRef.current.onresult = (event) => {
-            let transcript = "";
+            let interimTranscript = "";
+            let finalTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-              transcript += event.results[i][0].transcript;
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
             }
-            if (transcript.trim()) {
-              hasSpeech = true; // Có văn bản được phát hiện
-              setContent((prev) => prev + transcript); // Thêm văn bản vào content
+            console.log("Interim:", interimTranscript, "Final:", finalTranscript);
+            if (finalTranscript.trim()) {
+              setContent((prev) => prev + " " + finalTranscript);
             }
           };
-      
+
           recognitionRef.current.onend = () => {
+            console.log("SpeechRecognition ended");
             if (!hasSpeech && isRecording) {
-              setError("Không phát hiện văn bản từ giọng nói.");
+              setError("Không phát hiện giọng nói. Vui lòng thử lại hoặc kiểm tra micro.");
+            }
+            // Tự động khởi động lại nếu vẫn đang ghi âm
+            if (isRecording) {
+              recognitionRef.current.start();
             }
           };
       
           recognitionRef.current.onerror = (event) => {
-            setError("Lỗi Speech-to-Text: " + event.error);
+            console.error("SpeechRecognition error details:", {
+              error: event.error,
+              message: event.message,
+              event: event,
+            });
+            let errorMessage = `Lỗi Speech-to-Text: ${event.error}`;
+            if (event.error === "network") {
+              errorMessage += ". Vui lòng kiểm tra kết nối internet.";
+            } else if (event.error === "no-speech") {
+              errorMessage += ". Không phát hiện giọng nói.";
+            }
+            setError(errorMessage);
             stopRecording();
           };
         } else {
-          console.warn("SpeechRecognition API không được hỗ trợ trên trình duyệt này.");
+          setError("Trình duyệt không hỗ trợ SpeechRecognition. Vui lòng dùng Chrome hoặc Edge.");
         }
       
         return () => {
@@ -1509,31 +1560,35 @@ const NoteApp = () => {
       
           mediaRecorderRef.current.onstop = async () => {
             const blob = new Blob(chunks, { type: "audio/webm" });
-            // Không lưu blob hay URL vì bản ghi âm sẽ bị xóa sau khi chuyển đổi
+            setVoiceBlob(blob);
+            setVoiceUrl(URL.createObjectURL(blob));
             mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
           };
       
           mediaRecorderRef.current.start();
           setIsRecording(true);
+          console.log("Recording started, isRecording:", true);
+          
           if (recognitionRef.current) {
             recognitionRef.current.start();
+            console.log("SpeechRecognition started");
           }
           setError("");
         } catch (err) {
-          setError("Không thể truy cập micro: " + err.message);
+          setError("Không thể truy cập micro. Vui lòng kiểm tra quyền truy cập micro: " + err.message);
+          console.error("Start recording error:", err);
         }
       };
-
+      
       const stopRecording = () => {
-        if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
-          setVoiceBlob(null);
-          setVoiceUrl("");
-          setVoicePublicId("");
+          console.log("Recording stopped, isRecording:", false);
         }
         if (recognitionRef.current) {
-          recognitionRef.current.stop(); 
+          recognitionRef.current.stop();
+          console.log("SpeechRecognition stopped");
         }
       };
 
@@ -2718,6 +2773,7 @@ const NoteApp = () => {
                   
                       {/* Textarea cho nội dung văn bản (từ Speech-to-Text hoặc chỉnh sửa thủ công) */}
                       <textarea
+                        key={content} // Force re-render khi content thay đổi
                         ref={textAreaRef}
                         placeholder="Nội dung được chuyển từ giọng nói sẽ hiển thị ở đây..."
                         value={content}
@@ -3206,22 +3262,50 @@ const NoteApp = () => {
               <FaEdit />
             </button>
             <button
-              onClick={() => handleDeleteNote(note.id)}
-              className="text-red-500 text-xl hover:text-red-700 transition duration-200"
-              title="Xóa ghi chú"
-            >
-              <FaTrash />
-            </button>
+          onClick={() => {
+              setNoteIdToDelete(note.id);
+              setShowDeleteModal(true);
+            }}
+            className="text-red-500 text-xl hover:text-red-700 transition duration-200"
+            title="Xóa ghi chú"
+          >
+            <FaTrash />
+          </button>
           </div>
         </li>
       ))
     ) : (
       <p className="text-gray-500 mt-3">Không tìm thấy ghi chú nào.</p>
     )}
-            </ul>
+    </ul>
+  </div>
+      {showDeleteModal && (
+      <div className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50">
+        <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full">
+          <h2 className="text-2xl font-bold mb-4 text-center">Xác nhận xóa</h2>
+          <p className="mb-4">Bạn có chắc chắn muốn xóa ghi chú này?</p>
+          <div className="flex justify-end space-x-4">
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-200"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={async () => {
+                await handleDeleteNote(noteIdToDelete);
+                setShowDeleteModal(false);
+                setNoteIdToDelete(null);
+              }}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200"
+            >
+              Xóa
+            </button>
           </div>
         </div>
-
+      </div>
+    )}
+        </div>
         <style jsx>{`
           :global(.note-app-container) {
             background-color: var(--background);
