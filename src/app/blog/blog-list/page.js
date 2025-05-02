@@ -10,6 +10,7 @@ import {
   FileWordOutlined,
   EditOutlined,
   DeleteOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { supabase } from "../../../lib/supabase";
@@ -62,6 +63,14 @@ const Sticker = dynamic(() => import("../stickers/page"), {
   ),
 });
 
+// Dynamically import mammoth only on client-side
+const loadMammoth = async () => {
+  if (typeof window !== "undefined") {
+    return (await import("mammoth")).default;
+  }
+  return null;
+};
+
 export default function BloglistApp() {
   const [theme, setTheme] = useState("light");
   const [searchTerm, setSearchTerm] = useState("");
@@ -94,11 +103,135 @@ export default function BloglistApp() {
   const [error, setError] = useState(null);
   const [isAFrameLoaded, setIsAFrameLoaded] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
+  const [expandedFiles, setExpandedFiles] = useState({});
+  const [docxContent, setDocxContent] = useState({});
 
   const graphRef = useRef();
   const commentTextareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // Hàm kiểm tra URL hợp lệ
+  const isValidUrl = (url) => {
+    try {
+      new URL(url);
+      return url.startsWith("http://") || url.startsWith("https://");
+    } catch {
+      return false;
+    }
+  };
+
+  // Hàm hiển thị trước file
+  const renderFilePreview = (fileUrl, postId) => {
+    if (!isValidUrl(fileUrl)) return null;
+
+    const fileExtension = fileUrl.split(".").pop().toLowerCase();
+    const fileName = fileUrl.split("/").pop() || "Tệp không xác định";
+    const isExpanded = expandedFiles[`${postId}-${fileName}`];
+
+    const loadDocxContent = async (url) => {
+      try {
+        const mammoth = await loadMammoth();
+        if (!mammoth)
+          throw new Error("Mammoth không khả dụng trên server-side");
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Không thể tải file");
+        const arrayBuffer = await response.arrayBuffer();
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        setDocxContent((prev) => ({
+          ...prev,
+          [`${postId}-${fileName}`]: result.value,
+        }));
+      } catch (err) {
+        console.error("Lỗi khi tải file .docx:", err);
+        setDocxContent((prev) => ({
+          ...prev,
+          [`${postId}-${fileName}`]:
+            "<p>Không thể hiển thị nội dung file .docx.</p>",
+        }));
+      }
+    };
+
+    const toggleExpand = () => {
+      if (fileExtension === "docx" && !docxContent[`${postId}-${fileName}`]) {
+        loadDocxContent(fileUrl);
+      }
+      setExpandedFiles((prev) => ({
+        ...prev,
+        [`${postId}-${fileName}`]: !prev[`${postId}-${fileName}`],
+      }));
+    };
+
+    return (
+      <div className="mt-7 border border-gray-200 rounded-lg bg-blue-100">
+        <div
+          className="flex items-center justify-between p-2 cursor-pointer"
+          onClick={toggleExpand}
+        >
+          <div className="flex items-center">
+            <svg
+              className="w-5 h-5 text-gray-500 mr-1"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+            <span className="text-xs text-gray-700">{fileName}</span>
+          </div>
+          <div className="flex gap-1">
+            <a
+              href={fileUrl}
+              download
+              className="text-indigo-600 hover:text-indigo-800 transition duration-200"
+              title="Tải xuống"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DownloadOutlined className="text-base" />
+            </a>
+            <svg
+              className={`w-4 h-4 text-gray-500 transform transition-transform duration-200 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </div>
+        </div>
+        {isExpanded && (
+          <div className="p-2 border-t border-gray-200">
+            {fileExtension === "docx" ? (
+              <div
+                className="text-xs text-gray-700 bg-gray-100 p-3 rounded-lg overflow-auto max-h-48"
+                dangerouslySetInnerHTML={{
+                  __html:
+                    docxContent[`${postId}-${fileName}`] ||
+                    "Đang tải nội dung...",
+                }}
+              />
+            ) : (
+              <p className="text-xs text-gray-700">
+                Không hỗ trợ xem trước cho định dạng này.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Load A-Frame via script tag
   useEffect(() => {
@@ -460,6 +593,7 @@ export default function BloglistApp() {
     if (!isMounted) return;
     setReplyContent(event.target.value);
   };
+
   const insertEmojiAtCursor = (textareaRef, emoji, isReply = false) => {
     if (!isMounted || typeof window === "undefined" || !textareaRef.current)
       return;
@@ -467,7 +601,6 @@ export default function BloglistApp() {
     const textarea = textareaRef.current;
     const scrollContainer = scrollContainerRef.current;
 
-    // Lưu vị trí cuộn và tiêu điểm
     const scrollPosition = scrollContainer
       ? scrollContainer.scrollTop
       : window.scrollY;
@@ -478,19 +611,16 @@ export default function BloglistApp() {
     const after = text.substring(end);
     const newText = before + emoji + after;
 
-    // Cập nhật state đồng bộ
     if (isReply) {
       setReplyContent(newText);
     } else {
       setNewCommentContent(newText);
     }
 
-    // Duy trì tiêu điểm và vị trí con trỏ
     requestAnimationFrame(() => {
       textarea.focus();
       textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
 
-      // Khôi phục vị trí cuộn
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollPosition;
       } else {
@@ -1190,33 +1320,8 @@ export default function BloglistApp() {
                   )}
 
                   <div className="mb-3">
-                    {post.files && (
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        <a
-                          href={post.files}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline flex items-center text-sm"
-                        >
-                          <svg
-                            className="w-5 h-5 mr-1"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                          Tải file
-                        </a>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2">
+                    {post.files && renderFilePreview(post.files, post.id)}
+                    <div className="flex flex-wrap gap-2 mt-2">
                       {post.tags.map((tag) => (
                         <span
                           key={tag}
@@ -1229,214 +1334,326 @@ export default function BloglistApp() {
                   </div>
 
                   <div className="border-t border-gray-200 pt-2 flex justify-around text-gray-500 text-sm">
-                      {isLoggedIn ? (
-                        <>
-                          <button
-                            className="flex items-center hover:text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleComments(post.id);
-                            }}
-                          >
-                            <MessageOutlined className="mr-1" />
-                            Bình luận
-                          </button>
-                          <button
-                            className="flex items-center hover:text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleDiagram(post.id);
-                            }}
-                          >
-                            <ApartmentOutlined className="mr-1" />
-                            Sơ đồ
-                          </button>
-                          <button
-                            className="flex items-center hover:text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveArticle(post);
-                            }}
-                          >
-                            <SaveOutlined className="mr-1" />
-                            Lưu bài viết
-                          </button>
-                          <button
-                            className="flex items-center hover:text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              exportToWord(post.id);
-                            }}
-                            disabled={exportingStates[post.id]}
-                          >
-                            <FileWordOutlined className="mr-1" />
-                            {exportingStates[post.id]
-                              ? "Đang xuất..."
-                              : "Xuất ra file Word"}
-                          </button>
-                        </>
-                      ) : (
-                        <p className="text-gray-500 flex items-center text-sm">
-                          Đăng nhập để Bình luận, Lưu bài viết và Xuất file
-                        </p>
-                      )}
-                    </div>
+                    {isLoggedIn ? (
+                      <>
+                        <button
+                          className="flex items-center hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleComments(post.id);
+                          }}
+                        >
+                          <MessageOutlined className="mr-1" />
+                          Bình luận
+                        </button>
+                        <button
+                          className="flex items-center hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleDiagram(post.id);
+                          }}
+                        >
+                          <ApartmentOutlined className="mr-1" />
+                          Sơ đồ
+                        </button>
+                        <button
+                          className="flex items-center hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveArticle(post);
+                          }}
+                        >
+                          <SaveOutlined className="mr-1" />
+                          Lưu bài viết
+                        </button>
+                        <button
+                          className="flex items-center hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            exportToWord(post.id);
+                          }}
+                          disabled={exportingStates[post.id]}
+                        >
+                          <FileWordOutlined className="mr-1" />
+                          {exportingStates[post.id]
+                            ? "Đang xuất..."
+                            : "Xuất ra file Word"}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-gray-500 flex items-center text-sm">
+                        Đăng nhập để Bình luận, Lưu bài viết và Xuất file
+                      </p>
+                    )}
                   </div>
+                </div>
 
-                  {isLoggedIn && (
-                    <div
-                      className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
-                        theme,
-                        "support"
-                      )} ${
-                        showCommentsForArticle === post.id
-                          ? "opacity-100"
-                          : "max-h-0 opacity-0 overflow-hidden"
-                      }`}
-                    >
-                      {loadingStates[post.id] &&
-                      showCommentsForArticle === post.id ? (
-                        <p className="text-gray-600 text-base">Đang tải...</p>
-                      ) : (
-                        <>
-                          <h1 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400 mb-6">
-                            Nhận xét và phản hồi
-                          </h1>
+                {isLoggedIn && (
+                  <div
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
+                      theme,
+                      "support"
+                    )} ${
+                      showCommentsForArticle === post.id
+                        ? "opacity-100"
+                        : "max-h-0 opacity-0 overflow-hidden"
+                    }`}
+                  >
+                    {loadingStates[post.id] &&
+                    showCommentsForArticle === post.id ? (
+                      <p className="text-gray-600 text-base">Đang tải...</p>
+                    ) : (
+                      <>
+                        <h1 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400 mb-6">
+                          Nhận xét và phản hồi
+                        </h1>
 
-                          {!isWriting && (
-                            <button
-                              className="text-sm text-blue-600 hover:text-blue-800 font-bold mb-4"
-                              onClick={() => setIsWriting(true)}
-                            >
-                              ✍️ Viết bình luận
-                            </button>
-                          )}
+                        {!isWriting && (
+                          <button
+                            className="text-sm text-blue-600 hover:text-blue-800 font-bold mb-4"
+                            onClick={() => setIsWriting(true)}
+                          >
+                            ✍️ Viết bình luận
+                          </button>
+                        )}
 
-                          {isWriting && (
-                            <div className="mb-6">
-                              <div className="relative">
-                                <textarea
-                                  ref={commentTextareaRef}
-                                  placeholder="Nhập bình luận của bạn..."
-                                  value={newCommentContent}
-                                  onChange={handleNewCommentChange}
-                                  rows="3"
-                                  className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
-                                  style={{
-                                    border: "1px solid transparent",
-                                    backgroundColor: "transparent",
-                                    boxShadow:
-                                      "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
-                                    outline: "none",
-                                  }}
-                                />
-                                <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                                  {isAFrameLoaded ? (
-                                    <>
-                                      <ErrorBoundary componentName="Emoji">
-                                        <div className="mt-0">
-                                          <Emoji
-                                            onSelect={(emoji) =>
-                                              handleEmojiSelect(emoji)
-                                            }
-                                          />
-                                        </div>
-                                      </ErrorBoundary>
-                                      <ErrorBoundary componentName="Sticker">
-                                        <div className="mt-0">
-                                          <Sticker
-                                            onSelect={(url) =>
-                                              handleStickerSelect(url)
-                                            }
-                                          />
-                                        </div>
-                                      </ErrorBoundary>
-                                    </>
-                                  ) : (
-                                    <p className="text-gray-500 text-sm">
-                                      Đang tải Emoji/Sticker...
-                                    </p>
-                                  )}
-                                </div>
+                        {isWriting && (
+                          <div className="mb-6">
+                            <div className="relative">
+                              <textarea
+                                ref={commentTextareaRef}
+                                placeholder="Nhập bình luận của bạn..."
+                                value={newCommentContent}
+                                onChange={handleNewCommentChange}
+                                rows="3"
+                                className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
+                                style={{
+                                  border: "1px solid transparent",
+                                  backgroundColor: "transparent",
+                                  boxShadow:
+                                    "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                                  outline: "none",
+                                }}
+                              />
+                              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                                {isAFrameLoaded ? (
+                                  <>
+                                    <ErrorBoundary componentName="Emoji">
+                                      <div className="mt-0">
+                                        <Emoji
+                                          onSelect={(emoji) =>
+                                            handleEmojiSelect(emoji)
+                                          }
+                                        />
+                                      </div>
+                                    </ErrorBoundary>
+                                    <ErrorBoundary componentName="Sticker">
+                                      <div className="mt-0">
+                                        <Sticker
+                                          onSelect={(url) =>
+                                            handleStickerSelect(url)
+                                          }
+                                        />
+                                      </div>
+                                    </ErrorBoundary>
+                                  </>
+                                ) : (
+                                  <p className="text-gray-500 text-sm">
+                                    Đang tải Emoji/Sticker...
+                                  </p>
+                                )}
                               </div>
-                              <div className="flex gap-2 mt-2">
-                                <button
-                                  className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded text-sm"
-                                  onClick={() => {
-                                    submitComment(post.id);
-                                    setIsWriting(false);
-                                  }}
-                                >
-                                  Gửi bình luận
-                                </button>
-                                <button
-                                  className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-sm"
-                                  onClick={() => setIsWriting(false)}
-                                >
-                                  Hủy
-                                </button>
-                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded text-sm"
+                                onClick={() => {
+                                  submitComment(post.id);
+                                  setIsWriting(false);
+                                }}
+                              >
+                                Gửi bình luận
+                              </button>
+                              <button
+                                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded text-sm"
+                                onClick={() => setIsWriting(false)}
+                              >
+                                Hủy
+                              </button>
+                            </div>
 
-                              {selectedCommentStickers.length > 0 && (
-                                <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
-                                  {selectedCommentStickers.map((url, index) => (
-                                    <div
-                                      key={`${url}-${index}`}
-                                      className="relative w-16 h-16"
+                            {selectedCommentStickers.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
+                                {selectedCommentStickers.map((url, index) => (
+                                  <div
+                                    key={`${url}-${index}`}
+                                    className="relative w-16 h-16"
+                                  >
+                                    {url.endsWith(".mp4") ? (
+                                      <video
+                                        src={url}
+                                        controls
+                                        width={64}
+                                        height={64}
+                                        className="rounded-sm"
+                                      />
+                                    ) : (
+                                      <Image
+                                        src={url}
+                                        alt={`sticker-${index}`}
+                                        width={64}
+                                        height={64}
+                                        style={{ objectFit: "contain" }}
+                                        className="rounded-sm"
+                                      />
+                                    )}
+                                    <button
+                                      onClick={() => handleRemoveSticker(url)}
+                                      className="absolute top-0 right-0 text-red-500 text-xs font-bold"
                                     >
-                                      {url.endsWith(".mp4") ? (
-                                        <video
-                                          src={url}
-                                          controls
-                                          width={64}
-                                          height={64}
-                                          className="rounded-sm"
-                                        />
-                                      ) : (
-                                        <Image
-                                          src={url}
-                                          alt={`sticker-${index}`}
-                                          width={64}
-                                          height={64}
-                                          style={{ objectFit: "contain" }}
-                                          className="rounded-sm"
-                                        />
-                                      )}
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {(comments[post.id] || []).map((comment) => (
+                          <div
+                            key={comment.id}
+                            className="pb-4 mb-4 border-b border-gray-200"
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
+                                {comment.author[0]?.toUpperCase() || "?"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-blue-600 text-sm">
+                                  {comment.author}
+                                </p>
+                                {editingCommentId === comment.id ? (
+                                  <div className="mt-2">
+                                    <textarea
+                                      value={editedCommentContent}
+                                      onChange={(e) =>
+                                        setEditedCommentContent(e.target.value)
+                                      }
+                                      rows="2"
+                                      className="w-full p-2 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
+                                      style={{
+                                        border: "1px solid transparent",
+                                        backgroundColor: "transparent",
+                                        boxShadow:
+                                          "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
+                                        outline: "none",
+                                      }}
+                                    />
+                                    <div className="mt-2 space-x-2">
                                       <button
-                                        onClick={() => handleRemoveSticker(url)}
-                                        className="absolute top-0 right-0 text-red-500 text-xs font-bold"
+                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+                                        onClick={() =>
+                                          saveEditedComment(post.id, comment.id)
+                                        }
                                       >
-                                        ✕
+                                        Lưu
+                                      </button>
+                                      <button
+                                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                                        onClick={cancelEditing}
+                                      >
+                                        Hủy
                                       </button>
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {(comments[post.id] || []).map((comment) => (
-                            <div
-                              key={comment.id}
-                              className="pb-4 mb-4 border-b border-gray-200"
-                            >
-                              <div className="flex items-start space-x-3">
-                                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
-                                  {comment.author[0]?.toUpperCase() || "?"}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-blue-600 text-sm">
-                                    {comment.author}
+                                  </div>
+                                ) : (
+                                  <p
+                                    className="text-base"
+                                    style={{ wordBreak: "break-word" }}
+                                  >
+                                    {comment.content}
                                   </p>
-                                  {editingCommentId === comment.id ? (
-                                    <div className="mt-2">
+                                )}
+                                {Array.isArray(comment.stickers) &&
+                                  comment.stickers.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {comment.stickers.map((url, index) => (
+                                        <div
+                                          key={`${url}-${index}`}
+                                          className="relative w-16 h-16"
+                                        >
+                                          {url.endsWith(".mp4") ? (
+                                            <video
+                                              src={url}
+                                              controls
+                                              width={64}
+                                              height={64}
+                                              className="rounded-sm"
+                                            />
+                                          ) : (
+                                            <Image
+                                              src={url}
+                                              alt={`sticker-${index}`}
+                                              width={64}
+                                              height={64}
+                                              style={{ objectFit: "contain" }}
+                                              className="rounded-sm"
+                                            />
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                <div className="flex items-center gap-4 mt-2">
+                                  <button
+                                    className="text-blue-500 text-sm flex items-center hover:text-blue-700"
+                                    onClick={() =>
+                                      setReplyToCommentId(comment.id)
+                                    }
+                                  >
+                                    <MessageOutlined
+                                      className="mr-1"
+                                      title="Phản hồi"
+                                    />
+                                    Phản hồi
+                                  </button>
+                                  {currentUser &&
+                                    comment.user_id === currentUser.id && (
+                                      <>
+                                        <button
+                                          className="text-green-400 text-sm flex items-center hover:text-green-500"
+                                          onClick={() =>
+                                            startEditingComment(comment)
+                                          }
+                                          title="Chỉnh sửa"
+                                        >
+                                          <EditOutlined className="mr-1" />
+                                          Sửa
+                                        </button>
+                                        <button
+                                          className="text-red-400 text-sm flex items-center hover:text-red-500"
+                                          onClick={() =>
+                                            deleteComment(post.id, comment.id)
+                                          }
+                                          title="Xóa"
+                                        >
+                                          <DeleteOutlined className="mr-1" />
+                                          Xóa
+                                        </button>
+                                      </>
+                                    )}
+                                </div>
+                                {replyToCommentId === comment.id && (
+                                  <div className="mt-2">
+                                    <div className="relative">
                                       <textarea
-                                        value={editedCommentContent}
-                                        onChange={(e) =>
-                                          setEditedCommentContent(e.target.value)
-                                        }
+                                        ref={replyTextareaRef}
+                                        placeholder="Nhập phản hồi của bạn..."
+                                        value={replyContent}
+                                        onChange={handleReplyChange}
                                         rows="2"
-                                        className="w-full p-2 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
+                                        className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
                                         style={{
                                           border: "1px solid transparent",
                                           backgroundColor: "transparent",
@@ -1445,342 +1662,227 @@ export default function BloglistApp() {
                                           outline: "none",
                                         }}
                                       />
-                                      <div className="mt-2 space-x-2">
-                                        <button
-                                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
-                                          onClick={() =>
-                                            saveEditedComment(post.id, comment.id)
-                                          }
-                                        >
-                                          Lưu
-                                        </button>
-                                        <button
-                                          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
-                                          onClick={cancelEditing}
-                                        >
-                                          Hủy
-                                        </button>
+                                      <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                                        {isAFrameLoaded ? (
+                                          <>
+                                            <ErrorBoundary componentName="Emoji">
+                                              <div className="mt-0">
+                                                <Emoji
+                                                  onSelect={(emoji) =>
+                                                    handleEmojiSelect(
+                                                      emoji,
+                                                      true
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                            </ErrorBoundary>
+                                            <ErrorBoundary componentName="Sticker">
+                                              <div className="mt-0">
+                                                <Sticker
+                                                  onSelect={(url) =>
+                                                    handleStickerSelect(
+                                                      url,
+                                                      true
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                            </ErrorBoundary>
+                                          </>
+                                        ) : (
+                                          <p className="text-gray-500 text-sm">
+                                            Đang tải Emoji/Sticker...
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
-                                  ) : (
-                                    <p
-                                      className="text-base"
-                                      style={{ wordBreak: "break-word" }}
-                                    >
-                                      {comment.content}
-                                    </p>
-                                  )}
-                                  {Array.isArray(comment.stickers) &&
-                                    comment.stickers.length > 0 && (
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        {comment.stickers.map((url, index) => (
-                                          <div
-                                            key={`${url}-${index}`}
-                                            className="relative w-16 h-16"
-                                          >
-                                            {url.endsWith(".mp4") ? (
-                                              <video
-                                                src={url}
-                                                controls
-                                                width={64}
-                                                height={64}
-                                                className="rounded-sm"
-                                              />
-                                            ) : (
-                                              <Image
-                                                src={url}
-                                                alt={`sticker-${index}`}
-                                                width={64}
-                                                height={64}
-                                                style={{ objectFit: "contain" }}
-                                                className="rounded-sm"
-                                              />
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  {/* Container cho các nút Sửa, Xóa, Phản hồi */}
-                                  <div className="flex items-center gap-4 mt-2">
                                     <button
-                                      className="text-blue-500 text-sm flex items-center hover:text-blue-700"
+                                      className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2 text-sm"
                                       onClick={() =>
-                                        setReplyToCommentId(comment.id)
+                                        submitReply(post.id, comment.id)
                                       }
                                     >
-                                      <MessageOutlined
-                                        className="mr-1"
-                                        title="Phản hồi"
-                                      />
-                                      Phản hồi
+                                      Gửi phản hồi
                                     </button>
-                                    {currentUser &&
-                                      comment.user_id === currentUser.id && (
-                                        <>
-                                          <button
-                                            className="text-green-400 text-sm flex items-center hover:text-green-500"
-                                            onClick={() =>
-                                              startEditingComment(comment)
-                                            }
-                                            title="Chỉnh sửa"
-                                          >
-                                            <EditOutlined className="mr-1" />
-                                            Sửa
-                                          </button>
-                                          <button
-                                            className="text-red-400 text-sm flex items-center hover:text-red-500"
-                                            onClick={() =>
-                                              deleteComment(post.id, comment.id)
-                                            }
-                                            title="Xóa"
-                                          >
-                                            <DeleteOutlined className="mr-1" />
-                                            Xóa
-                                          </button>
-                                        </>
-                                      )}
-                                  </div>
-                                  {/* Phần textarea phản hồi */}
-                                  {replyToCommentId === comment.id && (
-                                    <div className="mt-2">
-                                      <div className="relative">
-                                        <textarea
-                                          ref={replyTextareaRef}
-                                          placeholder="Nhập phản hồi của bạn..."
-                                          value={replyContent}
-                                          onChange={handleReplyChange}
-                                          rows="2"
-                                          className="w-full p-4 rounded-xl transition duration-300 focus:ring-2 focus:ring-purple-300 resize-none text-base"
-                                          style={{
-                                            border: "1px solid transparent",
-                                            backgroundColor: "transparent",
-                                            boxShadow:
-                                              "inset 0 0 0 1px #A855F7, 0 0 0 2px #3B82F6",
-                                            outline: "none",
-                                          }}
-                                        />
-                                        <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                                          {isAFrameLoaded ? (
-                                            <>
-                                              <ErrorBoundary componentName="Emoji">
-                                                <div className="mt-0">
-                                                  <Emoji
-                                                    onSelect={(emoji) =>
-                                                      handleEmojiSelect(
-                                                        emoji,
-                                                        true
-                                                      )
-                                                    }
-                                                  />
-                                                </div>
-                                              </ErrorBoundary>
-                                              <ErrorBoundary componentName="Sticker">
-                                                <div className="mt-0">
-                                                  <Sticker
-                                                    onSelect={(url) =>
-                                                      handleStickerSelect(
-                                                        url,
-                                                        true
-                                                      )
-                                                    }
-                                                  />
-                                                </div>
-                                              </ErrorBoundary>
-                                            </>
-                                          ) : (
-                                            <p className="text-gray-500 text-sm">
-                                              Đang tải Emoji/Sticker...
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <button
-                                        className="bg-gradient-to-r from-blue-400 to-purple-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-purple-500 text-black px-4 py-2 rounded mt-2 text-sm"
-                                        onClick={() =>
-                                          submitReply(post.id, comment.id)
-                                        }
-                                      >
-                                        Gửi phản hồi
-                                      </button>
-                                      {selectedReplyStickers.length > 0 && (
-                                        <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
-                                          {selectedReplyStickers.map(
-                                            (url, index) => (
-                                              <div
-                                                key={`${url}-${index}`}
-                                                className="relative w-16 h-16"
+                                    {selectedReplyStickers.length > 0 && (
+                                      <div className="mt-4 flex flex-wrap gap-2 overflow-x-auto">
+                                        {selectedReplyStickers.map(
+                                          (url, index) => (
+                                            <div
+                                              key={`${url}-${index}`}
+                                              className="relative w-16 h-16"
+                                            >
+                                              {url.endsWith(".mp4") ? (
+                                                <video
+                                                  src={url}
+                                                  controls
+                                                  width={64}
+                                                  height={64}
+                                                  className="rounded-sm"
+                                                />
+                                              ) : (
+                                                <Image
+                                                  src={url}
+                                                  alt={`sticker-${index}`}
+                                                  width={64}
+                                                  height={64}
+                                                  style={{
+                                                    objectFit: "contain",
+                                                  }}
+                                                  className="rounded-sm"
+                                                />
+                                              )}
+                                              <button
+                                                onClick={() =>
+                                                  handleRemoveSticker(url, true)
+                                                }
+                                                className="absolute top-0 right-0 text-red-500 text-xs font-bold"
                                               >
-                                                {url.endsWith(".mp4") ? (
-                                                  <video
-                                                    src={url}
-                                                    controls
-                                                    width={64}
-                                                    height={64}
-                                                    className="rounded-sm"
-                                                  />
-                                                ) : (
-                                                  <Image
-                                                    src={url}
-                                                    alt={`sticker-${index}`}
-                                                    width={64}
-                                                    height={64}
-                                                    style={{
-                                                      objectFit: "contain",
-                                                    }}
-                                                    className="rounded-sm"
-                                                  />
-                                                )}
-                                                <button
-                                                  onClick={() =>
-                                                    handleRemoveSticker(url, true)
-                                                  }
-                                                  className="absolute top-0 right-0 text-red-500 text-xs font-bold"
-                                                >
-                                                  ✕
-                                                </button>
-                                              </div>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {/* Phần hiển thị phản hồi */}
-                                  {Array.isArray(comment.replies) &&
-                                    comment.replies.length > 0 && (
-                                      <div className="mt-4 pl-4 border-l">
-                                        {comment.replies.map((reply) => (
-                                          <div
-                                            key={reply.id}
-                                            className="mb-2 flex items-start space-x-3"
-                                          >
-                                            <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-xs">
-                                              {reply.author[0]?.toUpperCase() ||
-                                                "?"}
+                                                ✕
+                                              </button>
                                             </div>
-                                            <div className="flex-1">
-                                              <p className="font-bold text-blue-600 text-sm">
-                                                {reply.author}
-                                              </p>
-                                              <p
-                                                className="text-base"
-                                                style={{
-                                                  wordBreak: "break-word",
-                                                }}
-                                              >
-                                                {reply.content}
-                                              </p>
-                                              {Array.isArray(reply.stickers) &&
-                                                reply.stickers.length > 0 && (
-                                                  <div className="mt-2 flex flex-wrap gap-2">
-                                                    {reply.stickers.map(
-                                                      (url, index) => (
-                                                        <div
-                                                          key={`${url}-${index}`}
-                                                          className="relative w-16 h-16"
-                                                        >
-                                                          {url.endsWith(
-                                                            ".mp4"
-                                                          ) ? (
-                                                            <video
-                                                              src={url}
-                                                              controls
-                                                              width={64}
-                                                              height={64}
-                                                              className="rounded-sm"
-                                                            />
-                                                          ) : (
-                                                            <Image
-                                                              src={url}
-                                                              alt={`sticker-${index}`}
-                                                              width={64}
-                                                              height={64}
-                                                              style={{
-                                                                objectFit:
-                                                                  "contain",
-                                                              }}
-                                                              className="rounded-sm"
-                                                            />
-                                                          )}
-                                                        </div>
-                                                      )
-                                                    )}
-                                                  </div>
-                                                )}
-                                            </div>
-                                          </div>
-                                        ))}
+                                          )
+                                        )}
                                       </div>
                                     )}
-                                </div>
+                                  </div>
+                                )}
+                                {Array.isArray(comment.replies) &&
+                                  comment.replies.length > 0 && (
+                                    <div className="mt-4 pl-4 border-l">
+                                      {comment.replies.map((reply) => (
+                                        <div
+                                          key={reply.id}
+                                          className="mb-2 flex items-start space-x-3"
+                                        >
+                                          <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-xs">
+                                            {reply.author[0]?.toUpperCase() ||
+                                              "?"}
+                                          </div>
+                                          <div className="flex-1">
+                                            <p className="font-bold text-blue-600 text-sm">
+                                              {reply.author}
+                                            </p>
+                                            <p
+                                              className="text-base"
+                                              style={{
+                                                wordBreak: "break-word",
+                                              }}
+                                            >
+                                              {reply.content}
+                                            </p>
+                                            {Array.isArray(reply.stickers) &&
+                                              reply.stickers.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                  {reply.stickers.map(
+                                                    (url, index) => (
+                                                      <div
+                                                        key={`${url}-${index}`}
+                                                        className="relative w-16 h-16"
+                                                      >
+                                                        {url.endsWith(
+                                                          ".mp4"
+                                                        ) ? (
+                                                          <video
+                                                            src={url}
+                                                            controls
+                                                            width={64}
+                                                            height={64}
+                                                            className="rounded-sm"
+                                                          />
+                                                        ) : (
+                                                          <Image
+                                                            src={url}
+                                                            alt={`sticker-${index}`}
+                                                            width={64}
+                                                            height={64}
+                                                            style={{
+                                                              objectFit:
+                                                                "contain",
+                                                            }}
+                                                            className="rounded-sm"
+                                                          />
+                                                        )}
+                                                      </div>
+                                                    )
+                                                  )}
+                                                </div>
+                                              )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                               </div>
                             </div>
-                          ))}
-                        </>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {isLoggedIn && (
+                  <div
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
+                      theme,
+                      "support"
+                    )} ${
+                      showDiagramForArticle === post.id
+                        ? "max-h-[600px] opacity-100"
+                        : "max-h-0 opacity-0 overflow-hidden"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400">
+                        Sơ đồ
+                      </h2>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={resettingDiagram}
+                          className="bg-gray-200 p-2 rounded hover:bg-gray-300 transition duration-200"
+                          title="Căn giữa sơ đồ"
+                        >
+                          <FullscreenOutlined />
+                        </button>
+                        <button
+                          onClick={reloadDiagram}
+                          className="bg-gray-200 p-2 rounded hover:bg-gray-300 transition duration-200"
+                          title="Tải lại sơ đồ"
+                        >
+                          <ReloadOutlined />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="h-96 flex justify-center items-center overflow-hidden">
+                      {loadingStates[post.id] &&
+                      showDiagramForArticle === post.id ? (
+                        <p className="text-gray-600 text-base">Đang tải...</p>
+                      ) : isAFrameLoaded ? (
+                        <ErrorBoundary componentName="ForceGraph2D">
+                          <ForceGraph2D
+                            ref={graphRef}
+                            graphData={graphData}
+                            nodeAutoColorBy="group"
+                            nodeLabel="name"
+                            nodeRelSize={nodeSize}
+                            linkColor={() => "lightblue"}
+                            width={600}
+                            height={384}
+                          />
+                        </ErrorBoundary>
+                      ) : (
+                        <p className="text-gray-500 text-base">
+                          Đang tải sơ đồ...
+                        </p>
                       )}
                     </div>
-                  )}
-
-                  {isLoggedIn && (
-                    <div
-                      className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
-                        theme,
-                        "support"
-                      )} ${
-                        showDiagramForArticle === post.id
-                          ? "max-h-[600px] opacity-100"
-                          : "max-h-0 opacity-0 overflow-hidden"
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400">
-                          Sơ đồ
-                        </h2>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={resettingDiagram}
-                            className="bg-gray-200 p-2 rounded hover:bg-gray-300 transition duration-200"
-                            title="Căn giữa sơ đồ"
-                          >
-                            <FullscreenOutlined />
-                          </button>
-                          <button
-                            onClick={reloadDiagram}
-                            className="bg-gray-200 p-2 rounded hover:bg-gray-300 transition duration-200"
-                            title="Tải lại sơ đồ"
-                          >
-                            <ReloadOutlined />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="h-96 flex justify-center items-center overflow-hidden">
-                        {loadingStates[post.id] &&
-                        showDiagramForArticle === post.id ? (
-                          <p className="text-gray-600 text-base">Đang tải...</p>
-                        ) : isAFrameLoaded ? (
-                          <ErrorBoundary componentName="ForceGraph2D">
-                            <ForceGraph2D
-                              ref={graphRef}
-                              graphData={graphData}
-                              nodeAutoColorBy="group"
-                              nodeLabel="name"
-                              nodeRelSize={nodeSize}
-                              linkColor={() => "lightblue"}
-                              width={600}
-                              height={384}
-                            />
-                          </ErrorBoundary>
-                        ) : (
-                          <p className="text-gray-500 text-base">
-                            Đang tải sơ đồ...
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
       </div>
 
       <div
@@ -1793,7 +1895,9 @@ export default function BloglistApp() {
           <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
             Thông tin tác giả
           </h2>
-          <div className={`p-4 rounded-md bg-blue-50  border-gray-200 shadow-sm`}>
+          <div
+            className={`p-4 rounded-md bg-blue-50  border-gray-200 shadow-sm`}
+          >
             <div className="space-y-2 text-gray-600 text-sm">
               <p>
                 <strong>Tên:</strong>{" "}
@@ -1864,7 +1968,9 @@ export default function BloglistApp() {
           <h2 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text mb-4">
             Đề xuất
           </h2>
-          <div className={`p-4 rounded-md bg-blue-50 border-gray-200 shadow-sm`}>
+          <div
+            className={`p-4 rounded-md bg-blue-50 border-gray-200 shadow-sm`}
+          >
             <div className="space-y-4">
               {topAuthors.map((author, index) => (
                 <div key={index} className="flex items-center">
@@ -1916,9 +2022,9 @@ export default function BloglistApp() {
           scrollbar-width: none;
         }
         textarea {
-          min-height: 80px; /* Đảm bảo chiều cao tối thiểu */
-          resize: none; /* Ngăn thay đổi kích thước */
-          overflow-y: auto; /* Cho phép cuộn nội dung textarea nếu cần */
+          min-height: 80px;
+          resize: none;
+          overflow-y: auto;
         }
       `}</style>
     </div>

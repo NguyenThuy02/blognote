@@ -658,7 +658,7 @@ export default function ClassfyApp() {
                   ) : article.document ? (
                     <a
                       href={article.document}
-                      className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text w-full h-full"
+                      className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg text-blue-600 hover:bg-blue-100 transition-all duration-300 wrap-text w-full"
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
