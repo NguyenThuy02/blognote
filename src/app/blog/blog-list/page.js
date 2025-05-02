@@ -11,6 +11,9 @@ import {
   EditOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 import { supabase } from "../../../lib/supabase";
@@ -105,6 +108,8 @@ export default function BloglistApp() {
   const [isWriting, setIsWriting] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState({});
   const [docxContent, setDocxContent] = useState({});
+  const [enlargedImage, setEnlargedImage] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const graphRef = useRef();
   const commentTextareaRef = useRef(null);
@@ -910,7 +915,7 @@ export default function BloglistApp() {
 
       setSavedArticles((prev) => [...prev, data[0]]);
       setNotification({
-        message: "Bài viết đã được lưu thành công!",
+        message: " bài viết đã được lưu thành công!",
         type: "success",
       });
     } catch (error) {
@@ -1213,6 +1218,28 @@ export default function BloglistApp() {
     );
   };
 
+  const handleImageClick = (imageUrl) => {
+    if (!isMounted) return;
+    setEnlargedImage(imageUrl);
+    setZoomLevel(1);
+  };
+
+  const handleZoomIn = () => {
+    if (!isMounted) return;
+    setZoomLevel((prev) => Math.min(prev + 0.2, 3));
+  };
+
+  const handleZoomOut = () => {
+    if (!isMounted) return;
+    setZoomLevel((prev) => Math.max(prev - 0.2, 0.5));
+  };
+
+  const handleCloseImage = () => {
+    if (!isMounted) return;
+    setEnlargedImage(null);
+    setZoomLevel(1);
+  };
+
   if (!isMounted) {
     return null;
   }
@@ -1300,7 +1327,8 @@ export default function BloglistApp() {
                             alt={post.title}
                             width={527}
                             height={435}
-                            className="rounded-md object-cover w-full h-auto"
+                            className="rounded-md object-cover w-full h-auto cursor-pointer"
+                            onClick={() => handleImageClick(post.images)}
                           />
                         </div>
                       )}
@@ -1997,6 +2025,49 @@ export default function BloglistApp() {
           <ScrollToTop />
         </div>
       </div>
+
+      {enlargedImage && (
+        <div className="fixed inset-0 bg-transparent bg-opacity-75 flex items-center justify-center z-50">
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <div className="absolute top-2 right-2 flex space-x-2 z-10">
+              <button
+                onClick={handleZoomIn}
+                className="text-blue-500 hover:text-blue-700 rounded-full transition duration-200"
+                title="Phóng to"
+              >
+                <ZoomInOutlined />
+              </button>
+              <button
+                onClick={handleZoomOut}
+                className="text-gray-500 hover:text-gray-700 rounded-full transition duration-200"
+                title="Thu nhỏ"
+              >
+                <ZoomOutOutlined />
+              </button>
+              <button
+                onClick={handleCloseImage}
+                className="text-red-500 hover:text-red-700 rounded-full transition duration-200"
+                title="Đóng"
+              >
+                <CloseOutlined />
+              </button>
+            </div>
+            <Image
+              src={enlargedImage}
+              alt="Enlarged image"
+              width={527}
+              height={435}
+              className="rounded-md object-contain"
+              style={{
+                transform: `scale(${zoomLevel})`,
+                transition: "transform 0.2s",
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {notification && (
         <Notification

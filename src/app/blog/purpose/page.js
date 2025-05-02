@@ -1334,7 +1334,7 @@ purpose.poll.multipleChoice ? 'Chọn nhiều đáp án' : 'Chọn một đáp �
 
       {selectedImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-75"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedImage(null);
           }}
@@ -1352,21 +1352,21 @@ purpose.poll.multipleChoice ? 'Chọn nhiều đáp án' : 'Chọn một đáp �
             <div className="absolute top-2 right-2 flex gap-1 sm:gap-2">
               <button
                 onClick={() => handleZoom('in')}
-                className="bg-white text-black p-1 sm:p-2 rounded-full shadow-md hover:bg-gray-200 transition duration-200"
+                className="text-blue-500 hover:text-blue-700 rounded-full transition duration-200"
                 title="Phóng to"
               >
                 <ZoomInOutlined className="text-base sm:text-lg" />
               </button>
               <button
                 onClick={() => handleZoom('out')}
-                className="bg-white text-black p-1 sm:p-2 rounded-full shadow-md hover:bg-gray-200 transition duration-200"
+                className="text-gray-500 hover:text-gray-700 rounded-full transition duration-200"
                 title="Thu nhỏ"
               >
                 <ZoomOutOutlined className="text-base sm:text-lg" />
               </button>
               <button
                 onClick={() => setSelectedImage(null)}
-                className="bg-white text-black p-1 sm:p-2 rounded-full shadow-md hover:bg-gray-200 transition duration-200"
+                className="text-red-500 hover:text-red-700 rounded-full transition duration-200"
                 title="Đóng"
               >
                 <CloseOutlined className="text-base sm:text-lg" />
