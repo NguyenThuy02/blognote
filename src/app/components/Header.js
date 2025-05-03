@@ -27,7 +27,7 @@ function Header() {
 
     const handleStorageChange = (event) => {
       if (event.key === "user" || event.key === null) {
-        checkLogin();
+        checkLogin(); 
       }
     };
 

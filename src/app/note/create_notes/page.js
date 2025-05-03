@@ -275,12 +275,13 @@ const NoteApp = () => {
     }
   };
 
+  const db = new Dexie('NotesDB');
+  
       // Khởi tạo IndexedDB với Dexie
-      const db = new Dexie('NoteAppDB');
-        db.version(1).stores({
-          notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,audio_file_name,video_url,video_file_name,isPending,syncAction',
-          pendingActions: '++id,action,noteId,data',
-        });
+      db.version(2).stores({
+        notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,audio_file_name,video_url,video_file_name,isPending,syncAction,is_pinned',
+        pendingActions: '++id,action,noteId,data',
+      });
 
       // Xử lý kéo thả
     const handleDragStart = (e, index) => {
@@ -509,15 +510,15 @@ const NoteApp = () => {
     }
   
     try {
-      // Truy vấn Supabase, lọc theo user_id
+      // Truy vấn Supabase, để lọc theo user_id
       const { data, error } = await supabase2
         .from("notess")
         .select(
-          "id, user_id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, audio_file_name, video_url, video_file_name"
+          "id, user_id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, audio_file_name, video_url, video_file_name, is_pinned"
         )
-        .eq("user_id", user_id) // Lọc ghi chú theo user_id
+        .eq("user_id", user_id)
         .order("updated_at", { ascending: false });
-  
+        
       if (error) {
         console.error("Chi tiết lỗi Supabase:", error);
         throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
@@ -555,7 +556,7 @@ const NoteApp = () => {
           ...note,
           todos: parsedTodos,
           spreadsheet_data: parsedSpreadsheetData,
-          isPinned: false,
+          is_pinned: note.is_pinned || false, 
           audio_url: note.audio_url || "",
           audio_file_name: note.audio_file_name || "",
           video_url: note.video_url || "",
@@ -651,7 +652,7 @@ const NoteApp = () => {
     }
 
     const noteData = {
-      user_id: user_id, // Thêm user_id vào noteData
+      user_id: user_id,
       title: title.trim(),
       content: content.trim(),
       image_url: imageUrl,
@@ -676,6 +677,7 @@ const NoteApp = () => {
       audio_file_name: audioFileName || null,
       video_url: videoUrl || null,
       video_file_name: videoFileName || null,
+      is_pinned: editingId !== null ? notes.find((note) => note.id === editingId)?.is_pinned || false : false,
     };
   
       if (isOffline) {
@@ -793,90 +795,99 @@ const NoteApp = () => {
     }
   };
 
-      const handleEditNote = (note) => {
-        setTitle(note.title);
-        setEditingId(note.id);
-        setCurrentNoteType(note.note_type || "rich");
-        setFontFamily(note.font_family || "Verdana");
-        setFontSize(note.font_size || "14pt");
-        setFontWeight(note.font_weight || "normal");
-        setFontStyle(note.font_style || "normal");
-        setTextAlign(note.text_align || "left");
-        setTextColor(note.text_color || "#000000");
-        setBackgroundColor(note.background_color || "#ffffff");
-        setUploadedImages(note.image_url ? [note.image_url] : []);
-        setVoiceUrl(note.voice_url || "");
-        setVideoUrl(note.video_url || "");
-        setVideoFileName(note.video_file_name || ""); // Lấy tên file video
-        setAudioUrl(note.audio_url || "");
-        setAudioFileName(note.audio_file_name || "");
-      
-        if (note.note_type === "whiteboard") {
-          let parsedTodos = [];
-          if (note.todos && typeof note.todos === 'string') {
-            try {
-              parsedTodos = JSON.parse(note.todos);
-              if (!Array.isArray(parsedTodos)) parsedTodos = [];
-            } catch (e) {
-              console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
-              parsedTodos = [];
-            }
-          } else if (Array.isArray(note.todos)) {
-            parsedTodos = note.todos;
+  const handleEditNote = (note) => {
+    setTitle(note.title);
+    setEditingId(note.id);
+    setCurrentNoteType(note.note_type || "rich");
+    setFontFamily(note.font_family || "Verdana");
+    setFontSize(note.font_size || "14pt");
+    setFontWeight(note.font_weight || "normal");
+    setFontStyle(note.font_style || "normal");
+    setTextAlign(note.text_align || "left");
+    setTextColor(note.text_color || "#000000");
+    setBackgroundColor(note.background_color || "#ffffff");
+    setUploadedImages(note.image_url ? [note.image_url] : []);
+    setVoiceUrl(note.voice_url || "");
+    setVideoUrl(note.video_url || "");
+    setVideoFileName(note.video_file_name || "");
+    setAudioUrl(note.audio_url || "");
+    setAudioFileName(note.audio_file_name || "");
+  
+    // Xử lý danh sách công việc (whiteboard)
+    if (note.note_type === "whiteboard") {
+      let parsedTodos = [];
+      if (note.todos) {
+        try {
+          parsedTodos = typeof note.todos === 'string' ? JSON.parse(note.todos) : note.todos;
+          if (!Array.isArray(parsedTodos)) {
+            parsedTodos = [];
+            console.warn(`Todos for note ${note.id} is not an array`);
           }
-          setTodos(parsedTodos);
-          const todoText = parsedTodos
-            .map((todo) => `- [${todo.completed ? 'x' : ' '}] ${todo.text}${todo.reminder ? ` (Nhắc nhở: ${todo.reminder})` : ''}`)
-            .join('\n');
-          setContent(todoText);
-        } else if (note.note_type === "spreadsheet") {
-          let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-          if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
-            try {
-              parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-              if (!Array.isArray(parsedSpreadsheetData)) {
-                parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-              }
-            } catch (e) {
-              console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
-              parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-            }
-          } else if (Array.isArray(note.spreadsheet_data)) {
-            parsedSpreadsheetData = note.spreadsheet_data;
+        } catch (e) {
+          console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
+          parsedTodos = [];
+        }
+      }
+      setTodos(parsedTodos);
+      // Hiển thị todos trong textarea dưới dạng Markdown
+      const todoText = parsedTodos
+        .map((todo) => `- [${todo.completed ? 'x' : ' '}] ${todo.text}${todo.reminder ? ` (Nhắc nhở: ${todo.reminder})` : ''}`)
+        .join('\n');
+      setContent(todoText);
+  
+    // Xử lý bảng tính (spreadsheet)
+    } else if (note.note_type === "spreadsheet") {
+      let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+      if (note.spreadsheet_data) {
+        try {
+          parsedSpreadsheetData = typeof note.spreadsheet_data === 'string' 
+            ? JSON.parse(note.spreadsheet_data) 
+            : note.spreadsheet_data;
+          if (!Array.isArray(parsedSpreadsheetData) || !parsedSpreadsheetData.every(row => Array.isArray(row))) {
+            parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+            console.warn(`Spreadsheet data for note ${note.id} is not a valid 2D array`);
           }
-          setSpreadsheetData(parsedSpreadsheetData);
-          setSpreadsheetHistory([JSON.parse(JSON.stringify(parsedSpreadsheetData))]);
-          setHistoryIndex(0);
-          const spreadsheetText = parsedSpreadsheetData.map(row => row.join('\t')).join('\n');
-          setContent(spreadsheetText);
-        } else {
-          setContent(note.content || "");
-          setTodos([]);
-          setSpreadsheetData(Array(10).fill().map(() => Array(10).fill("")));
-          setSpreadsheetHistory([]);
-          setHistoryIndex(-1);
+        } catch (e) {
+          console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
+          parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
         }
-      
-        const reverseCategoryMap = {
-          1: "Personal",
-          2: "Study",
-          3: "Entertainment",
-          4: "Upload",
-        };
-        setCategory(reverseCategoryMap[note.category_id] || "Personal");
-      
-        setImageUploadVisible(
-          note.note_type !== "plain" &&
-          note.note_type !== "markdown" &&
-          note.note_type !== "voice"
-        );
-      
-        setError("");
-      
-        if (noteFormRef.current) {
-          noteFormRef.current.scrollIntoView({ behavior: "smooth" });
-        }
-      };
+      }
+      setSpreadsheetData(parsedSpreadsheetData);
+      setSpreadsheetHistory([JSON.parse(JSON.stringify(parsedSpreadsheetData))]);
+      setHistoryIndex(0);
+      // Hiển thị spreadsheet_data trong textarea dưới dạng văn bản
+      const spreadsheetText = parsedSpreadsheetData.map(row => row.join('\t')).join('\n');
+      setContent(spreadsheetText);
+  
+    } else {
+      // Các loại ghi chú khác (plain, rich, markdown, voice)
+      setContent(note.content || "");
+      setTodos([]);
+      setSpreadsheetData(Array(10).fill().map(() => Array(10).fill("")));
+      setSpreadsheetHistory([]);
+      setHistoryIndex(-1);
+    }
+  
+    const reverseCategoryMap = {
+      1: "Personal",
+      2: "Study",
+      3: "Entertainment",
+      4: "Upload",
+    };
+    setCategory(reverseCategoryMap[note.category_id] || "Personal");
+  
+    setImageUploadVisible(
+      note.note_type !== "plain" &&
+      note.note_type !== "markdown" &&
+      note.note_type !== "voice"
+    );
+  
+    setError("");
+  
+    if (noteFormRef.current) {
+      noteFormRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
   
     const resetForm = () => {
       setTitle("");
@@ -1285,12 +1296,52 @@ const NoteApp = () => {
     }
   };
 
-  const handlePinNote = (noteId) => {
-    setNotes(
-      notes.map((note) =>
-        note.id === noteId ? { ...note, isPinned: !note.isPinned } : note
-      )
-    );
+  const handlePinNote = async (noteId) => {
+    try {
+      const note = notes.find((note) => note.id === noteId);
+      if (!note) return;
+  
+      const newPinnedState = !note.is_pinned; // Sử dụng is_pinned từ dữ liệu
+  
+      if (isOffline) {
+        // Lưu vào IndexedDB khi ngoại tuyến
+        await db.notes.update(noteId, { is_pinned: newPinnedState });
+        await db.pendingActions.put({
+          action: 'update',
+          noteId,
+          data: { is_pinned: newPinnedState },
+        });
+        setNotes(
+          notes.map((note) =>
+            note.id === noteId ? { ...note, is_pinned: newPinnedState } : note
+          )
+        );
+        setError('Trạng thái ghim đã được lưu cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
+  
+      // Cập nhật trên Supabase
+      const { error } = await supabase2
+        .from('notess')
+        .update({ is_pinned: newPinnedState })
+        .eq('id', noteId);
+  
+      if (error) throw error;
+  
+      // Cập nhật IndexedDB
+      await db.notes.update(noteId, { is_pinned: newPinnedState });
+  
+      // Cập nhật state
+      setNotes(
+        notes.map((note) =>
+          note.id === noteId ? { ...note, is_pinned: newPinnedState } : note
+        )
+      );
+      setError('');
+    } catch (err) {
+      console.error('Error pinning note:', err);
+      setError('Không thể thay đổi trạng thái ghim: ' + err.message);
+    }
   };
 
   const toggleNoteTypeVisibility = (type) => {
@@ -1319,8 +1370,8 @@ const NoteApp = () => {
         return 1;
     }
     // Sau đó ưu tiên ghi chú được ghim
-    if (a.isPinned && !b.isPinned) return -1;
-    if (!a.isPinned && b.isPinned) return 1;
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
     // Tiếp theo sắp xếp theo tiêu chí sortBy
     if (sortBy === "title") {
       return a.title.localeCompare(b.title);
@@ -3243,17 +3294,17 @@ const NoteApp = () => {
             </small>
           </div>
           <div className="flex space-x-3 ml-4">
-            <button
-              onClick={() => handlePinNote(note.id)}
-              className={`text-xl transition duration-200 ${
-                note.isPinned
-                  ? "text-yellow-500 hover:text-yellow-700"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-              title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
-            >
-              <FaThumbtack />
-            </button>
+          <button
+            onClick={() => handlePinNote(note.id)}
+            className={`text-xl transition duration-200 ${
+              note.is_pinned
+                ? "text-yellow-500 hover:text-yellow-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+            title={note.is_pinned ? "Bỏ ghim" : "Ghim ghi chú"}
+          >
+            <FaThumbtack />
+          </button>
             <button
               onClick={() => handleEditNote(note)}
               className="text-green-600 text-xl hover:text-green-800 transition duration-200"

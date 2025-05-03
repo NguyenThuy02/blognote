@@ -1632,8 +1632,8 @@ const CalendarPage = () => {
               />
             </div>
 
-            <div className="mt-6 bg-white rounded-xl shadow-md p-4 relative">
-              <div className="flex justify-between items-center bg-[#D1C4E9] text-gray-800 rounded-lg p-2 mb-4">
+            <div className="mt-6 rounded-xl shadow-md p-4 relative">
+            <div className="flex justify-between items-center rounded-lg p-2 mb-4" style={{ backgroundColor: 'var(--accent-color, #D1C4E9)' }}>
                 <h3 className="text-lg font-bold uppercase">LỊCH VẠN NIÊN</h3>
                 <button
                   onClick={handleQuickView}
