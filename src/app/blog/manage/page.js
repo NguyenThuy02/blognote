@@ -522,6 +522,18 @@ export default function ManageApp() {
     handleFileUpload(files, type);
   };
 
+  const uniqueTags = useMemo(() => {
+    const tagSet = new Set();
+    articles.forEach((article) => {
+      if (article.tags && Array.isArray(article.tags)) {
+        article.tags.forEach((tag) => tagSet.add(tag));
+      } else if (typeof article.tags === "string") {
+        article.tags.split(",").forEach((tag) => tagSet.add(tag.trim()));
+      }
+    });
+    return [...tagSet].sort(); // Sắp xếp thẻ theo thứ tự bảng chữ cái
+  }, [articles]);
+
   const handleRemoveMedia = (index, type) => {
     const mediaFields = {
       image: "images",
@@ -1178,11 +1190,7 @@ export default function ManageApp() {
               )}`}
             >
               <option value="">Tất cả thẻ</option>
-              {[
-                ...new Set(
-                  articles.flatMap((a) => a.tags || []).filter(Boolean)
-                ),
-              ].map((tag) => (
+              {uniqueTags.map((tag) => (
                 <option key={tag} value={tag}>
                   {tag}
                 </option>
@@ -1425,7 +1433,7 @@ export default function ManageApp() {
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-             
+
               <div className="mb-3">
                 <label className="block mb-1 text-sm wrap-text">Thẻ tag:</label>
                 <input
@@ -1517,80 +1525,6 @@ export default function ManageApp() {
                 ) : (
                   <p className="text-gray-500 text-sm">Chưa có tệp nào.</p>
                 )}
-                <div className="mt-2">
-                  <h3 className="text-sm font-bold text-teal-600 mb-2">
-                    Tải lên tệp
-                  </h3>
-                  <div className="flex flex-row gap-2 items-center flex-wrap">
-                    <label className="min-w-fit bg-teal-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-teal-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
-                      <FileOutlined className="mr-1 text-sm" /> Ảnh
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
-                        multiple
-                        onChange={(e) => handleUpload(e, "image")}
-                        className="hidden"
-                        aria-label="Tải lên hình ảnh"
-                        disabled={!isLoggedIn}
-                      />
-                    </label>
-                    <label className="min-w-fit bg-indigo-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-indigo-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
-                      <FileTextOutlined className="mr-1 text-sm" /> Word/PDF
-                      <input
-                        type="file"
-                        accept=".doc,.docx,application/pdf"
-                        multiple
-                        onChange={(e) => handleUpload(e, "file")}
-                        className="hidden"
-                        aria-label="Tải lên tệp Word hoặc PDF"
-                        disabled={!isLoggedIn}
-                      />
-                    </label>
-                    <label className="min-w-fit bg-purple-500 text-white px-3 py-1.5 rounded-full flex items-center cursor-pointer hover:bg-purple-600 transition-all duration-200 hover:scale-105 shadow-md text-sm">
-                      <VideoCameraOutlined className="mr-1 text-sm" /> Video
-                      <input
-                        type="file"
-                        accept="video/mp4,video/webm,video/ogg,video/quicktime"
-                        multiple
-                        onChange={(e) => handleUpload(e, "video")}
-                        className="hidden"
-                        aria-label="Tải lên video"
-                        disabled={!isLoggedIn}
-                      />
-                    </label>
-                  </div>
-
-                  {(uploadingCount.images > 0 || isUploadingImage) && (
-                    <div className="mt-2 flex items-center">
-                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
-                      <span className="text-teal-600 text-sm">
-                        Đang tải {uploadingCount.images} hình ảnh...
-                      </span>
-                    </div>
-                  )}
-                  {(uploadingCount.files > 0 || isUploadingFile) && (
-                    <div className="mt-2 flex items-center">
-                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
-                      <span className="text-teal-600 text-sm">
-                        Đang tải {uploadingCount.files} tệp...
-                      </span>
-                    </div>
-                  )}
-                  {(uploadingCount.videos > 0 || isUploadingVideo) && (
-                    <div className="mt-2 flex items-center">
-                      <div className="w-5 h-5 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mr-2"></div>
-                      <span className="text-teal-600 text-sm">
-                        Đang tải {uploadingCount.videos} video...
-                      </span>
-                    </div>
-                  )}
-
-                  {imageError && (
-                    <p className="text-red-500 text-xs mt-2 animate-pulse">
-                      {imageError}
-                    </p>
-                  )}
-                </div>
               </div>
               <div className="flex space-x-2 flex-wrap">
                 {deletingArticleId !== null ? (
