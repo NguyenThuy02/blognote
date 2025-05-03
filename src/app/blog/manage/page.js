@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
@@ -7,17 +8,7 @@ import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import ThemeSelector, { themes, getThemeClasses } from "../../../utils/color";
 import ScrollToTop from "../../../utils/scroll";
-import {
-  FileOutlined,
-  FileTextOutlined,
-  VideoCameraOutlined,
-} from "@ant-design/icons";
 import { FaTimes } from "react-icons/fa";
-
-// Cấu hình Cloudinary
-const CLOUDINARY_CLOUD_NAME = "your_cloud_name"; // Thay bằng cloud_name của bạn
-const CLOUDINARY_UPLOAD_PRESET = "your_upload_preset"; // Thay bằng upload_preset của bạn
-const CLOUDINARY_API_BASE = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}`;
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -101,7 +92,6 @@ export default function ManageApp() {
   const [expandedArticleId, setExpandedArticleId] = useState(null);
   const [deletingArticleId, setDeletingArticleId] = useState(null);
   const [selectedArticles, setSelectedArticles] = useState([]);
-  const [tagInput, setTagInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -117,21 +107,20 @@ export default function ManageApp() {
   const [recentActions, setRecentActions] = useState([]);
   const [theme, setTheme] = useState("light");
   const [error, setError] = useState(null);
-  const [uploadedImages, setUploadedImages] = useState([]);
-  const [uploadedVideos, setUploadedVideos] = useState([]);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [uploadingCount, setUploadingCount] = useState({
-    images: 0,
-    videos: 0,
-    files: 0,
-  });
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [imageError, setImageError] = useState(null);
   const router = useRouter();
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Tạo danh sách thẻ duy nhất từ cột tags
+  const uniqueTags = useMemo(() => {
+    const tagSet = new Set();
+    articles.forEach((article) => {
+      if (article.tags && Array.isArray(article.tags)) {
+        article.tags.forEach((tag) => tagSet.add(tag));
+      }
+    });
+    return [...tagSet].sort(); // Sắp xếp thẻ theo thứ tự bảng chữ cái
+  }, [articles]);
 
   const filteredArticles = useMemo(() => {
     let result = articles || [];
@@ -277,6 +266,7 @@ export default function ManageApp() {
         let images = [];
         let videos = [];
         let files = [];
+        let tags = [];
         try {
           if (post.images) {
             images = post.images
@@ -293,8 +283,18 @@ export default function ManageApp() {
               .split(",")
               .filter((url) => url.trim() && isValidUrl(url));
           }
+          if (post.tags) {
+            if (typeof post.tags === "string") {
+              tags = post.tags
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean);
+            } else if (Array.isArray(post.tags)) {
+              tags = post.tags.filter(Boolean);
+            }
+          }
         } catch (e) {
-          console.warn(`Invalid media format for post ${post.id}:`, e);
+          console.warn(`Invalid media or tags format for post ${post.id}:`, e);
         }
 
         return {
@@ -306,16 +306,7 @@ export default function ManageApp() {
           videos,
           files,
           topics: post.topics || "Chưa chọn",
-          tags: post.tags
-            ? typeof post.tags === "string"
-              ? post.tags
-                  .split(",")
-                  .map((tag) => tag.trim())
-                  .filter(Boolean)
-              : Array.isArray(post.tags)
-              ? post.tags
-              : []
-            : [],
+          tags,
         };
       });
 
@@ -330,229 +321,18 @@ export default function ManageApp() {
     }
   };
 
-  const handleFileUpload = async (files, type) => {
-    console.log("Bắt đầu tải lên:", { type, fileCount: files?.length });
-
-    if (!isLoggedIn) {
-      console.warn("Người dùng chưa đăng nhập");
-      setShowLoginModal(true);
-      setNotification({
-        message: "Vui lòng đăng nhập để tải lên!",
-        type: "error",
-      });
-      return;
-    }
-
-    if (
-      !files ||
-      files.length === 0 ||
-      !(files instanceof FileList || Array.isArray(files))
-    ) {
-      console.warn("Danh sách tệp không hợp lệ hoặc rỗng:", files);
-      setNotification({
-        message: "Vui lòng chọn tệp hợp lệ để tải lên!",
-        type: "error",
-      });
-      return;
-    }
-
-    const validTypes = ["image", "video", "file"];
-    if (!validTypes.includes(type)) {
-      console.error("Loại tệp không hợp lệ:", type);
-      setNotification({
-        message: `Loại tệp không hợp lệ: ${type}`,
-        type: "error",
-      });
-      return;
-    }
-
-    const validImageExt = ["jpg", "jpeg", "png", "gif", "webp"];
-    const validVideoExt = ["mp4", "webm", "ogg", "mov"];
-    const validFileExt = ["doc", "docx", "pdf"];
-    const validExts =
-      type === "image"
-        ? validImageExt
-        : type === "video"
-        ? validVideoExt
-        : validFileExt;
-    const maxFileSize = 50 * 1024 * 1024; // 50MB
-
-    const stateSetters = {
-      image: setIsUploadingImage,
-      video: setIsUploadingVideo,
-      file: setIsUploadingFile,
-    };
-    const mediaSetters = {
-      image: setUploadedImages,
-      video: setUploadedVideos,
-      file: setUploadedFiles,
-    };
-    const mediaFields = {
-      image: "images",
-      video: "videos",
-      file: "files",
-    };
-
-    const setUploadingState = stateSetters[type];
-    const updateMediaState = mediaSetters[type];
-    const mediaField = mediaFields[type];
-
-    try {
-      setImageError(null);
-      setUploadingState(true);
-      setUploadingCount((prev) => ({ ...prev, [type + "s"]: files.length }));
-
-      // Xóa các tệp cũ trên Cloudinary nếu có
-      const oldUrls = newArticle[mediaField];
-      if (oldUrls.length > 0) {
-        const oldPublicIds = oldUrls
-          .map((url) => {
-            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
-            return match ? match[1] : null;
-          })
-          .filter(Boolean);
-        for (const publicId of oldPublicIds) {
-          const resourceType =
-            type === "image" ? "image" : type === "video" ? "video" : "raw";
-          const response = await fetch(
-            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                public_id: publicId,
-                api_key: "your_api_key", // Thay bằng API key của bạn
-                signature: "your_signature", // Cần tạo signature nếu dùng signed request
-              }),
-            }
-          );
-          const result = await response.json();
-          if (result.result !== "ok") {
-            console.error("Lỗi khi xóa tệp cũ:", result);
-            throw new Error(`Không thể xóa tệp cũ: ${publicId}`);
-          }
-          console.log("Đã xóa tệp cũ:", publicId);
-        }
-      }
-
-      const uploadPromises = Array.from(files).map(async (file) => {
-        if (!(file instanceof File)) {
-          throw new Error(`Tệp không hợp lệ: ${file.name || "Unknown"}`);
-        }
-
-        const fileExt = file.name.split(".").pop()?.toLowerCase();
-        if (!fileExt || !validExts.includes(fileExt)) {
-          throw new Error(
-            `Định dạng tệp không hợp lệ: ${fileExt}. Chỉ hỗ trợ ${validExts.join(
-              ", "
-            )}.`
-          );
-        }
-
-        if (file.size > maxFileSize) {
-          throw new Error(`Tệp ${file.name} vượt quá giới hạn 50MB`);
-        }
-
-        if (file.size === 0) {
-          throw new Error(`Tệp ${file.name} rỗng`);
-        }
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-        const resourceType =
-          type === "image" ? "image" : type === "video" ? "video" : "raw";
-        const response = await fetch(
-          `${CLOUDINARY_API_BASE}/${resourceType}/upload`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        const result = await response.json();
-        if (!result.secure_url) {
-          throw new Error(
-            `Lỗi tải lên tệp ${file.name}: ${
-              result.error?.message || "Unknown error"
-            }`
-          );
-        }
-
-        console.log("Đã tải lên tệp:", file.name, "URL:", result.secure_url);
-        return result.secure_url;
-      });
-
-      const uploadedUrls = await Promise.all(uploadPromises);
-
-      setNewArticle((prev) => {
-        const updatedMedia = uploadedUrls; // Thay thế hoàn toàn danh sách cũ
-        console.log(`Đã cập nhật ${mediaField}:`, updatedMedia);
-        return { ...prev, [mediaField]: updatedMedia };
-      });
-
-      updateMediaState(uploadedUrls); // Thay thế trạng thái cũ
-
-      setNotification({
-        message: `Đã tải lên ${uploadedUrls.length} ${type} thành công!`,
-        type: "success",
-      });
-    } catch (err) {
-      console.error(`Lỗi khi tải lên ${type}:`, {
-        message: err.message,
-        stack: err.stack,
-        details: err,
-      });
-      const errorMessage = `Lỗi tải lên ${type}: ${err.message}. Vui lòng kiểm tra định dạng tệp và kết nối mạng.`;
-      setNotification({
-        message: errorMessage,
-        type: "error",
-      });
-      setImageError(errorMessage);
-    } finally {
-      setUploadingCount((prev) => ({ ...prev, [type + "s"]: 0 }));
-      setUploadingState(false);
-      console.log("Quá trình tải lên hoàn tất");
-    }
-  };
-
-  const handleUpload = (e, type) => {
-    const files = e.target.files;
-    handleFileUpload(files, type);
-  };
-
-  const uniqueTags = useMemo(() => {
-    const tagSet = new Set();
-    articles.forEach((article) => {
-      if (article.tags && Array.isArray(article.tags)) {
-        article.tags.forEach((tag) => tagSet.add(tag));
-      } else if (typeof article.tags === "string") {
-        article.tags.split(",").forEach((tag) => tagSet.add(tag.trim()));
-      }
-    });
-    return [...tagSet].sort(); // Sắp xếp thẻ theo thứ tự bảng chữ cái
-  }, [articles]);
-
   const handleRemoveMedia = (index, type) => {
     const mediaFields = {
       image: "images",
       video: "videos",
       file: "files",
     };
-    const mediaSetters = {
-      image: setUploadedImages,
-      video: setUploadedVideos,
-      file: setUploadedFiles,
-    };
     const mediaField = mediaFields[type];
-    const updateMediaState = mediaSetters[type];
 
     setNewArticle((prev) => {
       const updatedMedia = prev[mediaField].filter((_, i) => i !== index);
       return { ...prev, [mediaField]: updatedMedia };
     });
-    updateMediaState((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleEdit = (article) => {
@@ -574,9 +354,6 @@ export default function ManageApp() {
       });
       setIsEditing(true);
       setDeletingArticleId(null);
-      setUploadedImages(article.images);
-      setUploadedVideos(article.videos);
-      setUploadedFiles(article.files);
       setRecentActions((prev) => [
         {
           action: "Chỉnh sửa",
@@ -628,50 +405,6 @@ export default function ManageApp() {
       return;
     }
     try {
-      // Xóa các tệp liên quan trên Cloudinary
-      const article = articles.find(
-        (article) => article.id === deletingArticleId
-      );
-      const allUrls = [
-        ...(article.images || []),
-        ...(article.videos || []),
-        ...(article.files || []),
-      ];
-      if (allUrls.length > 0) {
-        const publicIds = allUrls
-          .map((url) => {
-            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
-            return match ? match[1] : null;
-          })
-          .filter(Boolean);
-        for (const publicId of publicIds) {
-          const resourceType =
-            getMediaType(allUrls.find((url) => url.includes(publicId))) ===
-            "image"
-              ? "image"
-              : "video"
-              ? "video"
-              : "raw";
-          const response = await fetch(
-            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                public_id: publicId,
-                api_key: "your_api_key", // Thay bằng API key của bạn
-                signature: "your_signature", // Cần tạo signature nếu dùng signed request
-              }),
-            }
-          );
-          const result = await response.json();
-          if (result.result !== "ok") {
-            console.error("Lỗi khi xóa tệp:", result);
-            throw new Error(`Không thể xóa tệp: ${publicId}`);
-          }
-        }
-      }
-
       const { error } = await supabase
         .from("posts")
         .delete()
@@ -739,50 +472,6 @@ export default function ManageApp() {
 
   const confirmBulkDelete = async () => {
     try {
-      // Xóa các tệp liên quan trên Cloudinary
-      const articlesToDelete = articles.filter((article) =>
-        selectedArticles.includes(article.id)
-      );
-      const allUrls = articlesToDelete.flatMap((article) => [
-        ...(article.images || []),
-        ...(article.videos || []),
-        ...(article.files || []),
-      ]);
-      if (allUrls.length > 0) {
-        const publicIds = allUrls
-          .map((url) => {
-            const match = url.match(/\/v\d+\/(.+)\.\w+$/);
-            return match ? match[1] : null;
-          })
-          .filter(Boolean);
-        for (const publicId of publicIds) {
-          const resourceType =
-            getMediaType(allUrls.find((url) => url.includes(publicId))) ===
-            "image"
-              ? "image"
-              : "video"
-              ? "video"
-              : "raw";
-          const response = await fetch(
-            `${CLOUDINARY_API_BASE}/${resourceType}/destroy`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                public_id: publicId,
-                api_key: "your_api_key", // Thay bằng API key của bạn
-                signature: "your_signature", // Cần tạo signature nếu dùng signed request
-              }),
-            }
-          );
-          const result = await response.json();
-          if (result.result !== "ok") {
-            console.error("Lỗi khi xóa tệp:", result);
-            throw new Error(`Không thể xóa tệp: ${publicId}`);
-          }
-        }
-      }
-
       const { error } = await supabase
         .from("posts")
         .delete()
@@ -852,7 +541,6 @@ export default function ManageApp() {
         throw new Error("Tên người dùng hoặc email là bắt buộc");
       }
 
-      // Chuyển đổi created_at sang định dạng timestamp
       const createdAt = newArticle.created_at
         ? new Date(newArticle.created_at).toISOString()
         : new Date().toISOString();
@@ -878,7 +566,7 @@ export default function ManageApp() {
       const updatedArticle = {
         ...newArticle,
         content: newArticle.content.slice(0, 100) + "...",
-        created_at: createdAt.split("T")[0], // Giữ định dạng hiển thị
+        created_at: createdAt.split("T")[0],
       };
       setArticles(
         articles.map((article) =>
@@ -915,14 +603,13 @@ export default function ManageApp() {
     setNewArticle({ ...newArticle, [name]: value });
   };
 
-  const handleAddTag = (e) => {
-    if (e.key === "Enter" && tagInput.trim()) {
-      setNewArticle({
-        ...newArticle,
-        tags: [...newArticle.tags, tagInput.trim()],
-      });
-      setTagInput("");
-    }
+  const handleToggleTag = (tag) => {
+    setNewArticle((prev) => {
+      const tags = prev.tags.includes(tag)
+        ? prev.tags.filter((t) => t !== tag)
+        : [...prev.tags, tag];
+      return { ...prev, tags };
+    });
   };
 
   const handleRemoveTag = (tagToRemove) => {
@@ -984,12 +671,8 @@ export default function ManageApp() {
     setIsEditing(false);
     setDeletingArticleId(null);
     setNotification(null);
-    setTagInput("");
     setShowConfirm(false);
     setShowPreview(false);
-    setUploadedImages([]);
-    setUploadedVideos([]);
-    setUploadedFiles([]);
   };
 
   const handleCancel = () => {
@@ -1122,7 +805,7 @@ export default function ManageApp() {
 
   return (
     <div
-      className={`mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-blue-200 relative ${themes[theme]}`}
+      className={`text-gray-700 mt-[97px] p-5 mb-[-7px] rounded-lg shadow-md border border-blue-200 relative ${themes[theme]}`}
     >
       <style jsx>{`
         .scrollbar-hidden::-webkit-scrollbar {
@@ -1140,10 +823,7 @@ export default function ManageApp() {
 
       <div className="flex flex-col lg:flex-row gap-5">
         <div
-          className={`w-full lg:w-2/3 p-6 rounded-lg shadow-lg border border-gray-200 ${getThemeClasses(
-            theme,
-            "container"
-          )}`}
+          className={`w-full lg:w-2/3 p-6 rounded-lg shadow-lg border border-gray-200 bg-white`}
         >
           <div className="flex justify-between items-center mb-5 flex-wrap">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
@@ -1159,18 +839,12 @@ export default function ManageApp() {
               placeholder="Tìm kiếm..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text ${getThemeClasses(
-                theme,
-                "select"
-              )}`}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text`}
             />
             <select
               value={filterTopic}
               onChange={(e) => setFilterTopic(e.target.value)}
-              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text ${getThemeClasses(
-                theme,
-                "select"
-              )}`}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text`}
             >
               <option value="">Tất cả chủ đề</option>
               {[...new Set(articles.map((a) => a.topics).filter(Boolean))].map(
@@ -1184,10 +858,7 @@ export default function ManageApp() {
             <select
               value={filterTag}
               onChange={(e) => setFilterTag(e.target.value)}
-              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text ${getThemeClasses(
-                theme,
-                "select"
-              )}`}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text`}
             >
               <option value="">Tất cả thẻ</option>
               {uniqueTags.map((tag) => (
@@ -1203,10 +874,7 @@ export default function ManageApp() {
                 setSortBy(by);
                 setSortOrder(order);
               }}
-              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text ${getThemeClasses(
-                theme,
-                "select"
-              )}`}
+              className={`border border-purple-400 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:border-purple-600 rounded-xl px-4 py-2 text-sm transition-all duration-300 min-w-0 flex-1 wrap-text`}
             >
               <option value="created_at:desc">Mới nhất trước</option>
               <option value="created_at:asc">Cũ nhất trước</option>
@@ -1259,10 +927,7 @@ export default function ManageApp() {
                     disabled={!isLoggedIn}
                   />
                   <li
-                    className={`flex justify-between items-center w-full shadow-md border border-gray-200 rounded-lg p-3 flex-wrap ${getThemeClasses(
-                      theme,
-                      "preview"
-                    )}`}
+                    className={`flex justify-between items-center w-full shadow-md border border-gray-200 rounded-lg p-3 flex-wrap`}
                   >
                     <div
                       onClick={() => handleToggleDetails(article.id)}
@@ -1383,10 +1048,7 @@ export default function ManageApp() {
                   name="title"
                   value={newArticle.title}
                   onChange={handleChange}
-                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                    theme,
-                    "input"
-                  )}`}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text`}
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
@@ -1398,10 +1060,7 @@ export default function ManageApp() {
                   name="content"
                   value={newArticle.content}
                   onChange={handleChange}
-                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                    theme,
-                    "input"
-                  )}`}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text`}
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
@@ -1412,10 +1071,7 @@ export default function ManageApp() {
                   name="created_at"
                   value={newArticle.created_at}
                   onChange={handleChange}
-                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                    theme,
-                    "input"
-                  )}`}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text`}
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
@@ -1426,28 +1082,30 @@ export default function ManageApp() {
                   name="topics"
                   value={newArticle.topics}
                   onChange={handleChange}
-                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                    theme,
-                    "input"
-                  )}`}
+                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text`}
                   disabled={!isLoggedIn || deletingArticleId !== null}
                 />
               </div>
-
               <div className="mb-3">
                 <label className="block mb-1 text-sm wrap-text">Thẻ tag:</label>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={handleAddTag}
-                  className={`border focus:outline-none focus:border-purple-500 border-gray-300 hover:border-blue-500 hover:bg-blue-100 rounded px-3 py-2 w-full text-base transition-all duration-300 wrap-text ${getThemeClasses(
-                    theme,
-                    "input"
-                  )}`}
-                  placeholder="Nhấn Enter để thêm tag"
-                  disabled={!isLoggedIn || deletingArticleId !== null}
-                />
+                {uniqueTags.length > 0 ? (
+                  <div className="max-h-[150px] overflow-y-auto scrollbar-hidden">
+                    {uniqueTags.map((tag) => (
+                      <div key={tag} className="flex items-center mb-2">
+                        <input
+                          type="checkbox"
+                          checked={newArticle.tags.includes(tag)}
+                          onChange={() => handleToggleTag(tag)}
+                          className="mr-2"
+                          disabled={!isLoggedIn || deletingArticleId !== null}
+                        />
+                        <span className="text-sm wrap-text">{tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Chưa có thẻ nào.</p>
+                )}
                 {newArticle.tags?.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2 max-w-full">
                     {newArticle.tags.map((tag) => (
@@ -1582,7 +1240,7 @@ export default function ManageApp() {
       <div
         className={`mt-5 p-6 rounded-lg shadow-lg border border-gray-200 flex flex-col gap-4 ${getThemeClasses(
           theme,
-          "support"
+          "editor"
         )}`}
       >
         <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">
@@ -1658,7 +1316,7 @@ export default function ManageApp() {
       <div
         className={`mt-5 p-6 rounded-lg shadow-lg border border-gray-200 flex flex-col gap-4 ${getThemeClasses(
           theme,
-          "support"
+          "editor"
         )}`}
       >
         <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent wrap-text">

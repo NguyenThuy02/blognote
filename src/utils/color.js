@@ -5,7 +5,7 @@ import { FaSun, FaMoon, FaPalette } from "react-icons/fa"; // Import icons
 
 export const themes = {
   light: "bg-gradient-to-br from-blue-100 to-purple-100 text-gray-700",
-  dark: "bg-gray-800 text-white",
+  dark: "bg-gray-800 text-blue-500",
   blue: "bg-gradient-to-br from-blue-200 to-blue-500 text-gray-800",
   red: "bg-gradient-to-br from-red-200 to-red-500 text-gray-800",
   green: "bg-gradient-to-br from-green-200 to-green-500 text-gray-800",
@@ -81,7 +81,7 @@ export const getThemeClasses = (theme, type) => {
       return theme === "light"
         ? "bg-white text-black"
         : theme === "dark"
-        ? "bg-gray-900 text-white"
+        ? "bg-gray-900 text-gray-700"
         : theme === "blue"
         ? "bg-blue-100 text-gray-800"
         : theme === "red"
@@ -91,14 +91,6 @@ export const getThemeClasses = (theme, type) => {
         : theme === "purple"
         ? "bg-purple-100 text-gray-800"
         : "bg-yellow-100 text-gray-800";
-    case "input":
-      return theme === "dark"
-        ? "bg-gray-700 text-white"
-        : "bg-white text-gray-700";
-    case "select":
-      return theme === "dark"
-        ? "bg-gray-700 text-white"
-        : "text-gray-700";
     default:
       return "";
   }
