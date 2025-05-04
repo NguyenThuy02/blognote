@@ -2208,7 +2208,15 @@ export default function ManageNotes() {
         }
       `}</style>
       
-      <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+      <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap"
+          rel="stylesheet"
+        />
+
+        <h1
+          className="text-4xl font-extrabold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse"
+          style={{ fontFamily: "'Inter', sans-serif" }}
+        >
         🛠️ Quản lý Ghi Chú {isOffline && <span className="text-red-500">(Ngoại tuyến)</span>}
       </h1>
 

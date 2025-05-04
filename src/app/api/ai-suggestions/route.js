@@ -25,9 +25,9 @@ export async function POST(request) {
         Ngôn ngữ: ${language === "vi" ? "Tiếng Việt" : language === "en" ? "English" : language === "fr" ? "Français" : "Русский"}.
         Chỉ trả JSON hợp lệ, không thêm giải thích, markdown, hay nội dung ngoài JSON.`;
     } else if (template === "meeting") {
-      prompt = `Dựa trên chương trình nghị sự: "${note}", tạo gợi ý cuộc họp ngắn gọn, đúng trọng tâm. Trả về JSON với:
-        - agendaItems: mảng 3 đối tượng, mỗi đối tượng có "text" (mục nghị sự, dưới 10 từ) và "time" (thời gian, ví dụ "10 min").
-        - actionItems: mảng 3 đối tượng, mỗi đối tượng có "text" (hành động, 1 câu), "owner" (người phụ trách, tên ngắn), "deadline" (YYYY-MM-DD).
+      prompt = `Dựa trên chương trình nghị sự: "${note}", tạo gợi ý cuộc họp ngắn gọn, đúng trọng tâm, đảm bảo các mục nghị sự và hành động liên quan trực tiếp đến ghi chú. Trả về JSON với:
+        - agendaItems: mảng 3 đối tượng, mỗi đối tượng có "text" (mục nghị sự, dưới 10 từ, phản ánh nội dung cụ thể của ghi chú) và "time" (thời gian hợp lý, ví dụ "5 min", "10 min", "15 min", phù hợp với tầm quan trọng của mục).
+        - actionItems: mảng 3 đối tượng, mỗi đối tượng có "text" (hành động cụ thể, 1 câu, liên quan trực tiếp đến nghị sự), "owner" (người phụ trách, tên ngắn), "deadline" (YYYY-MM-DD, trong vòng 1 tháng từ ngày hiện tại).
         - participants: mảng 3 đối tượng, mỗi đối tượng có "name" (tên), "role" (vai trò, dưới 5 từ), "issueAddressed" (vấn đề giải quyết, 1 câu, liên quan trực tiếp đến nghị sự).
         Định dạng JSON: {
           "agendaItems": [{"text": "Mục 1", "time": "10 min"}, ...],
@@ -49,10 +49,10 @@ export async function POST(request) {
         Ngôn ngữ: ${language === "vi" ? "Tiếng Việt" : language === "en" ? "English" : language === "fr" ? "Français" : "Русский"}.
         Chỉ trả JSON hợp lệ, không thêm giải thích, markdown, hay nội dung ngoài JSON.`;
     } else if (template === "daily") {
-      prompt = `Dựa trên ghi chú: "${note}", tạo gợi ý kế hoạch hàng ngày ngắn gọn, đúng trọng tâm. Trả về JSON với:
-        - relaxationActivities: mảng 3 đối tượng, mỗi đối tượng có "text" (hoạt động, 1 câu) và "duration" (thời gian, ví dụ "30 min").
+      prompt = `Dựa trên ghi chú: "${note}", tạo gợi ý kế hoạch hàng ngày ngắn gọn, đúng trọng tâm, ưu tiên các hoạt động thư giãn và tự chăm sóc phù hợp với ghi chú. Trả về JSON với:
+        - relaxationActivities: mảng 3 đối tượng, mỗi đối tượng có "text" (hoạt động thư giãn, 1 câu, liên quan trực tiếp đến ghi chú) và "duration" (thời gian hợp lý, ví dụ "15 min", "30 min", "60 min", phù hợp với loại hoạt động).
         - productivityTasks: mảng 3 đối tượng, mỗi đối tượng có "text" (nhiệm vụ, 1 câu) và "priority" (High/Medium/Low).
-        - selfCareIdeas: mảng 3 đối tượng, mỗi đối tượng có "text" (ý tưởng, 1 câu) và "duration" (thời gian, ví dụ "15 min").
+        - selfCareIdeas: mảng 3 đối tượng, mỗi đối tượng có "text" (ý tưởng tự chăm sóc, 1 câu, liên quan đến ghi chú) và "duration" (thời gian hợp lý, ví dụ "10 min", "20 min", "30 min").
         - motivationalMessages: mảng 3 chuỗi thông điệp động viên, mỗi chuỗi 1 câu.
         Định dạng JSON: {
           "relaxationActivities": [{"text": "Hoạt động 1", "duration": "30 min"}, ...],
@@ -156,6 +156,7 @@ export async function POST(request) {
         if (!parsedTextData.tags?.length) {
           throw new Error("Phản hồi từ Ollama không đúng định dạng tags.");
         }
+        parsedTextData.tags = parsedTextData.tags.slice(0, 5);
       }
 
       console.log("Dữ liệu đã parse:", parsedTextData);
@@ -178,10 +179,11 @@ export async function POST(request) {
         parsedTextData.productivityTasks = parsedTextData.productivityTasks.slice(0, 3);
         parsedTextData.selfCareIdeas = parsedTextData.selfCareIdeas.slice(0, 3);
         parsedTextData.motivationalMessages = parsedTextData.motivationalMessages.slice(0, 3);
-      } else if (instruction?.includes("tags")) {
-        parsedTextData.tags = parsedTextData.tags.slice(0, 5);
       }
 
+      console.log("Gợi ý chuẩn hóa:", parsedTextData);
+
+      return NextResponse.json(parsedTextData, { status: 200 });
     } catch (e) {
       console.error("Lỗi xử lý dữ liệu:", e.message, "Dữ liệu thô:", textData.response);
       return NextResponse.json(
@@ -189,10 +191,6 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
-    console.log("Gợi ý chuẩn hóa:", parsedTextData);
-
-    return NextResponse.json(parsedTextData, { status: 200 });
   } catch (error) {
     console.error("Lỗi tổng quát:", error.message);
     return NextResponse.json(

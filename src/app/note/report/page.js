@@ -670,7 +670,15 @@ export default function NoteReport() {
   return (
     <div className="mt-[75px] p-5 mb-[-7px] min-h-screen p-6">
       <div className="container mx-auto w-full p-6">
-        <h1 className="text-4xl font-extrabold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse">
+      <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap"
+          rel="stylesheet"
+        />
+
+        <h1
+          className="text-4xl font-extrabold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse"
+          style={{ fontFamily: "'Inter', sans-serif" }}
+        >
           NoteStats - 📝 Thống kê ghi chú
         </h1>
 
