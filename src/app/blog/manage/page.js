@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
@@ -1355,15 +1354,6 @@ export default function ManageApp() {
             </ul>
           </div>
           <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
-            <h3 className="text-lg font-bold text-pink-700 wrap-text">
-              Gợi ý hành động
-            </h3>
-            <p className="text-gray-600 wrap-text">{getActionSuggestion()}</p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className={`p-4 rounded-lg shadow-sm flex-1 bg-white`}>
             <h3 className="text-lg font-bold text-yellow-700 wrap-text">
               Xuất danh sách
             </h3>
@@ -1374,6 +1364,9 @@ export default function ManageApp() {
               Tải về JSON
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <ThemeSelector currentTheme={theme} onThemeChange={setTheme} />
           <ScrollToTop />
         </div>

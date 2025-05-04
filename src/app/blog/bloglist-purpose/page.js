@@ -35,7 +35,8 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <p className="text-red-500 text-base">
-          Lỗi: {this.state.error.message} (Thành phần: {this.props.componentName})
+          Lỗi: {this.state.error.message} (Thành phần:{" "}
+          {this.props.componentName})
         </p>
       );
     }
@@ -117,7 +118,8 @@ export default function BloglistPurposePage() {
 
     // Load canvas-confetti library
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js";
+    script.src =
+      "https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js";
     script.async = true;
     document.body.appendChild(script);
 
@@ -406,7 +408,12 @@ export default function BloglistPurposePage() {
     setSelectedUser(event.target.value);
   };
 
-  const handleQuizSubmit = (purposeId, quizIndex, correctAnswer, userAnswer) => {
+  const handleQuizSubmit = (
+    purposeId,
+    quizIndex,
+    correctAnswer,
+    userAnswer
+  ) => {
     if (!userAnswer) return;
     const normalizedUserAnswer = userAnswer.trim().toLowerCase();
     const normalizedCorrectAnswer = correctAnswer.trim().toLowerCase();
@@ -584,7 +591,8 @@ export default function BloglistPurposePage() {
     }
 
     const purpose = purposes.find((p) => p.id === purposeId);
-    const isMultipleChoice = purpose?.questions?.[questionIndex]?.multipleChoice;
+    const isMultipleChoice =
+      purpose?.questions?.[questionIndex]?.multipleChoice;
     const optionKey = `question-${questionIndex}-option-${option}`;
 
     try {
@@ -698,7 +706,8 @@ export default function BloglistPurposePage() {
           percentage:
             totalVoters > 0
               ? (
-                  ((voteCounts[`question-${questionIndex}-option-${opt}`] || 0) /
+                  ((voteCounts[`question-${questionIndex}-option-${opt}`] ||
+                    0) /
                     totalVoters) *
                   100
                 ).toFixed(1)
@@ -935,7 +944,12 @@ export default function BloglistPurposePage() {
           className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 rounded-lg shadow-sm border border-gray-100"
         >
           {imageSrc &&
-            renderImage(imageSrc, `Hình ảnh câu hỏi ${index}`, index, purposeId)}
+            renderImage(
+              imageSrc,
+              `Hình ảnh câu hỏi ${index}`,
+              index,
+              purposeId
+            )}
           <p className="font-bold text-base sm:text-lg text-gray-900">
             {q.question || "Câu hỏi không có nội dung"}
           </p>
@@ -969,9 +983,8 @@ export default function BloglistPurposePage() {
                     </span>{" "}
                     {option}
                   </button>
-                  {pollResults[`${purposeId}-question-${index}`]?.optionResults?.[
-                    i
-                  ] && (
+                  {pollResults[`${purposeId}-question-${index}`]
+                    ?.optionResults?.[i] && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-100 rounded-full h-2 sm:h-3 overflow-hidden">
                         <div
@@ -1260,7 +1273,10 @@ export default function BloglistPurposePage() {
     };
 
     const toggleExpand = () => {
-      if (fileExtension === "docx" && !docxContent[`${purposeId}-${fileName}`]) {
+      if (
+        fileExtension === "docx" &&
+        !docxContent[`${purposeId}-${fileName}`]
+      ) {
         loadDocxContent(fileUrl);
       }
       setExpandedFiles((prev) => ({
@@ -1333,7 +1349,8 @@ export default function BloglistPurposePage() {
               />
             ) : fileExtension === "txt" ? (
               <pre className="text-xs sm:text-sm text-gray-700 bg-gray-100 p-3 sm:p-4 rounded-lg overflow-auto max-h-48 sm:max-h-64">
-                Nội dung tệp văn bản sẽ được hiển thị ở đây. (Yêu cầu API để tải nội dung.)
+                Nội dung tệp văn bản sẽ được hiển thị ở đây. (Yêu cầu API để tải
+                nội dung.)
               </pre>
             ) : fileExtension === "docx" ? (
               <div
@@ -1407,13 +1424,17 @@ export default function BloglistPurposePage() {
             )}
             {purpose.customTag && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">Thẻ tùy chỉnh:</span>{" "}
+                <span className="font-medium text-gray-800">
+                  Thẻ tùy chỉnh:
+                </span>{" "}
                 {purpose.customTag}
               </p>
             )}
             {purpose.updated_at && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">Ngày cập nhật:</span>{" "}
+                <span className="font-medium text-gray-800">
+                  Ngày cập nhật:
+                </span>{" "}
                 {new Date(purpose.updated_at).toLocaleDateString("vi-VN")}
               </p>
             )}
@@ -1466,7 +1487,7 @@ export default function BloglistPurposePage() {
                         : {option}
                       </button>
                       {pollResults[purpose.id]?.optionResults?.[i] && (
-                      <div className="mt-2">
+                        <div className="mt-2">
                           <div className="w-full bg-gray-100 rounded-full h-2 sm:h-3 overflow-hidden">
                             <div
                               className="bg-indigo-500 h-2 sm:h-3 rounded-full transition-all duration-500"
@@ -1479,10 +1500,11 @@ export default function BloglistPurposePage() {
                             ></div>
                           </div>
                           <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                            {pollResults[purpose.id].optionResults[i]?.votes || 0}{" "}
+                            {pollResults[purpose.id].optionResults[i]?.votes ||
+                              0}{" "}
                             lượt bình chọn (
-                            {pollResults[purpose.id].optionResults[i]?.percentage ||
-                              0}
+                            {pollResults[purpose.id].optionResults[i]
+                              ?.percentage || 0}
                             %)
                           </p>
                         </div>
@@ -1587,13 +1609,17 @@ export default function BloglistPurposePage() {
                   )}
                   {purpose.author && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">Tác giả:</span>{" "}
+                      <span className="font-medium text-gray-800">
+                        Tác giả:
+                      </span>{" "}
                       {purpose.author}
                     </p>
                   )}
                   {purpose.category && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">Thể loại:</span>{" "}
+                      <span className="font-medium text-gray-800">
+                        Thể loại:
+                      </span>{" "}
                       {purpose.category}
                     </p>
                   )}
@@ -1602,7 +1628,9 @@ export default function BloglistPurposePage() {
                       <span className="font-medium text-gray-800">
                         Ngày xuất bản:
                       </span>{" "}
-                      {new Date(purpose.publish_date).toLocaleDateString("vi-VN")}
+                      {new Date(purpose.publish_date).toLocaleDateString(
+                        "vi-VN"
+                      )}
                     </p>
                   )}
                   {purpose.status && (
@@ -1668,13 +1696,17 @@ export default function BloglistPurposePage() {
                   )}
                   {purpose.author && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">Tác giả:</span>{" "}
+                      <span className="font-medium text-gray-800">
+                        Tác giả:
+                      </span>{" "}
                       {purpose.author}
                     </p>
                   )}
                   {purpose.category && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">Thể loại:</span>{" "}
+                      <span className="font-medium text-gray-800">
+                        Thể loại:
+                      </span>{" "}
                       {purpose.category}
                     </p>
                   )}
@@ -1683,7 +1715,9 @@ export default function BloglistPurposePage() {
                       <span className="font-medium text-gray-800">
                         Ngày xuất bản:
                       </span>{" "}
-                      {new Date(purpose.publish_date).toLocaleDateString("vi-VN")}
+                      {new Date(purpose.publish_date).toLocaleDateString(
+                        "vi-VN"
+                      )}
                     </p>
                   )}
                   {purpose.status && (
@@ -1856,7 +1890,10 @@ export default function BloglistPurposePage() {
             <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
               Chỉnh sửa bài viết
             </h3>
-            <form onSubmit={handleEditSubmit} className="space-y-3 sm:space-y-4">
+            <form
+              onSubmit={handleEditSubmit}
+              className="space-y-3 sm:space-y-4"
+            >
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700">
                   Nội dung
@@ -1954,39 +1991,29 @@ export default function BloglistPurposePage() {
         </div>
       )}
 
-{selectedImage && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75">
-          <div className="relative bg-white p-4 sm:p-6 rounded-lg max-w-[90vw] max-h-[90vh] overflow-auto">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-bold text-gray-800">
-                Xem trước hình ảnh
-              </h3>
+      {selectedImage && (
+        <div className="fixed inset-0 bg-transparent bg-opacity-75 flex items-center justify-center z-50">
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <div className="absolute top-2 right-2 flex space-x-2 z-10">
+              {" "}
               <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => handleZoom("in")}
-                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
+                  className="text-blue-500 hover:text-blue-700 rounded-full transition duration-200"
                   title="Phóng to"
                 >
                   <ZoomInOutlined className="text-base sm:text-lg" />
                 </button>
                 <button
                   onClick={() => handleZoom("out")}
-                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
+                  className="text-gray-500 hover:text-gray-700 rounded-full transition duration-200"
                   title="Thu nhỏ"
                 >
                   <ZoomOutOutlined className="text-base sm:text-lg" />
                 </button>
-                <a
-                  href={selectedImage}
-                  download
-                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
-                  title="Tải xuống"
-                >
-                  <DownloadOutlined className="text-base sm:text-lg" />
-                </a>
                 <button
                   onClick={() => setSelectedImage(null)}
-                  className="p-2 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition duration-200"
+                  className="text-red-500 hover:text-red-700 rounded-full transition duration-200"
                   title="Đóng"
                 >
                   <CloseOutlined className="text-base sm:text-lg" />
@@ -2007,6 +2034,15 @@ export default function BloglistPurposePage() {
           </div>
         </div>
       )}
+      <style jsx>{`
+        .scrollbar-hidden::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hidden {
+          -ms-overflow-style: none; /* IE and Edge */
+          scrollbar-width: none; /* Firefox */
+        }
+      `}</style>
     </div>
   );
 }
