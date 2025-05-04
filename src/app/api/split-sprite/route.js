@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import path from "path";
 import util from "util";
 import fs from "fs/promises";
-import { cloudinary } from "../../../../app.js"; // Import từ app.js ở thư mục gốc
+import { cloudinary } from "../../../../app.js"; 
 
 const execPromise = util.promisify(exec);
 

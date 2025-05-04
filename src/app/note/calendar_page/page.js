@@ -11,7 +11,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ThemeSettings from "../../components/ThemeSettings";
 
-// Updated solarToLunar function with a reference-based calculation
+// Updated solarToLunar function to exclude zodiac day
 const solarToLunar = (day, month, year) => {
   const referenceSolarDate = new Date(2025, 3, 16);
   const referenceLunarDay = 19;
@@ -39,52 +39,218 @@ const solarToLunar = (day, month, year) => {
     }
     lunarDay += 30;
   }
-  const zodiacCycle = [
-    "Giáp Tý", "Ất Sửu", "Bính Dần", "Đinh Mão", "Mậu Thìn", "Kỷ Tỵ", "Canh Ngọ", "Tân Mùi", "Nhâm Thân", "Quý Dậu",
-    "Giáp Tuất", "Ất Hợi", "Bính Tý", "Đinh Sửu", "Mậu Dần", "Kỷ Mão", "Canh Thìn", "Tân Tỵ", "Nhâm Ngọ", "Quý Mùi",
-    "Giáp Thân", "Ất Dậu", "Bính Tuất", "Đinh Hợi", "Mậu Tý", "Kỷ Sửu", "Canh Dần", "Tân Mão", "Nhâm Thìn", "Quý Tỵ",
-    "Giáp Ngọ", "Ất Mùi", "Bính Thân", "Đinh Dậu", "Mậu Tuất", "Kỷ Hợi", "Canh Tý", "Tân Sửu", "Nhâm Dần", "Quý Mão",
-    "Giáp Thìn", "Ất Tỵ", "Bính Ngọ", "Đinh Mùi", "Mậu Thân", "Kỷ Dậu", "Canh Tuất", "Tân Hợi", "Nhâm Tý", "Quý Sửu",
-    "Giáp Dần", "Ất Mão", "Bính Thìn", "Đinh Tỵ", "Mậu Ngọ", "Kỷ Mùi", "Canh Thân", "Tân Dậu", "Nhâm Tuất", "Quý Hợi"
-  ];
-  const referenceZodiacIndex = 41;
-  const zodiacIndex = (referenceZodiacIndex + dayDiff) % 60;
-  const adjustedZodiacIndex = zodiacIndex < 0 ? zodiacIndex + 60 : zodiacIndex;
-  const zodiacDay = zodiacCycle[adjustedZodiacIndex];
-  return `Tháng ${lunarMonth} năm ${lunarYear}\nNgày ${lunarDay} - ${zodiacDay}`;
+  return `Tháng ${lunarMonth} năm ${lunarYear}\nNgày ${lunarDay}`;
+};
+
+// Hàm chọn icon dựa trên nội dung gợi ý
+const getIconForSuggestion = (suggestion) => {
+  const lowerSuggestion = suggestion.toLowerCase();
+  if (lowerSuggestion.includes("nghỉ") || lowerSuggestion.includes("thư giãn")) {
+    return "fa-smile";
+  } else if (lowerSuggestion.includes("tận dụng") || lowerSuggestion.includes("thời gian")) {
+    return "fa-clock";
+  } else if (lowerSuggestion.includes("đọc") || lowerSuggestion.includes("học")) {
+    return "fa-book";
+  } else if (lowerSuggestion.includes("đi") || lowerSuggestion.includes("dạo")) {
+    return "fa-walking";
+  } else {
+    return "fa-lightbulb";
+  }
 };
 
 const CalendarPage = () => {
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [todos, setTodos] = useState([]);
   const [viewDetailNoteId, setViewDetailNoteId] = useState(null);
   const [userEmail, setUserEmail] = useState("");
   const [sentEmails, setSentEmails] = useState({});
   const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(today.getDate() || 1);
   const [viewMode, setViewMode] = useState("month");
   const [showSidebar, setShowSidebar] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [language, setLanguage] = useState("vi");
   const [showQuickView, setShowQuickView] = useState(false);
-  const [quickViewDay, setQuickViewDay] = useState(selectedDay || new Date().getDate());
+  const [quickViewDay, setQuickViewDay] = useState(selectedDay);
   const [quickViewMonth, setQuickViewMonth] = useState(currentMonth);
   const [quickViewYear, setQuickViewYear] = useState(currentYear);
+  const [aiSuggestions, setAiSuggestions] = useState({ caringQuestion: '', suggestions: [] });
+  const [showCreateTodoForm, setShowCreateTodoForm] = useState(false);
+  const [createTodoDay, setCreateTodoDay] = useState(null);
+  const [newTodoTitle, setNewTodoTitle] = useState("");
+  const [newTodoContent, setNewTodoContent] = useState("");
+  const [newTodoTime, setNewTodoTime] = useState("12:00");
+  const [newTodoList, setNewTodoList] = useState([]);
+  const [inputMode, setInputMode] = useState("text");
 
-  const today = new Date();
   const isToday = (day) =>
     day === today.getDate() &&
     currentMonth === today.getMonth() &&
     currentYear === today.getFullYear();
 
+  const suggestFreeTime = async () => {
+    const today = new Date();
+    const busyHours = todos
+      .filter((todo) => {
+        const reminderDate = new Date(todo.reminder);
+        return (
+          reminderDate.getDate() === today.getDate() &&
+          reminderDate.getMonth() === today.getMonth() &&
+          reminderDate.getFullYear() === today.getFullYear()
+        );
+      })
+      .map((todo) => new Date(todo.reminder).getHours());
+
+    const caringQuestion = "Hôm nay bạn muốn hoàn thành điều gì đặc biệt?";
+
+    if (busyHours.length === 0) {
+      try {
+        const response = await fetch('http://localhost:11434/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'gemma:2b',
+            prompt: `Generate exactly 3 short, realistic suggestions for free time activities for today, considering it's a ${today.toLocaleDateString('en-US', { weekday: 'long' })}. Each suggestion must be in Vietnamese, under 20 words, and formatted as a single line.`,
+            stream: false
+          })
+        });
+
+        const rawText = await response.text();
+        console.log('Raw Ollama response:', rawText);
+
+        let suggestions = [];
+        try {
+          const lines = rawText.split('\n').filter((line) => line.trim());
+          let combinedResponse = '';
+          for (const line of lines) {
+            try {
+              const json = JSON.parse(line);
+              if (json.response) {
+                combinedResponse += json.response;
+              }
+            } catch (e) {
+              console.warn('Invalid JSON line:', line, e);
+            }
+          }
+
+          suggestions = combinedResponse
+            .split('\n')
+            .filter((line) => line.trim())
+            .slice(0, 3)
+            .map((suggestion) => suggestion.replace(/^\d+\.\s*/, ''));
+
+          if (suggestions.length < 3) {
+            console.warn('Ollama returned fewer than 3 suggestions, retrying...');
+            const retryResponse = await fetch('http://localhost:11434/api/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'gemma:2b',
+                prompt: `Generate exactly 3 short, realistic suggestions for free time activities for today, considering it's a ${today.toLocaleDateString('en-US', { weekday: 'long' })}. Each suggestion must be in Vietnamese, under 20 words, and formatted as a single line.`,
+                stream: false
+              })
+            });
+            const retryRawText = await retryResponse.text();
+            console.log('Retry raw Ollama response:', retryRawText);
+
+            const retryLines = retryRawText.split('\n').filter((line) => line.trim());
+            let retryCombinedResponse = '';
+            for (const line of retryLines) {
+              try {
+                const json = JSON.parse(line);
+                if (json.response) {
+                  retryCombinedResponse += json.response;
+                }
+              } catch (e) {
+                console.warn('Invalid JSON line in retry:', line, e);
+              }
+            }
+
+            suggestions = retryCombinedResponse
+              .split('\n')
+              .filter((line) => line.trim())
+              .slice(0, 3)
+              .map((suggestion) => suggestion.replace(/^\d+\.\s*/, ''));
+          }
+
+          if (suggestions.length < 3) {
+            console.error('Ollama failed to provide 3 suggestions.');
+            return {
+              caringQuestion,
+              suggestions: []
+            };
+          }
+
+          return {
+            caringQuestion,
+            suggestions
+          };
+        } catch (error) {
+          console.error('Error parsing Ollama response:', error);
+          return {
+            caringQuestion,
+            suggestions: []
+          };
+        }
+      } catch (error) {
+        console.error('Error calling Ollama:', error);
+        return {
+          caringQuestion,
+          suggestions: []
+        };
+      }
+    }
+
+    const freeHour = Array.from({ length: 24 }, (_, i) => i).find(
+      (hour) => !busyHours.includes(hour)
+    );
+    return {
+      caringQuestion,
+      suggestions: freeHour !== undefined
+        ? [`Thời gian rảnh hôm nay: ${freeHour}:00. Hãy tận dụng nhé!`]
+        : ["Hôm nay khá bận rộn, hãy sắp xếp thời gian nghỉ ngơi!"]
+    };
+  };
+
   const fetchTodos = async () => {
     try {
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id;
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            toast.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          toast.error("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          return;
+        }
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        toast.error("Vui lòng đăng nhập để xem công việc của bạn.");
+        return;
+      }
+
       const { data, error } = await supabase2
         .from("notess")
-        .select("id, title, todos")
-        .eq("note_type", "whiteboard");
+        .select("id, title, todos, content")
+        .eq("note_type", "whiteboard")
+        .eq("user_id", user_id);
+
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        console.warn("Không tìm thấy ghi chú nào cho người dùng này.");
+        setTodos([]);
+        return;
+      }
 
       const allTodos = data
         .filter((note) => note.todos)
@@ -97,10 +263,11 @@ const CalendarPage = () => {
                   todoId: `${note.id}-${index}`,
                   noteId: note.id,
                   noteTitle: note.title,
+                  content: note.content,
                 }))
               : [];
           } catch (e) {
-            console.error("Error parsing todos:", e);
+            console.error("Error parsing todos for note:", note.id, e);
             return [];
           }
         })
@@ -108,7 +275,215 @@ const CalendarPage = () => {
 
       setTodos(allTodos);
     } catch (err) {
-      console.error("Error fetching todos:", err);
+      console.error("Error fetching todos:", err.message);
+      toast.error("Có lỗi khi tải công việc. Vui lòng thử lại sau.");
+    }
+  };
+
+  const handleAddTodoItem = (e) => {
+    if (e.key === 'Enter' && newTodoContent.trim()) {
+      e.preventDefault();
+      setNewTodoList((prev) => [
+        ...prev,
+        {
+          text: newTodoContent.trim(),
+          completed: false,
+        },
+      ]);
+      setNewTodoContent("");
+    }
+  };
+
+  const handleCreateTodo = async (e) => {
+    e.preventDefault();
+    if (!newTodoTitle.trim()) {
+      toast.error("Vui lòng nhập tiêu đề công việc!");
+      return;
+    }
+    if (inputMode === "checklist" && newTodoList.length === 0) {
+      toast.error("Vui lòng thêm ít nhất một mục trong danh sách kiểm!");
+      return;
+    }
+
+    try {
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        user_id = parsedUser.id;
+        if (!user_id) {
+          toast.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          return;
+        }
+      } else {
+        toast.error("Vui lòng đăng nhập để tạo công việc.");
+        return;
+      }
+
+      const reminderDate = new Date(currentYear, currentMonth, createTodoDay);
+      const [hours, minutes] = newTodoTime.split(':');
+      reminderDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      const newTodo = {
+        text: newTodoTitle.trim(),
+        reminder: reminderDate.toISOString(),
+        isChecklist: inputMode === "checklist",
+        ...(inputMode === "text" ? { content: newTodoContent.trim() || "" } : { items: newTodoList }),
+      };
+
+      const noteTitle = `Công việc ngày ${createTodoDay}/${currentMonth + 1}/${currentYear}`;
+
+      const { data: existingNotes, error: fetchError } = await supabase2
+        .from("notess")
+        .select("id, todos")
+        .eq("note_type", "whiteboard")
+        .eq("user_id", user_id)
+        .eq("title", noteTitle);
+
+      if (fetchError) {
+        console.error("Error fetching existing notes:", fetchError);
+        throw new Error(`Lỗi khi kiểm tra ghi chú: ${fetchError.message}`);
+      }
+
+      let noteId;
+      let updatedTodos;
+
+      if (existingNotes.length > 0) {
+        const existingNote = existingNotes[0];
+        noteId = existingNote.id;
+        const currentTodos = existingNote.todos ? JSON.parse(existingNote.todos) : [];
+        if (!Array.isArray(currentTodos)) {
+          console.error("Invalid todos format in existing note:", existingNote);
+          throw new Error("Dữ liệu todos không hợp lệ trong ghi chú hiện có.");
+        }
+        updatedTodos = [...currentTodos, newTodo];
+
+        const { error: updateError } = await supabase2
+          .from("notess")
+          .update({
+            todos: JSON.stringify(updatedTodos),
+            content: inputMode === "text" ? newTodoContent.trim() || "" : "", // Ensure content is never null
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", noteId);
+
+        if (updateError) {
+          console.error("Error updating note:", updateError);
+          throw new Error(`Lỗi khi cập nhật ghi chú: ${updateError.message}`);
+        }
+      } else {
+        const { data: newNote, error: insertError } = await supabase2
+          .from("notess")
+          .insert({
+            title: noteTitle,
+            content: inputMode === "text" ? newTodoContent.trim() || "" : "", // Ensure content is never null
+            todos: JSON.stringify([newTodo]),
+            note_type: "whiteboard",
+            user_id: user_id,
+            classification: "task",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            font_style: "normal",
+            font_size: "14pt",
+            font_family: "Verdana",
+            text_align: "left",
+            text_color: "#000000",
+            font_weight: "normal",
+            is_pinned: false,
+          })
+          .select();
+
+        if (insertError) {
+          console.error("Error inserting new note:", insertError);
+          throw new Error(`Lỗi khi tạo ghi chú mới: ${insertError.message}`);
+        }
+        noteId = newNote[0].id;
+        updatedTodos = [newTodo];
+      }
+
+      setTodos((prev) => [
+        ...prev,
+        {
+          ...newTodo,
+          todoId: `${noteId}-${updatedTodos.length - 1}`,
+          noteId: noteId,
+          noteTitle: noteTitle,
+        },
+      ]);
+
+      toast.success("Công việc đã được tạo thành công!");
+      setShowCreateTodoForm(false);
+      setNewTodoTitle("");
+      setNewTodoContent("");
+      setNewTodoTime("12:00");
+      setCreateTodoDay(null);
+      setNewTodoList([]);
+      setInputMode("text");
+    } catch (error) {
+      console.error("Error creating todo:", error);
+      toast.error(error.message || "Có lỗi khi tạo công việc. Vui lòng thử lại.");
+    }
+  };
+
+  const handleToggleCheckbox = async (todo, itemIndex) => {
+    try {
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        user_id = parsedUser.id;
+      } else {
+        toast.error("Vui lòng đăng nhập để cập nhật công việc.");
+        return;
+      }
+
+      const updatedItems = todo.items.map((item, index) =>
+        index === itemIndex ? { ...item, completed: !item.completed } : item
+      );
+
+      const updatedTodo = { ...todo, items: updatedItems };
+
+      const { data: existingNotes, error: fetchError } = await supabase2
+        .from("notess")
+        .select("id, todos")
+        .eq("id", todo.noteId)
+        .eq("user_id", user_id);
+
+      if (fetchError) {
+        console.error("Error fetching note for update:", fetchError);
+        throw new Error(`Lỗi khi lấy ghi chú: ${fetchError.message}`);
+      }
+
+      if (existingNotes.length === 0) {
+        toast.error("Không tìm thấy ghi chú.");
+        return;
+      }
+
+      const existingNote = existingNotes[0];
+      const currentTodos = JSON.parse(existingNote.todos);
+      const todoIndex = parseInt(todo.todoId.split('-')[1]);
+      currentTodos[todoIndex] = updatedTodo;
+
+      const { error: updateError } = await supabase2
+        .from("notess")
+        .update({ todos: JSON.stringify(currentTodos), updated_at: new Date().toISOString() })
+        .eq("id", todo.noteId);
+
+      if (updateError) {
+        console.error("Error updating checkbox:", updateError);
+        throw new Error(`Lỗi khi cập nhật trạng thái: ${updateError.message}`);
+      }
+
+      setTodos((prev) =>
+        prev.map((t) =>
+          t.todoId === todo.todoId ? { ...t, items: updatedItems } : t
+        )
+      );
+
+      toast.success("Cập nhật trạng thái công việc thành công!");
+    } catch (error) {
+      console.error("Error updating todo:", error);
+      toast.error(error.message || "Có lỗi khi cập nhật công việc. Vui lòng thử lại.");
     }
   };
 
@@ -120,6 +495,14 @@ const CalendarPage = () => {
     }
     fetchTodos();
   }, []);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      const result = await suggestFreeTime();
+      setAiSuggestions(result);
+    };
+    fetchSuggestions();
+  }, [todos]);
 
   const sendEmailReminder = (todo) => {
     if (!userEmail) {
@@ -154,65 +537,84 @@ const CalendarPage = () => {
   }, [todos, sentEmails]);
 
   const handlePrevMonth = () => {
-    setCurrentMonth(currentMonth === 0 ? 11 : currentMonth - 1);
-    if (currentMonth === 0) setCurrentYear(currentYear - 1);
-    setSelectedDay(null);
+    const newMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const newYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+    if (!selectedDay || selectedDay > getDaysInMonth(newMonth, newYear)) {
+      setSelectedDay(1);
+    }
   };
 
   const handleNextMonth = () => {
-    setCurrentMonth(currentMonth === 11 ? 0 : currentMonth + 1);
-    if (currentMonth === 11) setCurrentYear(currentYear + 1);
-    setSelectedDay(null);
+    const newMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+    const newYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+    if (!selectedDay || selectedDay > getDaysInMonth(newMonth, newYear)) {
+      setSelectedDay(1);
+    }
   };
 
   const handlePrevYear = () => {
-    setCurrentYear(currentYear - 1);
-    setSelectedDay(null);
+    const newYear = currentYear - 1;
+    setCurrentYear(newYear);
+    if (!selectedDay || selectedDay > getDaysInMonth(currentMonth, newYear)) {
+      setSelectedDay(1);
+    }
   };
 
   const handleNextYear = () => {
-    setCurrentYear(currentYear + 1);
-    setSelectedDay(null);
+    const newYear = currentYear + 1;
+    setCurrentYear(newYear);
+    if (!selectedDay || selectedDay > getDaysInMonth(currentMonth, newYear)) {
+      setSelectedDay(1);
+    }
   };
 
   const handleToday = () => {
     const today = new Date();
     setCurrentMonth(today.getMonth());
     setCurrentYear(today.getFullYear());
-    setSelectedDay(null);
+    setSelectedDay(today.getDate());
   };
 
   const handlePrevDay = () => {
-    let newDay = (selectedDay || today.getDate()) - 1;
+    let newDay = selectedDay - 1;
     let newMonth = currentMonth;
     let newYear = currentYear;
+
     if (newDay < 1) {
       newMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       newYear = currentMonth === 0 ? currentYear - 1 : currentYear;
       newDay = getDaysInMonth(newMonth, newYear);
     }
+
     setSelectedDay(newDay);
     setCurrentMonth(newMonth);
     setCurrentYear(newYear);
   };
 
   const handleNextDay = () => {
-    let newDay = (selectedDay || today.getDate()) + 1;
+    let newDay = selectedDay + 1;
     let newMonth = currentMonth;
     let newYear = currentYear;
     const daysInCurrentMonth = getDaysInMonth(currentMonth, currentYear);
+
     if (newDay > daysInCurrentMonth) {
       newMonth = currentMonth === 11 ? 0 : currentMonth + 1;
       newYear = currentMonth === 11 ? currentYear + 1 : currentYear;
       newDay = 1;
     }
+
     setSelectedDay(newDay);
     setCurrentMonth(newMonth);
     setCurrentYear(newYear);
   };
 
   const getDaysInMonth = (month, year) => {
-    return new Date(year, month + 1, 0).getDate();
+    const days = new Date(year, month + 1, 0).getDate();
+    return days;
   };
 
   const daysInMonth = getDaysInMonth(currentMonth, currentYear);
@@ -247,14 +649,25 @@ const CalendarPage = () => {
     setSelectedDay(selectedDay === day ? null : day);
   };
 
+  const handleContextMenu = (day, e) => {
+    e.preventDefault();
+    setCreateTodoDay(day);
+    setShowCreateTodoForm(true);
+  };
+
   const handleCloseTaskList = () => {
     setSelectedDay(null);
   };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (!event.target.closest(".day-cell") && !event.target.closest(".task-list")) {
-        setSelectedDay(null);
+      if (
+        !event.target.closest(".day-cell") &&
+        !event.target.closest(".task-list") &&
+        !event.target.closest(".bg-gray-200") &&
+        !event.target.closest(".create-todo-form")
+      ) {
+        setShowCreateTodoForm(false);
       }
     };
     document.addEventListener("click", handleClickOutside);
@@ -268,26 +681,6 @@ const CalendarPage = () => {
   const filteredTodos = todos.filter((todo) =>
     todo.noteTitle.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const suggestFreeTime = () => {
-    const today = new Date();
-    const busyHours = todos
-      .filter((todo) => {
-        const reminderDate = new Date(todo.reminder);
-        return (
-          reminderDate.getDate() === today.getDate() &&
-          reminderDate.getMonth() === today.getMonth() &&
-          reminderDate.getFullYear() === today.getFullYear()
-        );
-      })
-      .map((todo) => new Date(todo.reminder).getHours());
-    const freeHour = Array.from({ length: 24 }, (_, i) => i).find(
-      (hour) => !busyHours.includes(hour)
-    );
-    return freeHour !== undefined
-      ? `Gợi ý thời gian rảnh hôm nay: ${freeHour}:00`
-      : "Hôm nay không có thời gian rảnh.";
-  };
 
   const exportCalendar = () => {
     try {
@@ -391,7 +784,7 @@ const CalendarPage = () => {
   };
 
   const WeekView = () => {
-    const startOfWeek = new Date(currentYear, currentMonth, selectedDay || 1);
+    const startOfWeek = new Date(currentYear, currentMonth, selectedDay);
     const weekDays = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
@@ -459,7 +852,8 @@ const CalendarPage = () => {
   };
 
   const formatLunarDate = (day, month, year) => {
-    return solarToLunar(day, month, year);
+    const lunarDateString = solarToLunar(day, month, year);
+    return lunarDateString.split('\n')[0];
   };
 
   const getLunarDay = (day, month, year) => {
@@ -545,97 +939,105 @@ const CalendarPage = () => {
   };
 
   const handleQuickView = () => {
-    setQuickViewDay(selectedDay || today.getDate());
+    setQuickViewDay(selectedDay);
     setQuickViewMonth(currentMonth);
     setQuickViewYear(currentYear);
     setShowQuickView(true);
   };
 
   return (
-    <div className="mt-[97px] p-5 mb-[-7px] w-full min-h-screen bg-gradient-to-br from-gray-50 to-white flex justify-center items-start">
-      {/* Supplemental CSS to integrate ThemeSettings */}
+    <div className="mt-[97px] p-5 mb-[-7px] w-full min-h-screen bg-gradient-to-br from-gray-50 to-white flex justify-center items-start rounded-xl">
       <style jsx global>{`
-        /* Apply theme variables to CalendarPage elements */
+        @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
         .mt-[97px] {
           background: var(--background, #FFFFFF);
           color: var(--text-color, #000000);
         }
-
-        /* Buttons with gradient backgrounds */
         button.bg-gradient-to-r {
           background: var(--accent-color, linear-gradient(to right, #6B46C1, #A3BFFA));
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Hover effects for buttons */
         button.bg-gradient-to-r:hover {
           background: var(--accent-color, linear-gradient(to right, #6B46C1, #A3BFFA));
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Day cells */
         .day-cell {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
+        .day-cell.today {
+          background: var(--background, #E9D5FF);
+          border-color: var(--border-color, #A3BFFA);
+        }
         .day-cell:hover {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
         }
-
-        /* Task list */
         .task-list {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Sidebar */
         .fixed.top-0.left-0 {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Quick view modal */
         .fixed.top-1\\/2.left-1\\/2 {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Calendar container */
         .bg-white.rounded-2xl {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Text elements */
         h1, h2, h3, h4, p, span {
           color: var(--text-color, #000000);
         }
-
-        /* Input and select elements */
         input, select {
           background: var(--background, #FFFFFF);
           border-color: var(--border-color, #A3BFFA);
           color: var(--text-color, #000000);
         }
-
-        /* Ensure existing styles are not overridden unless specified */
         .bg-purple-50, .bg-purple-100, .bg-gray-100, .bg-gray-200 {
-          /* Preserve specific background colors */
         }
-
         .text-purple-600, .text-gray-600, .text-gray-700, .text-gray-800 {
-          /* Preserve specific text colors where needed */
+        }
+        .suggestion-item {
+          transition: all 0.3s ease-in-out;
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 8px;
+          border-radius: 8px;
+        }
+        .suggestion-item:hover {
+          transform: scale(1.05) translateY(-2px);
+          color: #7c3aed;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          background-color: #f3e8ff;
+        }
+        .create-todo-form {
+          background: var(--background, #FFFFFF);
+          border-color: var(--border-color, #A3BFFA);
+          color: var(--text-color, #000000);
+        }
+        .todo-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 0;
+        }
+        .todo-item input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
         }
       `}</style>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
       <ToastContainer position="top-right" autoClose={3000} />
       <div className="w-full relative">
@@ -690,7 +1092,14 @@ const CalendarPage = () => {
                 </div>
                 <div className="mb-4">
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Gợi ý AI</h4>
-                  <p className="text-sm text-gray-600">{suggestFreeTime()}</p>
+                  <p className="text-sm text-gray-600">{aiSuggestions.caringQuestion}</p>
+                  {aiSuggestions.suggestions.length > 0 ? (
+                    aiSuggestions.suggestions.map((suggestion, index) => (
+                      <p key={index} className="text-sm text-gray-600 mt-1">{suggestion}</p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-600 mt-1">Không thể tải gợi ý. Vui lòng thử lại sau.</p>
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Ngôn ngữ</h4>
@@ -876,6 +1285,140 @@ const CalendarPage = () => {
             </>
           )}
 
+          {showCreateTodoForm && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="fixed inset-0 bg-black z-50"
+                onClick={() => setShowCreateTodoForm(false)}
+              />
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="create-todo-form fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg p-6 w-96 z-60"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    Tạo công việc cho ngày {createTodoDay}/{currentMonth + 1}/{currentYear}
+                  </h3>
+                  <button
+                    onClick={() => setShowCreateTodoForm(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <CloseOutlined className="text-lg" />
+                  </button>
+                </div>
+                <form onSubmit={handleCreateTodo}>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Tiêu đề công việc
+                    </label>
+                    <input
+                      type="text"
+                      value={newTodoTitle}
+                      onChange={(e) => setNewTodoTitle(e.target.value)}
+                      placeholder="Nhập tiêu đề công việc"
+                      className="w-full p-2 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-400"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Chế độ nhập
+                    </label>
+                    <select
+                      value={inputMode}
+                      onChange={(e) => setInputMode(e.target.value)}
+                      className="w-full p-2 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-400"
+                    >
+                      <option value="text">Văn bản</option>
+                      <option value="checklist">Danh sách kiểm</option>
+                    </select>
+                  </div>
+                  {inputMode === "text" ? (
+                    <div className="mb-4">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Nội dung công việc
+                      </label>
+                      <textarea
+                        value={newTodoContent}
+                        onChange={(e) => setNewTodoContent(e.target.value)}
+                        placeholder="Nhập nội dung công việc"
+                        className="w-full p-2 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-400"
+                        rows={4}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mb-4">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Danh sách công việc
+                      </label>
+                      <input
+                        type="text"
+                        value={newTodoContent}
+                        onChange={(e) => setNewTodoContent(e.target.value)}
+                        onKeyDown={handleAddTodoItem}
+                        placeholder="Nhập công việc và nhấn Enter"
+                        className="w-full p-2 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-400"
+                      />
+                      {newTodoList.length > 0 && (
+                        <div className="mt-2">
+                          {newTodoList.map((item, index) => (
+                            <div key={index} className="todo-item">
+                              <input
+                                type="checkbox"
+                                checked={item.completed}
+                                onChange={() => {
+                                  setNewTodoList((prev) =>
+                                    prev.map((i, idx) =>
+                                      idx === index ? { ...i, completed: !i.completed } : i
+                                    )
+                                  );
+                                }}
+                              />
+                              <span className="text-sm text-gray-700">{item.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Thời gian
+                    </label>
+                    <input
+                      type="time"
+                      value={newTodoTime}
+                      onChange={(e) => setNewTodoTime(e.target.value)}
+                      className="w-full p-2 border-2 border-purple-200 rounded-xl focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTodoForm(false)}
+                      className="bg-gray-200 text-gray-600 font-bold px-4 py-2 rounded-xl hover:bg-gray-300"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-gradient-to-r from-purple-200 to-blue-200 text-purple-600 font-bold px-4 py-2 rounded-xl border-2 border-purple-200 shadow-md hover:bg-gradient-to-r hover:from-purple-300 hover:to-blue-300 hover:text-purple-700 hover:shadow-lg"
+                    >
+                      Tạo
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </>
+          )}
+
           <div className="relative">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center space-x-2">
@@ -971,10 +1514,11 @@ const CalendarPage = () => {
                             key={i}
                             className={`day-cell bg-white border-2 border-purple-200 p-4 sm:p-6 rounded-xl transition-all duration-300 cursor-pointer relative z-10 ${
                               isToday(day)
-                                ? "bg-purple-100"
+                                ? "today bg-purple-100"
                                 : "hover:bg-gradient-to-br hover:from-blue-50 hover:to-purple-50 hover:scale-105 hover:shadow-xl hover:border-purple-300"
                             }`}
                             onClick={() => handleDayClick(day)}
+                            onContextMenu={(e) => handleContextMenu(day, e)}
                             title={tooltipText}
                             aria-label={`Ngày ${day} tháng ${currentMonth + 1}`}
                             whileHover={{ scale: 1.05 }}
@@ -997,7 +1541,7 @@ const CalendarPage = () => {
                               </div>
                             )}
                             {selectedDay === day && todosForDay.length > 0 && (
-                              <div className="task-list flex flex-col absolute z-50 bg-white border-2 border-purple-200 rounded-xl shadow-2xl p-3 w-64 sm:w-80 bottom-full left-0 transform -translate-y-3 transition-all duration-300 ease-in-out animate-fade-in">
+                              <div className="task-list flex flex-col absolute z-50 bg-white border-2 border-purple-200 rounded historic-artifact rounded-xl shadow-2xl p-3 w-64 sm:w-80 bottom-full left-0 transform -translate-y-3 transition-all duration-300 ease-in-out animate-fade-in">
                                 <div className="flex justify-between items-center mb-2">
                                   <span className="text-sm sm:text-base font-bold text-purple-600">Công việc ngày {day}</span>
                                   <button
@@ -1017,7 +1561,26 @@ const CalendarPage = () => {
                                       onClick={() => handleNoteClick(todo.noteId)}
                                       className="text-left text-gray-700 font-medium flex-1 hover:text-purple-600 transition-colors duration-200 text-sm sm:text-base"
                                     >
-                                      {todo.noteTitle}
+                                      {todo.isChecklist ? (
+                                        <div>
+                                          <div>{todo.text}</div>
+                                          {todo.items.map((item, itemIndex) => (
+                                            <div key={itemIndex} className="todo-item">
+                                              <input
+                                                type="checkbox"
+                                                checked={item.completed}
+                                                onChange={() => handleToggleCheckbox(todo, itemIndex)}
+                                              />
+                                              <span className="text-sm text-gray-700">{item.text}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <div>{todo.text}</div>
+                                          {todo.content && <div className="text-sm text-gray-600">{todo.content}</div>}
+                                        </div>
+                                      )}
                                     </button>
                                     {sentEmails[todo.todoId] && (
                                       <span
@@ -1069,8 +1632,8 @@ const CalendarPage = () => {
               />
             </div>
 
-            <div className="mt-6 bg-white rounded-xl shadow-md p-4 relative">
-              <div className="flex justify-between items-center bg-[#D1C4E9] text-gray-800 rounded-lg p-2 mb-4">
+            <div className="mt-6 rounded-xl shadow-md p-4 relative">
+            <div className="flex justify-between items-center rounded-lg p-2 mb-4" style={{ backgroundColor: 'var(--accent-color, #D1C4E9)' }}>
                 <h3 className="text-lg font-bold uppercase">LỊCH VẠN NIÊN</h3>
                 <button
                   onClick={handleQuickView}
@@ -1092,68 +1655,73 @@ const CalendarPage = () => {
                     >
                       <LeftOutlined className="text-sm" />
                     </button>
-                    <p className="text-5xl font-bold text-gray-800 mx-4">
-                      {selectedDay || today.getDate()}
+                    <p className="text-5xl font-bold text-gray-800 mx-[100px]">
+                      {selectedDay || 1}
                     </p>
-                    <button
-                      onClick={handleNextDay}
-                      className="bg-gray-200 text-gray-600 font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
-                      aria-label="Ngày sau"
-                    >
-                      <RightOutlined className="text-sm" />
-                    </button>
+                    <div className="w-8 h-8" />
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    {formatSolarDate(
-                      selectedDay || today.getDate(),
-                      currentMonth,
-                      currentYear
-                    )}
+                    {formatSolarDate(selectedDay || 1, currentMonth, currentYear)}
                   </p>
                 </div>
                 <div className="absolute left-1/2 top-0 bottom-0 border-l border-gray-300 transform -translate-x-1/2"></div>
                 <div className="text-center">
                   <h3 className="text-lg font-bold text-gray-800">Âm Lịch</h3>
                   <div className="flex items-center justify-center mt-2">
-                    <button
-                      onClick={handlePrevDay}
-                      className="bg-gray-200 text-gray-600 font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
-                      aria-label="Ngày trước"
-                    >
-                      <LeftOutlined className="text-sm" />
-                    </button>
-                    <p className="text-5xl font-bold text-gray-800 mx-4">
-                      {getLunarDay(
-                        selectedDay || today.getDate(),
-                        currentMonth,
-                        currentYear
-                      )}
+                    <div className="w-8 h-8" />
+                    <p className="text-5xl font-bold text-gray-800 mx-[100px]">
+                      {getLunarDay(selectedDay || 1, currentMonth, currentYear)}
                     </p>
                     <button
                       onClick={handleNextDay}
                       className="bg-gray-200 text-gray-600 font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
                       aria-label="Ngày sau"
-                    >
+                      >
                       <RightOutlined className="text-sm" />
                     </button>
                   </div>
                   <p className="text-sm text-red-600 mt-1 whitespace-pre-line">
-                    {formatLunarDate(
-                      selectedDay || today.getDate(),
-                      currentMonth,
-                      currentYear
-                    )}
+                    {formatLunarDate(selectedDay || 1, currentMonth, currentYear)}
                   </p>
                 </div>
               </div>
 
+
               <hr className="border-t border-gray-300 my-4" />
               <div className="text-center">
-                <p className="text-base text-gray-700">Chúc bạn một ngày tốt lành</p>
-                <p className="text-sm text-purple-600 mt-1">{suggestFreeTime()}</p>
+                <p className="text-base text-gray-700">{aiSuggestions.caringQuestion}</p>
+                {aiSuggestions.suggestions.length > 0 ? (
+                  aiSuggestions.suggestions.map((suggestion, index) => (
+                    <p
+                      key={index}
+                      className="suggestion-item text-base text-purple-600 mt-2"
+                      style={{
+                        fontFamily: "'Dancing Script', cursive",
+                        fontStyle: "italic",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <i className={`fas ${getIconForSuggestion(suggestion)} text-purple-500 mr-2`}></i>
+                      {suggestion}
+                    </p>
+                  ))
+                ) : (
+                  <p
+                    className="suggestion-item text-base text-purple-600 mt-2"
+                    style={{
+                      fontFamily: "'Dancing Script', cursive",
+                      fontStyle: "italic",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <i className="fas fa-exclamation-circle text-purple-500 mr-2"></i>
+                    Đang tải gợi ý. Vui lòng chờ tí.
+                  </p>
+                )}
               </div>
               <hr className="border-t border-gray-300 mt-4" />
             </div>
+
 
             <Notifications
               sentEmails={sentEmails}
@@ -1161,6 +1729,7 @@ const CalendarPage = () => {
               showNotifications={showNotifications}
               toggleNotifications={toggleNotifications}
             />
+
 
             {viewDetailNoteId && (
               <ChiTiet
@@ -1175,5 +1744,6 @@ const CalendarPage = () => {
     </div>
   );
 };
+
 
 export default CalendarPage;

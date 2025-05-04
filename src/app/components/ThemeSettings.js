@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 
-export default function ThemeSettings() {
+export default function ThemeSettings({ user_id, note_id }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [backgroundColor, setBackgroundColor] = useState("#FFFFFF"); // Default from NoteReport
-  const [borderButtonColor, setBorderButtonColor] = useState("linear-gradient(to right, #6B46C1, #A3BFFA)"); // Default gradient for buttons
-  const [borderColor, setBorderColor] = useState("#A3BFFA"); // Default border color from NoteReport
+  const [backgroundColor, setBackgroundColor] = useState("#FFFFFF");
+  const [borderButtonColor, setBorderButtonColor] = useState("linear-gradient(to right, #6B46C1, #A3BFFA)");
+  const [borderColor, setBorderColor] = useState("#A3BFFA");
 
   // Available background colors
   const backgroundColors = {
@@ -16,18 +16,18 @@ export default function ThemeSettings() {
     lightYellow: "#FFF7ED",
   };
 
-  // Available border/button colors (gradients and solid colors) with 4 new colors
+  // Available border/button colors (gradients and solid colors)
   const borderButtonColors = {
-    purpleBlue: "linear-gradient(to right, #6B46C1, #A3BFFA)", // Default gradient
+    purpleBlue: "linear-gradient(to right, #6B46C1, #A3BFFA)",
     greenYellow: "linear-gradient(to right, #A7F3D0, #FEF9C3)",
     pinkWhite: "linear-gradient(to right, #FBCFE8, #FFFFFF)",
     pinkYellow: "linear-gradient(to right, #FBCFE8, #FEF9C3)",
     bluePink: "linear-gradient(to right, #C4E4FF, #FBCFE8)",
     grayWhite: "linear-gradient(to right, #E5E7EB, #FFFFFF)",
-    orangeRed: "linear-gradient(to right, #F97316, #EF4444)", // New color 1
-    tealPurple: "linear-gradient(to right, #14B8A6, #A855F7)", // New color 2
-    blueGreen: "linear-gradient(to right, #3B82F6, #10B981)", // New color 3
-    purplePink: "linear-gradient(to right, #9333EA, #F472B6)", // New color 4
+    orangeRed: "linear-gradient(to right, #F97316, #EF4444)",
+    tealPurple: "linear-gradient(to right, #14B8A6, #A855F7)",
+    blueGreen: "linear-gradient(to right, #3B82F6, #10B981)",
+    purplePink: "linear-gradient(to right, #9333EA, #F472B6)",
   };
 
   // Available border colors (solid colors only)
@@ -38,6 +38,18 @@ export default function ThemeSettings() {
     yellow: "#FEF9C3",
     gray: "#E5E7EB",
   };
+
+  // Load theme from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("themeSettings");
+    if (savedTheme) {
+      const theme = JSON.parse(savedTheme);
+      setIsDarkMode(theme.isDarkMode || false);
+      setBackgroundColor(theme.backgroundColor || "#FFFFFF");
+      setBorderButtonColor(theme.borderButtonColor || "linear-gradient(to right, #6B46C1, #A3BFFA)");
+      setBorderColor(theme.borderColor || "#A3BFFA");
+    }
+  }, []);
 
   // Apply theme
   useEffect(() => {
@@ -51,9 +63,31 @@ export default function ThemeSettings() {
     root.style.setProperty("--border-color", borderColor);
   }, [isDarkMode, backgroundColor, borderButtonColor, borderColor]);
 
-  // Handle dark mode toggle
+  // Handle dark mode toggle and save directly to localStorage
   const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
+    setIsDarkMode((prev) => {
+      const newDarkMode = !prev;
+      const theme = {
+        isDarkMode: newDarkMode,
+        backgroundColor,
+        borderButtonColor,
+        borderColor,
+      };
+      localStorage.setItem("themeSettings", JSON.stringify(theme));
+      return newDarkMode;
+    });
+  };
+
+  // Handle save button click for other settings
+  const handleSave = () => {
+    const theme = {
+      isDarkMode,
+      backgroundColor,
+      borderButtonColor,
+      borderColor,
+    };
+    localStorage.setItem("themeSettings", JSON.stringify(theme));
+    alert("Lưu giao diện thành công!");
   };
 
   // Handle background color selection
@@ -186,6 +220,14 @@ export default function ThemeSettings() {
               className="color-input"
             />
           </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            className="save-btn"
+          >
+            Lưu
+          </button>
         </div>
       )}
 
@@ -307,6 +349,24 @@ export default function ThemeSettings() {
         .color-input::-webkit-color-swatch {
           border: 1px solid var(--text-color, #000000);
           border-radius: 4px;
+        }
+
+        .save-btn {
+          width: 100%;
+          padding: 8px;
+          background: var(--accent-color, linear-gradient(to right, #6B46C1, #A3BFFA));
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .save-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         @keyframes slideIn {

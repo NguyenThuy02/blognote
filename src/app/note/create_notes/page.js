@@ -35,7 +35,6 @@ import {
   FaThumbtack,
 } from "react-icons/fa";
 import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -45,8 +44,6 @@ import axios from 'axios';
 import CryptoJS from "crypto-js";
 import ThemeSettings from "../../components/ThemeSettings"; 
 import Dexie from 'dexie';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const NoteApp = () => {
   const [title, setTitle] = useState("");
@@ -63,6 +60,8 @@ const NoteApp = () => {
   const [categoryMenu, setCategoryMenu] = useState(false);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [noteIdToDelete, setNoteIdToDelete] = useState(null);
   
   const fileInputRef = useRef(null);
   const textAreaRef = useRef(null);
@@ -74,7 +73,10 @@ const NoteApp = () => {
   const [voiceUrl, setVoiceUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState(""); // URL của file âm thanh tải lên
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false); // Trạng thái loading âm thanh
+  const [audioFileName, setAudioFileName] = useState(""); // Lưu tên file âm thanh
   const [isUploadingVideo, setIsUploadingVideo] = useState(false); // Trạng thái loading video
+  const [videoFileName, setVideoFileName] = useState(""); // Lưu tên file video
   const mediaRecorderRef = useRef(null);
   const audioInputRef = useRef(null); // Ref cho input file âm thanh
   const recognitionRef = useRef(null); 
@@ -157,6 +159,33 @@ const NoteApp = () => {
   
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    const checkMicrophonePermission = async () => {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: "microphone" });
+        if (permissionStatus.state === "denied") {
+          setError("Quyền truy cập micro bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.");
+          return false;
+        }
+        return true;
+      } catch (err) {
+        setError("Không thể kiểm tra quyền micro: " + err.message);
+        return false;
+      }
+    };
+    
+    const startRecording = async () => {
+      const hasPermission = await checkMicrophonePermission();
+      if (!hasPermission) return;
+    
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        // Tiếp tục logic ghi âm...
+      } catch (err) {
+        setError("Không thể truy cập micro: " + err.message);
+      }
+    };
   
     // Lấy ghi chú từ IndexedDB khi khởi động
     const initOfflineNotes = async () => {
@@ -246,10 +275,11 @@ const NoteApp = () => {
     }
   };
 
+  const db = new Dexie('NotesDB');
+  
       // Khởi tạo IndexedDB với Dexie
-      const db = new Dexie('NoteAppDB');
-      db.version(1).stores({
-        notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,video_url,isPending,syncAction',
+      db.version(2).stores({
+        notes: '++id,title,content,image_url,created_at,updated_at,category_id,font_style,font_size,font_weight,note_type,font_family,text_align,text_color,background_color,todos,spreadsheet_data,classification,audio_url,audio_file_name,video_url,video_file_name,isPending,syncAction,is_pinned',
         pendingActions: '++id,action,noteId,data',
       });
 
@@ -290,38 +320,60 @@ const NoteApp = () => {
     
       // ghi âm 
       useEffect(() => {
-        // Khởi tạo SpeechRecognition
-        if (typeof window !== "undefined" && window.SpeechRecognition) {
-          recognitionRef.current = new window.SpeechRecognition();
-          recognitionRef.current.lang = "vi-VN"; // Ngôn ngữ tiếng Việt
-          recognitionRef.current.interimResults = true; // Hiển thị kết quả tạm thời
-          recognitionRef.current.continuous = true; // Ghi âm liên tục
+        if (typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.lang = "en-US"; // Thử với tiếng Anh
+          recognitionRef.current.interimResults = true;
+          recognitionRef.current.continuous = true;
       
-          let hasSpeech = false; // Biến để kiểm tra xem có phát hiện văn bản hay không
+          let hasSpeech = false;
       
           recognitionRef.current.onresult = (event) => {
-            let transcript = "";
+            let interimTranscript = "";
+            let finalTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-              transcript += event.results[i][0].transcript;
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
             }
-            if (transcript.trim()) {
-              hasSpeech = true; // Có văn bản được phát hiện
-              setContent((prev) => prev + transcript); // Thêm văn bản vào content
+            console.log("Interim:", interimTranscript, "Final:", finalTranscript);
+            if (finalTranscript.trim()) {
+              setContent((prev) => prev + " " + finalTranscript);
             }
           };
-      
+
           recognitionRef.current.onend = () => {
+            console.log("SpeechRecognition ended");
             if (!hasSpeech && isRecording) {
-              setError("Không phát hiện văn bản từ giọng nói.");
+              setError("Không phát hiện giọng nói. Vui lòng thử lại hoặc kiểm tra micro.");
+            }
+            // Tự động khởi động lại nếu vẫn đang ghi âm
+            if (isRecording) {
+              recognitionRef.current.start();
             }
           };
       
           recognitionRef.current.onerror = (event) => {
-            setError("Lỗi Speech-to-Text: " + event.error);
+            console.error("SpeechRecognition error details:", {
+              error: event.error,
+              message: event.message,
+              event: event,
+            });
+            let errorMessage = `Lỗi Speech-to-Text: ${event.error}`;
+            if (event.error === "network") {
+              errorMessage += ". Vui lòng kiểm tra kết nối internet.";
+            } else if (event.error === "no-speech") {
+              errorMessage += ". Không phát hiện giọng nói.";
+            }
+            setError(errorMessage);
             stopRecording();
           };
         } else {
-          console.warn("SpeechRecognition API không được hỗ trợ trên trình duyệt này.");
+          setError("Trình duyệt không hỗ trợ SpeechRecognition. Vui lòng dùng Chrome hoặc Edge.");
         }
       
         return () => {
@@ -390,9 +442,27 @@ const NoteApp = () => {
   }, []);
 
   const fetchNotes = async () => {
+    // Lấy user_id từ localStorage
+    const userData = localStorage.getItem("user");
+    let user_id = null;
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        user_id = parsedUser.id; // Giả sử id là UUID của người dùng
+      } catch (err) {
+        console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+        setError("Không thể lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+        return;
+      }
+    } else {
+      setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+      return;
+    }
+  
     if (isOffline) {
       try {
-        const offlineNotes = await db.notes.toArray();
+        // Lấy ghi chú từ IndexedDB, lọc theo user_id
+        const offlineNotes = await db.notes.where('user_id').equals(user_id).toArray();
         setNotes(
           offlineNotes.map(note => {
             let parsedTodos = [];
@@ -426,7 +496,9 @@ const NoteApp = () => {
               spreadsheet_data: parsedSpreadsheetData,
               isPinned: note.isPinned || false,
               audio_url: note.audio_url || "",
+              audio_file_name: note.audio_file_name || "",
               video_url: note.video_url || "",
+              video_file_name: note.video_file_name || "",
             };
           }) || []
         );
@@ -438,12 +510,15 @@ const NoteApp = () => {
     }
   
     try {
+      // Truy vấn Supabase, để lọc theo user_id
       const { data, error } = await supabase2
         .from("notess")
         .select(
-          "id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, video_url"
+          "id, user_id, title, content, image_url, created_at, updated_at, category_id, font_style, font_size, font_weight, note_type, font_family, text_align, text_color, background_color, todos, spreadsheet_data, classification, audio_url, audio_file_name, video_url, video_file_name, is_pinned"
         )
+        .eq("user_id", user_id)
         .order("updated_at", { ascending: false });
+        
       if (error) {
         console.error("Chi tiết lỗi Supabase:", error);
         throw new Error(`Lỗi Supabase: ${error.message || "Lỗi không xác định"}`);
@@ -468,15 +543,12 @@ const NoteApp = () => {
         if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
           try {
             parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-            if (!Array.isArray(parsedSpreadsheetData))
-              parsedSpreadsheetData = Array(10)
-                .fill()
-                .map(() => Array(10).fill(""));
+            if (!Array.isArray(parsedSpreadsheetData)) {
+              parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+            }
           } catch (e) {
             console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
-            parsedSpreadsheetData = Array(10)
-              .fill()
-              .map(() => Array(10).fill(""));
+            parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
           }
         }
   
@@ -484,15 +556,17 @@ const NoteApp = () => {
           ...note,
           todos: parsedTodos,
           spreadsheet_data: parsedSpreadsheetData,
-          isPinned: false,
+          is_pinned: note.is_pinned || false, 
           audio_url: note.audio_url || "",
+          audio_file_name: note.audio_file_name || "",
           video_url: note.video_url || "",
+          video_file_name: note.video_file_name || "",
         };
       }) || [];
   
       setNotes(parsedNotes);
   
-      // Lưu vào IndexedDB để sử dụng ngoại tuyến
+      // Cập nhật IndexedDB
       await db.notes.clear();
       await db.notes.bulkPut(parsedNotes);
     } catch (err) {
@@ -502,88 +576,109 @@ const NoteApp = () => {
   };
 
   const handleSaveNote = async () => {
-    if (!title.trim()) {
-      setError("Tiêu đề không được để trống.");
-      return;
+  if (!title.trim()) {
+    setError("Tiêu đề không được để trống.");
+    return;
+  }
+  if (title.trim().length > 255) {
+    setError("Tiêu đề không được vượt quá 255 ký tự.");
+    return;
+  }
+  if (
+    (currentNoteType === "plain" ||
+      currentNoteType === "rich" ||
+      currentNoteType === "markdown" ||
+      currentNoteType === "voice") &&
+    !content.trim() &&
+    !videoUrl &&
+    !audioUrl
+  ) {
+    setError("Nội dung, video hoặc âm thanh không được để trống.");
+    return;
+  }
+
+  try {
+    const imageUrl =
+      uploadedImages.length > 0
+        ? uploadedImages[uploadedImages.length - 1]
+        : null;
+
+    let classification;
+    switch (currentNoteType) {
+      case "plain":
+        classification = "pure";
+        break;
+      case "rich":
+        classification = "Abundant";
+        break;
+      case "whiteboard":
+        classification = "job";
+        break;
+      case "spreadsheet":
+        classification = "spreadsheet";
+        break;
+      case "markdown":
+        classification = "markdown";
+        break;
+      case "voice":
+        classification = "voice";
+        break;
+      default:
+        classification = "Abundant";
     }
-    if (title.trim().length > 255) {
-      setError("Tiêu đề không được vượt quá 255 ký tự.");
-      return;
-    }
-    if (
-      (currentNoteType === "plain" ||
-        currentNoteType === "rich" ||
-        currentNoteType === "markdown" ||
-        currentNoteType === "voice") &&
-      !content.trim() &&
-      !videoUrl &&
-      !audioUrl
-    ) {
-      setError("Nội dung, video hoặc âm thanh không được để trống.");
-      return;
-    }
-  
-    try {
-      const imageUrl =
-        uploadedImages.length > 0
-          ? uploadedImages[uploadedImages.length - 1]
-          : null;
-  
-      let classification;
-      switch (currentNoteType) {
-        case "plain":
-          classification = "pure";
-          break;
-        case "rich":
-          classification = "Abundant";
-          break;
-        case "whiteboard":
-          classification = "job";
-          break;
-        case "spreadsheet":
-          classification = "spreadsheet";
-          break;
-        case "markdown":
-          classification = "markdown";
-          break;
-        case "voice":
-          classification = "voice";
-          break;
-        default:
-          classification = "Abundant";
+
+    const categoryMap = {
+      Personal: 1,
+      Study: 2,
+      Entertainment: 3,
+      Upload: 4,
+    };
+
+    // Lấy thông tin người dùng từ localStorage
+    const userData = localStorage.getItem("user");
+    let user_id = null;
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+      } catch (err) {
+        console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+        setError("Không thể lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+        return;
       }
-  
-      const categoryMap = {
-        Personal: 1,
-        Study: 2,
-        Entertainment: 3,
-        Upload: 4,
-      };
-  
-      const noteData = {
-        title: title.trim(),
-        content: content.trim(),
-        image_url: imageUrl,
-        updated_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        note_type: currentNoteType,
-        font_style: fontStyle,
-        font_size: fontSize,
-        font_weight: fontWeight,
-        font_family: fontFamily,
-        text_align: textAlign,
-        text_color: textColor,
-        background_color: backgroundColor,
-        todos: currentNoteType === "whiteboard" ? JSON.stringify(todos || []) : null,
-        spreadsheet_data:
-          currentNoteType === "spreadsheet"
-            ? JSON.stringify(spreadsheetData || Array(10).fill().map(() => Array(10).fill("")))
-            : null,
-        classification,
-        category_id: categoryMap[category] || 1,
-        audio_url: audioUrl || null,
-        video_url: videoUrl || null,
-      };
+    } else {
+      setError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+      return;
+    }
+
+    const noteData = {
+      user_id: user_id,
+      title: title.trim(),
+      content: content.trim(),
+      image_url: imageUrl,
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      note_type: currentNoteType,
+      font_style: fontStyle,
+      font_size: fontSize,
+      font_weight: fontWeight,
+      font_family: fontFamily,
+      text_align: textAlign,
+      text_color: textColor,
+      background_color: backgroundColor,
+      todos: currentNoteType === "whiteboard" ? JSON.stringify(todos || []) : null,
+      spreadsheet_data:
+        currentNoteType === "spreadsheet"
+          ? JSON.stringify(spreadsheetData || Array(10).fill().map(() => Array(10).fill("")))
+          : null,
+      classification,
+      category_id: categoryMap[category] || 1,
+      audio_url: audioUrl || null,
+      audio_file_name: audioFileName || null,
+      video_url: videoUrl || null,
+      video_file_name: videoFileName || null,
+      is_pinned: editingId !== null ? notes.find((note) => note.id === editingId)?.is_pinned || false : false,
+    };
   
       if (isOffline) {
         // Sử dụng generateLocalId thay vì random
@@ -700,38 +795,57 @@ const NoteApp = () => {
     }
   };
 
-    const handleEditNote = (note) => {
-      setTitle(note.title);
-      setContent(note.content || "");
-      setUploadedImages(note.image_url ? [note.image_url] : []);
-      setEditingId(note.id);
-      setCurrentNoteType(note.note_type || "rich");
-      setFontFamily(note.font_family || "Verdana");
-      setFontSize(note.font_size || "14pt");
-      setFontWeight(note.font_weight || "normal");
-      setFontStyle(note.font_style || "normal");
-      setTextAlign(note.text_align || "left");
-      setTextColor(note.text_color || "#000000");
-      setBackgroundColor(note.background_color || "#ffffff");
-    
+  const handleEditNote = (note) => {
+    setTitle(note.title);
+    setEditingId(note.id);
+    setCurrentNoteType(note.note_type || "rich");
+    setFontFamily(note.font_family || "Verdana");
+    setFontSize(note.font_size || "14pt");
+    setFontWeight(note.font_weight || "normal");
+    setFontStyle(note.font_style || "normal");
+    setTextAlign(note.text_align || "left");
+    setTextColor(note.text_color || "#000000");
+    setBackgroundColor(note.background_color || "#ffffff");
+    setUploadedImages(note.image_url ? [note.image_url] : []);
+    setVoiceUrl(note.voice_url || "");
+    setVideoUrl(note.video_url || "");
+    setVideoFileName(note.video_file_name || "");
+    setAudioUrl(note.audio_url || "");
+    setAudioFileName(note.audio_file_name || "");
+  
+    // Xử lý danh sách công việc (whiteboard)
+    if (note.note_type === "whiteboard") {
       let parsedTodos = [];
-      if (note.todos && typeof note.todos === 'string') {
+      if (note.todos) {
         try {
-          parsedTodos = JSON.parse(note.todos);
-          if (!Array.isArray(parsedTodos)) parsedTodos = [];
+          parsedTodos = typeof note.todos === 'string' ? JSON.parse(note.todos) : note.todos;
+          if (!Array.isArray(parsedTodos)) {
+            parsedTodos = [];
+            console.warn(`Todos for note ${note.id} is not an array`);
+          }
         } catch (e) {
           console.error(`Lỗi khi parse todos cho note ${note.id}:`, e);
           parsedTodos = [];
         }
       }
       setTodos(parsedTodos);
-    
+      // Hiển thị todos trong textarea dưới dạng Markdown
+      const todoText = parsedTodos
+        .map((todo) => `- [${todo.completed ? 'x' : ' '}] ${todo.text}${todo.reminder ? ` (Nhắc nhở: ${todo.reminder})` : ''}`)
+        .join('\n');
+      setContent(todoText);
+  
+    // Xử lý bảng tính (spreadsheet)
+    } else if (note.note_type === "spreadsheet") {
       let parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
-      if (note.spreadsheet_data && typeof note.spreadsheet_data === 'string') {
+      if (note.spreadsheet_data) {
         try {
-          parsedSpreadsheetData = JSON.parse(note.spreadsheet_data);
-          if (!Array.isArray(parsedSpreadsheetData)) {
+          parsedSpreadsheetData = typeof note.spreadsheet_data === 'string' 
+            ? JSON.parse(note.spreadsheet_data) 
+            : note.spreadsheet_data;
+          if (!Array.isArray(parsedSpreadsheetData) || !parsedSpreadsheetData.every(row => Array.isArray(row))) {
             parsedSpreadsheetData = Array(10).fill().map(() => Array(10).fill(""));
+            console.warn(`Spreadsheet data for note ${note.id} is not a valid 2D array`);
           }
         } catch (e) {
           console.error(`Lỗi khi parse spreadsheet_data cho note ${note.id}:`, e);
@@ -739,35 +853,42 @@ const NoteApp = () => {
         }
       }
       setSpreadsheetData(parsedSpreadsheetData);
-    
-      setSpreadsheetHistory([
-        JSON.parse(JSON.stringify(parsedSpreadsheetData)),
-      ]);
+      setSpreadsheetHistory([JSON.parse(JSON.stringify(parsedSpreadsheetData))]);
       setHistoryIndex(0);
-      setImageUploadVisible(
-        note.note_type !== "plain" &&
-        note.note_type !== "markdown" &&
-        note.note_type !== "voice"
-      );
-      setVoiceUrl(note.voice_url || "");
-      setVideoUrl(note.video_url || "");
-      setAudioUrl(note.audio_url || "");
-    
-      const reverseCategoryMap = {
-        1: "Personal",
-        2: "Study",
-        3: "Entertainment",
-        4: "Upload",
-      };
-      setCategory(reverseCategoryMap[note.category_id] || "Personal");
-    
-      setError("");
-    
-      if (noteFormRef.current) {
-        noteFormRef.current.scrollIntoView({ behavior: "smooth" });
-      }
+      // Hiển thị spreadsheet_data trong textarea dưới dạng văn bản
+      const spreadsheetText = parsedSpreadsheetData.map(row => row.join('\t')).join('\n');
+      setContent(spreadsheetText);
+  
+    } else {
+      // Các loại ghi chú khác (plain, rich, markdown, voice)
+      setContent(note.content || "");
+      setTodos([]);
+      setSpreadsheetData(Array(10).fill().map(() => Array(10).fill("")));
+      setSpreadsheetHistory([]);
+      setHistoryIndex(-1);
+    }
+  
+    const reverseCategoryMap = {
+      1: "Personal",
+      2: "Study",
+      3: "Entertainment",
+      4: "Upload",
     };
-
+    setCategory(reverseCategoryMap[note.category_id] || "Personal");
+  
+    setImageUploadVisible(
+      note.note_type !== "plain" &&
+      note.note_type !== "markdown" &&
+      note.note_type !== "voice"
+    );
+  
+    setError("");
+  
+    if (noteFormRef.current) {
+      noteFormRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+  
     const resetForm = () => {
       setTitle("");
       setContent("");
@@ -804,7 +925,10 @@ const NoteApp = () => {
       setVoicePublicId("");
       setVideoUrl("");
       setAudioUrl("");
+      setAudioFileName(""); // Xóa tên file âm thanh
+      setVideoFileName(""); // Xóa tên file video
       setIsUploadingVideo(false);
+      setIsUploadingAudio(false); // Đảm bảo reset trạng thái loading âm thanh
       setVoicePublicId("");
     };
 
@@ -891,31 +1015,7 @@ const NoteApp = () => {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-        const fileReader = new FileReader();
-        fileReader.onload = async () => {
-          try {
-            const typedArray = new Uint8Array(fileReader.result);
-            const pdf = await pdfjsLib.getDocument(typedArray).promise;
-            let text = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i);
-              const content = await page.getTextContent();
-              text += content.items.map((item) => item.str).join(" ") + "\n";
-            }
-            setTitle(file.name.replace(".pdf", ""));
-            setContent(text.trim());
-            setCategory("Upload");
-            setError("");
-          } catch (err) {
-            throw new Error("Không thể đọc nội dung PDF: " + err.message);
-          }
-        };
-        fileReader.onerror = () => {
-          throw new Error("Lỗi khi đọc file PDF");
-        };
-        fileReader.readAsArrayBuffer(file);
-      } else if (
+      if (
         file.type ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         file.name.endsWith(".docx")
@@ -927,7 +1027,7 @@ const NoteApp = () => {
         setCategory("Upload");
         setError("");
       } else {
-        setError("Chỉ hỗ trợ tệp PDF hoặc Word (.docx)");
+        setError("Chỉ hỗ trợ tệp Word (.docx)");
       }
       setExtraMenuVisible(false);
     } catch (err) {
@@ -1196,12 +1296,52 @@ const NoteApp = () => {
     }
   };
 
-  const handlePinNote = (noteId) => {
-    setNotes(
-      notes.map((note) =>
-        note.id === noteId ? { ...note, isPinned: !note.isPinned } : note
-      )
-    );
+  const handlePinNote = async (noteId) => {
+    try {
+      const note = notes.find((note) => note.id === noteId);
+      if (!note) return;
+  
+      const newPinnedState = !note.is_pinned; // Sử dụng is_pinned từ dữ liệu
+  
+      if (isOffline) {
+        // Lưu vào IndexedDB khi ngoại tuyến
+        await db.notes.update(noteId, { is_pinned: newPinnedState });
+        await db.pendingActions.put({
+          action: 'update',
+          noteId,
+          data: { is_pinned: newPinnedState },
+        });
+        setNotes(
+          notes.map((note) =>
+            note.id === noteId ? { ...note, is_pinned: newPinnedState } : note
+          )
+        );
+        setError('Trạng thái ghim đã được lưu cục bộ. Sẽ đồng bộ khi có mạng.');
+        return;
+      }
+  
+      // Cập nhật trên Supabase
+      const { error } = await supabase2
+        .from('notess')
+        .update({ is_pinned: newPinnedState })
+        .eq('id', noteId);
+  
+      if (error) throw error;
+  
+      // Cập nhật IndexedDB
+      await db.notes.update(noteId, { is_pinned: newPinnedState });
+  
+      // Cập nhật state
+      setNotes(
+        notes.map((note) =>
+          note.id === noteId ? { ...note, is_pinned: newPinnedState } : note
+        )
+      );
+      setError('');
+    } catch (err) {
+      console.error('Error pinning note:', err);
+      setError('Không thể thay đổi trạng thái ghim: ' + err.message);
+    }
   };
 
   const toggleNoteTypeVisibility = (type) => {
@@ -1212,36 +1352,36 @@ const NoteApp = () => {
   };
 
   const sortedNotes = [...notes]
-  .filter(
-    (note) =>
-      (filterType === "all" ||
-        note.note_type === filterType ||
-        filterType === "selective") &&
-      (filterType !== "selective" || visibleNoteTypes[note.note_type]) &&
-      (note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (note.content &&
-          note.content.toLowerCase().includes(searchQuery.toLowerCase())))
+  .filter((note) => {
+    if (filterType === "all") return true;
+    if (filterType === "selective")
+      return visibleNoteTypes[note.note_type] || false;
+    return note.note_type === filterType;
+  })
+  .filter((note) =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
   .sort((a, b) => {
-    if (filterType === "selective") {
-      const order = [
-        "plain",
-        "rich",
-        "whiteboard",
-        "spreadsheet",
-        "markdown", 
-      ];
-      const aIndex = order.indexOf(a.note_type);
-      const bIndex = order.indexOf(b.note_type);
-      if (aIndex !== bIndex) return aIndex - bIndex;
+    // Ưu tiên loại ghi chú được chọn
+    if (currentNoteType !== "all") {
+      if (a.note_type === currentNoteType && b.note_type !== currentNoteType)
+        return -1;
+      if (b.note_type === currentNoteType && a.note_type !== currentNoteType)
+        return 1;
     }
-    if (a.isPinned && !b.isPinned) return -1;
-    if (!a.isPinned && b.isPinned) return 1;
-    return sortBy === "title"
-      ? a.title.localeCompare(b.title)
-      : new Date(b.updated_at) - new Date(a.updated_at);
+    // Sau đó ưu tiên ghi chú được ghim
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
+    // Tiếp theo sắp xếp theo tiêu chí sortBy
+    if (sortBy === "title") {
+      return a.title.localeCompare(b.title);
+    } else {
+      return (
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+    }
   });
-
+  
   const emojiList = [
     "😃", "😄", "😊", "😂", "🤗", "😜", "😎", "😍", "🥰", "😘", 
     "😇", "🥳", "🥲", "😢", "😭", "😡", "😤", "😱", "😳", "🥱",
@@ -1471,86 +1611,95 @@ const NoteApp = () => {
       
           mediaRecorderRef.current.onstop = async () => {
             const blob = new Blob(chunks, { type: "audio/webm" });
-            // Không lưu blob hay URL vì bản ghi âm sẽ bị xóa sau khi chuyển đổi
+            setVoiceBlob(blob);
+            setVoiceUrl(URL.createObjectURL(blob));
             mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
           };
       
           mediaRecorderRef.current.start();
           setIsRecording(true);
+          console.log("Recording started, isRecording:", true);
+          
           if (recognitionRef.current) {
             recognitionRef.current.start();
+            console.log("SpeechRecognition started");
           }
           setError("");
         } catch (err) {
-          setError("Không thể truy cập micro: " + err.message);
+          setError("Không thể truy cập micro. Vui lòng kiểm tra quyền truy cập micro: " + err.message);
+          console.error("Start recording error:", err);
         }
       };
-
+      
       const stopRecording = () => {
-        if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
-          setVoiceBlob(null);
-          setVoiceUrl("");
-          setVoicePublicId("");
+          console.log("Recording stopped, isRecording:", false);
         }
         if (recognitionRef.current) {
-          recognitionRef.current.stop(); 
+          recognitionRef.current.stop();
+          console.log("SpeechRecognition stopped");
         }
       };
 
       // tải âm thanh lên 
       const handleAudioUpload = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        if (file.size > 50 * 1024 * 1024) {
-          throw new Error("File âm thanh quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          if (file.size > 50 * 1024 * 1024) {
+            throw new Error("File âm thanh quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
+          }
+          setIsUploadingAudio(true); // Bật trạng thái loading
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("upload_preset", "blognote");
+          formData.append("cloud_name", "dlaoxrnad");
+          const response = await fetch(
+            "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
+            { method: "POST", body: formData }
+          );
+          if (!response.ok) throw new Error("Upload failed");
+          const data = await response.json();
+          setAudioUrl(data.secure_url);
+          setAudioFileName(file.name); // Lưu tên file âm thanh
+          setError("");
+        } catch (err) {
+          setError("Không thể tải lên file âm thanh: " + err.message);
+        } finally {
+          setIsUploadingAudio(false); // Tắt trạng thái loading
         }
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", "blognote");
-        formData.append("cloud_name", "dlaoxrnad");
-        const response = await fetch(
-          "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
-          { method: "POST", body: formData }
-        );
-        if (!response.ok) throw new Error("Upload failed");
-        const data = await response.json();
-        setAudioUrl(data.secure_url);
-        setError("");
-      } catch (err) {
-        setError("Không thể tải lên file âm thanh: " + err.message);
-      }
-    };
+      };
 
       // tải video 
       const handleVideoUpload = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        if (file.size > 50 * 1024 * 1024) {
-          throw new Error("Video quá lớn. Vui lòng chọn file nhỏ hơn 50MB");
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          if (file.size > 100 * 1024 * 1024) {
+            throw new Error("File video quá lớn. Vui lòng chọn file nhỏ hơn 100MB");
+          }
+          setIsUploadingVideo(true); // Bật trạng thái loading
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("upload_preset", "blognote");
+          formData.append("cloud_name", "dlaoxrnad");
+          const response = await fetch(
+            "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
+            { method: "POST", body: formData }
+          );
+          if (!response.ok) throw new Error("Upload failed");
+          const data = await response.json();
+          setVideoUrl(data.secure_url);
+          setVideoFileName(file.name); // Lưu tên file video
+          setError("");
+        } catch (err) {
+          setError("Không thể tải lên file video: " + err.message);
+        } finally {
+          setIsUploadingVideo(false); // Tắt trạng thái loading
         }
-        setIsUploadingVideo(true); // load
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", "blognote");
-        formData.append("cloud_name", "dlaoxrnad");
-        const response = await fetch(
-          "https://api.cloudinary.com/v1_1/dlaoxrnad/video/upload",
-          { method: "POST", body: formData }
-        );
-        if (!response.ok) throw new Error("Upload failed");
-        const data = await response.json();
-        setVideoUrl(data.secure_url);
-        setError("");
-      } catch (err) {
-        setError("Không thể tải lên video: " + err.message);
-      } finally {
-        setIsUploadingVideo(false); 
-      }
-    };
+      };
 
         // dịch ngôn ngữ (lỗi)
         const handleTranslate = async () => {
@@ -1776,15 +1925,15 @@ const NoteApp = () => {
                   onClick={handleImportButtonClick}
                   className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
                 >
-                  <FaFileImport /> Nhập Word/PDF
+                  <FaFileImport /> Nhập Word
                 </button>
                 <input
-                  type="file"
-                  accept=".docx,application/pdf"
-                  ref={importFileInputRef}
-                  onChange={handleImportFile}
-                  className="hidden"
-                />
+                    type="file"
+                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    ref={importFileInputRef}
+                    onChange={handleImportFile}
+                    className="hidden"
+                  />
                 <button
                   onClick={handleExportNotes}
                   className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
@@ -2619,44 +2768,63 @@ const NoteApp = () => {
                       {isUploadingVideo && (
                         <div className="mb-4 flex items-center justify-center">
                           <div className="flex flex-col items-center">
-                            <div className="text-4xl animate-spin">🎥</div>
+                            <div className="text-4xl animate-spin">🐾</div>
                             <p className="text-gray-600 mt-2 animate-pulse">
                               Đang tải video, chờ tí nha! 😺
                             </p>
                           </div>
                         </div>
                       )}
+
+                {/* Hiệu ứng loading khi tải âm thanh */}
+                  {isUploadingAudio && (
+                      <div className="mb-4 flex items-center justify-center">
+                        <div className="flex flex-col items-center">
+                          <div className="text-4xl animate-spin">🎵</div>
+                          <p className="text-gray-600 mt-2 animate-pulse">
+                          Đang tải âm thanh, tí xíu thôi nè! 😽
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   
                       {/* Hiển thị video */}
                       {videoUrl && !isUploadingVideo && (
                         <div className="mb-4">
-                          <p className="text-gray-700">Video:</p>
+                          <p className="text-gray-700">Video: {videoFileName}</p>
                           <video controls src={videoUrl} className="w-full max-w-md rounded-md" />
                           <button
-                            onClick={() => setVideoUrl("")}
+                            onClick={() => {
+                              setVideoUrl("");
+                              setVideoFileName(""); // Xóa tên file khi xóa video
+                            }}
                             className="mt-2 text-red-500 hover:text-red-700"
                           >
                             Xóa video
                           </button>
                         </div>
                       )}
-                  
-                      {/* Hiển thị file âm thanh */}
-                      {audioUrl && (
-                        <div className="mb-4">
-                          <p className="text-gray-700">Âm thanh:</p>
-                          <audio controls src={audioUrl} className="w-full" />
-                          <button
-                            onClick={() => setAudioUrl("")}
-                            className="mt-2 text-red-500 hover:text-red-700"
-                          >
-                            Xóa âm thanh
-                          </button>
-                        </div>
-                      )}
+
+                  {/* Hiển thị file âm thanh */}
+                  {audioUrl && (
+                    <div className="mb-4">
+                      <p className="text-gray-700">Âm thanh: {audioFileName}</p>
+                      <audio controls src={audioUrl} className="w-full" />
+                      <button
+                        onClick={() => {
+                          setAudioUrl("");
+                          setAudioFileName(""); // Xóa tên file khi xóa âm thanh
+                        }}
+                        className="mt-2 text-red-500 hover:text-red-700"
+                      >
+                        Xóa âm thanh
+                      </button>
+                    </div>
+                  )}
                   
                       {/* Textarea cho nội dung văn bản (từ Speech-to-Text hoặc chỉnh sửa thủ công) */}
                       <textarea
+                        key={content} // Force re-render khi content thay đổi
                         ref={textAreaRef}
                         placeholder="Nội dung được chuyển từ giọng nói sẽ hiển thị ở đây..."
                         value={content}
@@ -2705,7 +2873,7 @@ const NoteApp = () => {
             </div>
 
             {/* Khung bên phải: Hiển thị kết quả chạy code */}
-            <div className="border border-gray-300 rounded-xl p-4 bg-gray-50 h-56 overflow-y-auto">
+            <div className="border border-gray-300 rounded-xl p-4 bg-gray-50 h-135 overflow-y-auto">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="font-bold text-gray-700">Kết quả chạy code:</h3>
                 <div className="flex space-x-2">
@@ -2744,7 +2912,7 @@ const NoteApp = () => {
 
         <div className="mt-6 p-4 border border-gray-300 rounded-lg">
           <div className="flex justify-between mt-6 text-blue-600 items-center">
-            <div className="relative" ref={filterMenuRef}>
+          <div className="relative" ref={filterMenuRef}>
               <button
                 onClick={() => setFilterMenuVisible(!filterMenuVisible)}
                 className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
@@ -2762,6 +2930,10 @@ const NoteApp = () => {
                     ? "Danh sách công việc"
                     : filterType === "spreadsheet"
                     ? "Bảng tính"
+                    : filterType === "markdown"
+                    ? "Markdown/Code"
+                    : filterType === "voice"
+                    ? "Đính kèm"
                     : "Chọn lọc"}
                 </span>
               </button>
@@ -2785,6 +2957,8 @@ const NoteApp = () => {
                         rich: true,
                         whiteboard: true,
                         spreadsheet: true,
+                        markdown: true,
+                        voice: true,
                       });
                       setFilterMenuVisible(false);
                     }}
@@ -2827,59 +3001,99 @@ const NoteApp = () => {
                   >
                     📊 Ghi chú bảng tính
                   </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("markdown");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    💻 Ghi chú Markdown/Code
+                  </button>
+                  <button
+                    className="dropdown-item flex items-center gap-2 w-full text-left px-4 py-2 hover:bg-blue-50 transition-all duration-200"
+                    onClick={() => {
+                      setFilterType("voice");
+                      setFilterMenuVisible(false);
+                    }}
+                  >
+                    🎙 Ghi chú đính kèm
+                  </button>
                 </div>
               )}
             </div>
 
             <div className="flex items-center space-x-4">
-              {filterType === "selective" && (
-                <div className="flex gap-2">
-                  {visibleNoteTypes.plain && (
-                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
-                      Văn bản thuần
-                      <button
-                        onClick={() => toggleNoteTypeVisibility("plain")}
-                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
-                      >
-                        <FaTimes size={12} />
-                      </button>
-                    </div>
-                  )}
-                  {visibleNoteTypes.rich && (
-                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
-                      Văn bản phong phú
-                      <button
-                        onClick={() => toggleNoteTypeVisibility("rich")}
-                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
-                      >
-                        <FaTimes size={12} />
-                      </button>
-                    </div>
-                  )}
-                  {visibleNoteTypes.whiteboard && (
-                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
-                      Danh sách công việc
-                      <button
-                        onClick={() => toggleNoteTypeVisibility("whiteboard")}
-                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
-                      >
-                        <FaTimes size={12} />
-                      </button>
-                    </div>
-                  )}
-                  {visibleNoteTypes.spreadsheet && (
-                    <div className="relative bg-blue-100 px-3 py-1 rounded-full">
-                      Bảng tính
-                      <button
-                        onClick={() => toggleNoteTypeVisibility("spreadsheet")}
-                        className="absolute top-0 right-0 text-red-500 hover:text-red-700"
-                      >
-                        <FaTimes size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+            {filterType === "selective" && (
+                  <div className="flex gap-2">
+                    {visibleNoteTypes.plain && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Văn bản thuần
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("plain")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {visibleNoteTypes.rich && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Văn bản phong phú
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("rich")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {visibleNoteTypes.whiteboard && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Danh sách công việc
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("whiteboard")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {visibleNoteTypes.spreadsheet && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Bảng tính
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("spreadsheet")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {visibleNoteTypes.markdown && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Markdown/Code
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("markdown")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                    {visibleNoteTypes.voice && (
+                      <div className="relative bg-blue-100 px-3 py-1 rounded-full">
+                        Đính kèm
+                        <button
+                          onClick={() => toggleNoteTypeVisibility("voice")}
+                          className="absolute top-0 right-0 text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               {searchVisible && (
                 <input
                   type="text"
@@ -3046,51 +3260,51 @@ const NoteApp = () => {
                   {note.spreadsheet_data[0]?.length || 0})
                 </small>
               </div>
-            ) : note.note_type === "voice" ? (
-              <div>
-                {note.content && <p className="text-gray-700">{note.content}</p>}
-                {note.voice_url && (
-                  <div className="mt-2">
-                    <p className="text-gray-700">Bản ghi âm:</p>
-                    <audio controls src={note.voice_url} className="w-full" />
-                  </div>
-                )}
-                {note.video_url && (
-                  <div className="mt-2">
-                    <p className="text-gray-700">Video:</p>
-                    <video
-                      controls
-                      src={note.video_url}
-                      className="w-full max-w-md rounded-md"
-                    />
-                  </div>
-                )}
-                {note.audio_url && (
-                  <div className="mt-2">
-                    <p className="text-gray-700">Âm thanh:</p>
-                    <audio controls src={note.audio_url} className="w-full" />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-700">{note.content}</p>
-            )}
+              ) : note.note_type === "voice" ? (
+                <div>
+                  {note.content && <p className="text-gray-700">{note.content}</p>}
+                  {note.voice_url && (
+                    <div className="mt-2">
+                      <p className="text-gray-700">Bản ghi âm:</p>
+                      <audio controls src={note.voice_url} className="w-full" />
+                    </div>
+                  )}
+                  {note.video_url && (
+                    <div className="mt-2">
+                      <p className="text-gray-700">Video: {note.video_file_name}</p>
+                      <video
+                        controls
+                        src={note.video_url}
+                        className="w-full max-w-md rounded-md"
+                      />
+                    </div>
+                  )}
+                  {note.audio_url && (
+                    <div className="mt-2">
+                      <p className="text-gray-700">Âm thanh: {note.audio_file_name}</p>
+                      <audio controls src={note.audio_url} className="w-full" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-700">{note.content}</p>
+              )}
             <small className="text-gray-500">
               {new Date(note.updated_at).toLocaleString()}
             </small>
           </div>
           <div className="flex space-x-3 ml-4">
-            <button
-              onClick={() => handlePinNote(note.id)}
-              className={`text-xl transition duration-200 ${
-                note.isPinned
-                  ? "text-yellow-500 hover:text-yellow-700"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-              title={note.isPinned ? "Bỏ ghim" : "Ghim ghi chú"}
-            >
-              <FaThumbtack />
-            </button>
+          <button
+            onClick={() => handlePinNote(note.id)}
+            className={`text-xl transition duration-200 ${
+              note.is_pinned
+                ? "text-yellow-500 hover:text-yellow-700"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+            title={note.is_pinned ? "Bỏ ghim" : "Ghim ghi chú"}
+          >
+            <FaThumbtack />
+          </button>
             <button
               onClick={() => handleEditNote(note)}
               className="text-green-600 text-xl hover:text-green-800 transition duration-200"
@@ -3099,22 +3313,50 @@ const NoteApp = () => {
               <FaEdit />
             </button>
             <button
-              onClick={() => handleDeleteNote(note.id)}
-              className="text-red-500 text-xl hover:text-red-700 transition duration-200"
-              title="Xóa ghi chú"
-            >
-              <FaTrash />
-            </button>
+          onClick={() => {
+              setNoteIdToDelete(note.id);
+              setShowDeleteModal(true);
+            }}
+            className="text-red-500 text-xl hover:text-red-700 transition duration-200"
+            title="Xóa ghi chú"
+          >
+            <FaTrash />
+          </button>
           </div>
         </li>
       ))
     ) : (
       <p className="text-gray-500 mt-3">Không tìm thấy ghi chú nào.</p>
     )}
-            </ul>
+    </ul>
+  </div>
+      {showDeleteModal && (
+      <div className="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-md flex justify-center items-center z-50">
+        <div className="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full">
+          <h2 className="text-2xl font-bold mb-4 text-center">Xác nhận xóa</h2>
+          <p className="mb-4">Bạn có chắc chắn muốn xóa ghi chú này?</p>
+          <div className="flex justify-end space-x-4">
+            <button
+              onClick={() => setShowDeleteModal(false)}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-200"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={async () => {
+                await handleDeleteNote(noteIdToDelete);
+                setShowDeleteModal(false);
+                setNoteIdToDelete(null);
+              }}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200"
+            >
+              Xóa
+            </button>
           </div>
         </div>
-
+      </div>
+    )}
+        </div>
         <style jsx>{`
           :global(.note-app-container) {
             background-color: var(--background);
@@ -3252,5 +3494,6 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
 
 

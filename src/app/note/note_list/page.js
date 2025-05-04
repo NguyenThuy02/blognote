@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { supabase2 } from "../../../lib/supabase";
 import ChiTiet from "../../components/details";
 import ThemeSettings from "../../components/ThemeSettings";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function NoteList() {
   const [textNotes, setTextNotes] = useState([]);
@@ -11,12 +14,15 @@ export default function NoteList() {
   const [richNotesWithImage, setRichNotesWithImage] = useState([]);
   const [sketchNotes, setSketchNotes] = useState([]);
   const [spreadsheetNotes, setSpreadsheetNotes] = useState([]);
+  const [markdownNotes, setMarkdownNotes] = useState([]);
+  const [voiceNotes, setVoiceNotes] = useState([]);
   const [filteredTextNotes, setFilteredTextNotes] = useState([]);
   const [filteredRichNotesWithoutImage, setFilteredRichNotesWithoutImage] = useState([]);
   const [filteredRichNotesWithImage, setFilteredRichNotesWithImage] = useState([]);
   const [filteredSketchNotes, setFilteredSketchNotes] = useState([]);
   const [filteredSpreadsheetNotes, setFilteredSpreadsheetNotes] = useState([]);
-  const [pinnedNotes, setPinnedNotes] = useState(new Set());
+  const [filteredMarkdownNotes, setFilteredMarkdownNotes] = useState([]);
+  const [filteredVoiceNotes, setFilteredVoiceNotes] = useState([]);
   const [hiddenNotes, setHiddenNotes] = useState(new Set());
   const [pinInput, setPinInput] = useState("");
   const [showPinModal, setShowPinModal] = useState(false);
@@ -26,30 +32,78 @@ export default function NoteList() {
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchInput, setShowSearchInput] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [currentTextPage, setCurrentTextPage] = useState(1);
   const [currentRichPage, setCurrentRichPage] = useState(1);
   const [currentSketchPage, setCurrentSketchPage] = useState(1);
   const [currentSpreadsheetPage, setCurrentSpreadsheetPage] = useState(1);
+  const [currentMarkdownPage, setCurrentMarkdownPage] = useState(1);
+  const [currentVoicePage, setCurrentVoicePage] = useState(1);
 
   const [showMoreText, setShowMoreText] = useState(false);
   const [showMoreRich, setShowMoreRich] = useState(false);
   const [showMoreSketch, setShowMoreSketch] = useState(false);
   const [showMoreSpreadsheet, setShowMoreSpreadsheet] = useState(false);
+  const [showMoreMarkdown, setShowMoreMarkdown] = useState(false);
+  const [showMoreVoice, setShowMoreVoice] = useState(false);
 
-  const notesPerPage = 5;
+  const notesPerPage = 4;
   const PIN = "1234";
 
   const fetchNotes = async () => {
+    setIsLoading(true);
     try {
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id;
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            alert("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          alert("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          return;
+        }
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        alert("Vui lòng đăng nhập để xem ghi chú của bạn.");
+        return;
+      }
+
       const { data, error } = await supabase2
         .from("notess")
         .select(
-          "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data"
+          "id, title, content, image_url, created_at, updated_at, category_id, note_type, todos, spreadsheet_data, audio_url, audio_file_name, video_url, video_file_name, is_pinned"
         )
+        .eq("user_id", user_id)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        console.warn("Không tìm thấy ghi chú nào cho người dùng này.");
+        setTextNotes([]);
+        setRichNotesWithoutImage([]);
+        setRichNotesWithImage([]);
+        setSketchNotes([]);
+        setSpreadsheetNotes([]);
+        setMarkdownNotes([]);
+        setVoiceNotes([]);
+        setFilteredTextNotes([]);
+        setFilteredRichNotesWithoutImage([]);
+        setFilteredRichNotesWithImage([]);
+        setFilteredSketchNotes([]);
+        setFilteredSpreadsheetNotes([]);
+        setFilteredMarkdownNotes([]);
+        setFilteredVoiceNotes([]);
+        return;
+      }
 
       const mappedNotes = data.map((note) => {
         let parsedTodos = [];
@@ -85,6 +139,11 @@ export default function NoteList() {
           note_type: note.note_type,
           todos: parsedTodos,
           spreadsheet_data: parsedSpreadsheetData,
+          audio_url: note.audio_url || "",
+          audio_file_name: note.audio_file_name || "",
+          video_url: note.video_url || "",
+          video_file_name: note.video_file_name || "",
+          is_pinned: note.is_pinned || false,
         };
       });
 
@@ -98,14 +157,27 @@ export default function NoteList() {
       setSpreadsheetNotes(
         mappedNotes.filter((note) => note.note_type === "spreadsheet")
       );
+      setMarkdownNotes(
+        mappedNotes.filter((note) => note.note_type === "markdown")
+      );
+      setVoiceNotes(mappedNotes.filter((note) => note.note_type === "voice"));
 
       setFilteredTextNotes(mappedNotes.filter((note) => note.note_type === "plain"));
       setFilteredRichNotesWithoutImage(richNotes.filter((note) => !note.image));
       setFilteredRichNotesWithImage(richNotes.filter((note) => note.image));
       setFilteredSketchNotes(mappedNotes.filter((note) => note.note_type === "whiteboard"));
       setFilteredSpreadsheetNotes(mappedNotes.filter((note) => note.note_type === "spreadsheet"));
+      setFilteredMarkdownNotes(
+        mappedNotes.filter((note) => note.note_type === "markdown")
+      );
+      setFilteredVoiceNotes(
+        mappedNotes.filter((note) => note.note_type === "voice")
+      );
     } catch (err) {
       console.error("Error fetching notes:", err);
+      alert("Có lỗi khi tải ghi chú. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,23 +199,66 @@ export default function NoteList() {
     setFilteredRichNotesWithImage(filterNotes(richNotesWithImage, searchQuery));
     setFilteredSketchNotes(filterNotes(sketchNotes, searchQuery));
     setFilteredSpreadsheetNotes(filterNotes(spreadsheetNotes, searchQuery));
+    setFilteredMarkdownNotes(filterNotes(markdownNotes, searchQuery));
+    setFilteredVoiceNotes(filterNotes(voiceNotes, searchQuery));
 
     setCurrentTextPage(1);
     setCurrentRichPage(1);
     setCurrentSketchPage(1);
     setCurrentSpreadsheetPage(1);
-  }, [searchQuery, textNotes, richNotesWithoutImage, richNotesWithImage, sketchNotes, spreadsheetNotes]);
+    setCurrentMarkdownPage(1);
+    setCurrentVoicePage(1);
+  }, [searchQuery, textNotes, richNotesWithoutImage, richNotesWithImage, sketchNotes, spreadsheetNotes, markdownNotes, voiceNotes]);
 
-  const togglePin = (noteId) => {
-    setPinnedNotes((prev) => {
-      const newPinned = new Set(prev);
-      if (newPinned.has(noteId)) {
-        newPinned.delete(noteId);
-      } else {
-        newPinned.add(noteId);
+  const togglePin = async (noteId) => {
+    try {
+      const allNotes = [
+        ...textNotes,
+        ...richNotesWithoutImage,
+        ...richNotesWithImage,
+        ...sketchNotes,
+        ...spreadsheetNotes,
+        ...markdownNotes,
+        ...voiceNotes,
+      ];
+      const note = allNotes.find((n) => n.id === noteId);
+      if (!note) {
+        console.error("Không tìm thấy ghi chú với ID:", noteId);
+        return;
       }
-      return newPinned;
-    });
+
+      const newPinnedStatus = !note.is_pinned;
+      const { error } = await supabase2
+        .from("notess")
+        .update({ is_pinned: newPinnedStatus })
+        .eq("id", noteId);
+
+      if (error) throw error;
+
+      const updateNotes = (notes) =>
+        notes.map((n) =>
+          n.id === noteId ? { ...n, is_pinned: newPinnedStatus } : n
+        );
+
+      setTextNotes(updateNotes(textNotes));
+      setRichNotesWithoutImage(updateNotes(richNotesWithoutImage));
+      setRichNotesWithImage(updateNotes(richNotesWithImage));
+      setSketchNotes(updateNotes(sketchNotes));
+      setSpreadsheetNotes(updateNotes(spreadsheetNotes));
+      setMarkdownNotes(updateNotes(markdownNotes));
+      setVoiceNotes(updateNotes(voiceNotes));
+
+      setFilteredTextNotes(updateNotes(filteredTextNotes));
+      setFilteredRichNotesWithoutImage(updateNotes(filteredRichNotesWithoutImage));
+      setFilteredRichNotesWithImage(updateNotes(filteredRichNotesWithImage));
+      setFilteredSketchNotes(updateNotes(filteredSketchNotes));
+      setFilteredSpreadsheetNotes(updateNotes(filteredSpreadsheetNotes));
+      setFilteredMarkdownNotes(updateNotes(filteredMarkdownNotes));
+      setFilteredVoiceNotes(updateNotes(filteredVoiceNotes));
+    } catch (err) {
+      console.error("Lỗi khi cập nhật trạng thái ghim:", err);
+      alert("Có lỗi khi ghim/bỏ ghim ghi chú. Vui lòng thử lại.");
+    }
   };
 
   const hideNote = (noteId) => {
@@ -193,8 +308,8 @@ export default function NoteList() {
     const indexOfLastNote = currentPage * notesPerPage;
     const indexOfFirstNote = indexOfLastNote - notesPerPage;
     const sortedNotes = [...notes].sort((a, b) => {
-      if (pinnedNotes.has(a.id) && !pinnedNotes.has(b.id)) return -1;
-      if (!pinnedNotes.has(a.id) && pinnedNotes.has(b.id)) return 1;
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
       return 0;
     });
     return sortedNotes.slice(indexOfFirstNote, indexOfLastNote);
@@ -211,6 +326,8 @@ export default function NoteList() {
   const totalSpreadsheetPages = Math.ceil(
     filteredSpreadsheetNotes.length / notesPerPage
   );
+  const totalMarkdownPages = Math.ceil(filteredMarkdownNotes.length / notesPerPage);
+  const totalVoicePages = Math.ceil(filteredVoiceNotes.length / notesPerPage);
 
   useEffect(() => {
     if (richNotesWithImage.length > 0) {
@@ -237,10 +354,39 @@ export default function NoteList() {
 
   return (
     <div
-      className="mt-[97px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6"
+      className="mt-[97px] p-5 mb-[-7px] max-w-full mx-auto p-6 space-y-6 rounded-xl"
       style={{ background: "var(--background)", color: "var(--text-color)" }}
       onClick={closeContextMenu}
     >
+      <style jsx>{`
+        .pro-spinner {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 80px;
+          gap: 8px;
+        }
+        .pro-spinner div {
+          width: 12px;
+          height: 12px;
+          background: linear-gradient(45deg, #93C5FD, #D8B4FE);
+          border-radius: 50%;
+          animation: wave 1.2s ease-in-out infinite;
+        }
+        .pro-spinner div:nth-child(1) { animation-delay: 0s; }
+        .pro-spinner div:nth-child(2) { animation-delay: 0.1s; }
+        .pro-spinner div:nth-child(3) { animation-delay: 0.2s; }
+        .pro-spinner div:nth-child(4) { animation-delay: 0.3s; }
+        @keyframes wave {
+          0%, 60%, 100% {
+            transform: translateY(0);
+          }
+          30% {
+            transform: translateY(-10px);
+          }
+        }
+      `}</style>
+
       <div
         className="relative rounded-lg p-8 mb-8 flex items-center justify-between"
         style={{
@@ -260,7 +406,8 @@ export default function NoteList() {
           </h1>
           <p className="text-gray-200 mb-6">
             Explore top note-taking apps to boost your productivity. From simple
- Ascertain the perfect app for your needs. Start organizing your ideas today!
+            text to multimedia notes, find the perfect app for your needs. Start
+            organizing your ideas today!
           </p>
           <div className="relative">
             <button
@@ -298,77 +445,86 @@ export default function NoteList() {
           >
             {"<"}
           </button>
-          {richNotesWithImage.length > 0 && (
-            <div className="relative mx-4 transform scale-110 transition-all duration-500">
-              <img
-                src={richNotesWithImage[currentNoteIndex].image}
-                alt={richNotesWithImage[currentNoteIndex].title}
-                className="w-72 h-48 object-cover rounded-lg shadow-lg"
-              />
-              <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-lg bg-gradient-to-t from-black/80 to-transparent px-4 py-3 rounded-b-lg truncate">
-                {richNotesWithImage[currentNoteIndex].title}
-              </h3>
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
             </div>
-          )}
-          {richNotesWithImage.length > 0 && (
-            <div className="relative transform scale-90 transition-all duration-500">
-              <img
-                src={
-                  richNotesWithImage[
-                    currentNoteIndex === 0
-                      ? richNotesWithImage.length - 1
-                      : currentNoteIndex - 1
-                  ].image
-                }
-                alt={
-                  richNotesWithImage[
-                    currentNoteIndex === 0
-                      ? richNotesWithImage.length - 1
-                      : currentNoteIndex - 1
-                  ].title
-                }
-                className="w-56 h-40 object-cover rounded-lg shadow-md opacity-70"
-              />
-              <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-base bg-gradient-to-t from-black/80 to-transparent px-3 py-2 rounded-b-lg truncate">
-                {
-                  richNotesWithImage[
-                    currentNoteIndex === 0
-                      ? richNotesWithImage.length - 1
-                      : currentNoteIndex - 1
-                  ].title
-                }
-              </h3>
-            </div>
-          )}
-          {richNotesWithImage.length > 0 && (
-            <div className="relative transform scale-90 transition-all duration-500">
-              <img
-                src={
-                  richNotesWithImage[
-                    currentNoteIndex === richNotesWithImage.length - 1
-                      ? 0
-                      : currentNoteIndex + 1
-                  ].image
-                }
-                alt={
-                  richNotesWithImage[
-                    currentNoteIndex === richNotesWithImage.length - 1
-                      ? 0
-                      : currentNoteIndex + 1
-                  ].title
-                }
-                className="w-56 h-40 object-cover rounded-lg shadow-md opacity-70"
-              />
-              <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-base bg-gradient-to-t from-black/80 to-transparent px-3 py-2 rounded-b-lg truncate">
-                {
-                  richNotesWithImage[
-                    currentNoteIndex === richNotesWithImage.length - 1
-                      ? 0
-                      : currentNoteIndex + 1
-                  ].title
-                }
-              </h3>
-            </div>
+          ) : richNotesWithImage.length > 0 ? (
+            <>
+              <div className="relative mx-4 transform scale-110 transition-all duration-500">
+                <img
+                  src={richNotesWithImage[currentNoteIndex].image}
+                  alt={richNotesWithImage[currentNoteIndex].title}
+                  className="w-72 h-48 object-cover rounded-lg shadow-lg"
+                />
+                <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-lg bg-gradient-to-t from-black/80 to-transparent px-4 py-3 rounded-b-lg truncate">
+                  {richNotesWithImage[currentNoteIndex].title}
+                </h3>
+              </div>
+              <div className="relative transform scale-90 transition-all duration-500">
+                <img
+                  src={
+                    richNotesWithImage[
+                      currentNoteIndex === 0
+                        ? richNotesWithImage.length - 1
+                        : currentNoteIndex - 1
+                    ].image
+                  }
+                  alt={
+                    richNotesWithImage[
+                      currentNoteIndex === 0
+                        ? richNotesWithImage.length - 1
+                        : currentNoteIndex - 1
+                    ].title
+                  }
+                  className="w-56 h-40 object-cover rounded-lg shadow-md opacity-70"
+                />
+                <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-base bg-gradient-to-t from-black/80 to-transparent px-3 py-2 rounded-b-lg truncate">
+                  {
+                    richNotesWithImage[
+                      currentNoteIndex === 0
+                        ? richNotesWithImage.length - 1
+                        : currentNoteIndex - 1
+                    ].title
+                  }
+                </h3>
+              </div>
+              <div className="relative transform scale-90 transition-all duration-500">
+                <img
+                  src={
+                    richNotesWithImage[
+                      currentNoteIndex === richNotesWithImage.length - 1
+                        ? 0
+                        : currentNoteIndex + 1
+                    ].image
+                  }
+                  alt={
+                    richNotesWithImage[
+                      currentNoteIndex === richNotesWithImage.length - 1
+                        ? 0
+                        : currentNoteIndex + 1
+                    ].title
+                  }
+                  className="w-56 h-40 object-cover rounded-lg shadow-md opacity-70"
+                />
+                <h3 className="absolute bottom-0 left-0 w-full text-white font-medium text-base bg-gradient-to-t from-black/80 to-transparent px-3 py-2 rounded-b-lg truncate">
+                  {
+                    richNotesWithImage[
+                      currentNoteIndex === richNotesWithImage.length - 1
+                        ? 0
+                        : currentNoteIndex + 1
+                    ].title
+                  }
+                </h3>
+              </div>
+            </>
+          ) : (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú phong phú với hình ảnh.
+            </p>
           )}
           <button
             onClick={handleNextNote}
@@ -377,9 +533,18 @@ export default function NoteList() {
             {">"}
           </button>
         </div>
-        <div className="absolute top-10 left-10 w-16 h-16 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
-        <div className="absolute bottom-10 left-20 w-12 h-12 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
-        <div className="absolute top-20 right-10 w-20 h-20 rounded-full opacity-50 z-0" style={{ background: "var(--accent-color)" }}></div>
+        <div
+          className="absolute top-10 left-10 w-16 h-16 rounded-full opacity-50 z-0"
+          style={{ background: "var(--accent-color)" }}
+        ></div>
+        <div
+          className="absolute bottom-10 left-20 w-12 h-12 rounded-full opacity-50 z-0"
+          style={{ background: "var(--accent-color)" }}
+        ></div>
+        <div
+          className="absolute top-20 right-10 w-20 h-20 rounded-full opacity-50 z-0"
+          style={{ background: "var(--accent-color)" }}
+        ></div>
       </div>
 
       {/* Khung 1: Ghi chú văn bản thuần */}
@@ -390,118 +555,145 @@ export default function NoteList() {
           border: "1px solid var(--border-color)",
         }}
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
           📄 Ghi chú văn bản thuần
         </h2>
-        <div className="grid grid-cols-1 gap-4">
-          {paginate(filteredTextNotes, currentTextPage)
-            .slice(0, showMoreText ? filteredTextNotes.length : 2)
-            .map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
-                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
-                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onContextMenu={(e) => handleContextMenu(e, note.id)}
-              >
-                <div className="relative">
-                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
-                    {note.title}
-                  </h3>
-                  <button
-                    onClick={() => togglePin(note.id)}
-                    className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-yellow-500"
-                        : "text-gray-400"
-                    } hover:text-yellow-600 transition-colors duration-200`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
-                  >
-                    📌
-                  </button>
-                </div>
-                {note.description && !hiddenNotes.has(note.id) && (
-                  <p style={{ color: "var(--text-color)" }}>{note.description}</p>
-                )}
-                {hiddenNotes.has(note.id) && (
-                  <p style={{ color: "var(--text-color)" }}>Ghi chú này đã bị ẩn</p>
-                )}
-                {!hiddenNotes.has(note.id) && (
-                  <button
-                    onClick={() => setViewDetailNoteId(note.id)}
-                    className="mt-2 block transition-colors duration-200"
-                    style={{ color: "var(--accent-color)" }}
-                  >
-                    Xem chi tiết →
-                  </button>
-                )}
-              </div>
-            ))}
-        </div>
-
-        <button
-          onClick={() => setShowMoreText(!showMoreText)}
-          className="mt-4 mx-auto block transition-colors duration-200"
-          style={{ color: "var(--accent-color)" }}
-        >
-          {showMoreText ? "Ẩn bớt" : "Xem thêm"}
-        </button>
-
-        {showMoreText && (
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={() => setCurrentTextPage(currentTextPage - 1)}
-              disabled={currentTextPage === 1}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
-            >
-              {"<"}
-            </button>
-            {Array.from({ length: totalTextPages }, (_, index) => (
-              <button
-                key={index + 1}
-                onClick={() => setCurrentTextPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
-                  currentTextPage === index + 1
-                    ? "shadow hover:shadow-lg"
-                    : "shadow-sm hover:shadow-md"
-                }`}
-                style={{
-                  background:
-                    currentTextPage === index + 1
-                      ? "var(--accent-color)"
-                      : "var(--background)",
-                  color:
-                    currentTextPage === index + 1
-                      ? "var(--background)"
-                      : "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                {index + 1}
-              </button>
-            ))}
-            <button
-              onClick={() => setCurrentTextPage(currentTextPage + 1)}
-              disabled={currentTextPage === totalTextPages}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
-            >
-              {">"}
-            </button>
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
           </div>
+        ) : filteredTextNotes.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Không có ghi chú văn bản thuần.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4">
+              {paginate(filteredTextNotes, currentTextPage)
+                .slice(0, showMoreText ? filteredTextNotes.length : 2)
+                .map((note) => (
+                  <div
+                    key={note.id}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {note.description && !hiddenNotes.has(note.id) && (
+                      <p style={{ color: "var(--text-color)" }}>
+                        {note.description}
+                      </p>
+                    )}
+                    {hiddenNotes.has(note.id) && (
+                      <p style={{ color: "var(--text-color)" }}>
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                    {!hiddenNotes.has(note.id) && (
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="mt-2 block transition-colors duration-200"
+                        style={{ color: "var(--accent-color)" }}
+                      >
+                        Xem chi tiết →
+                      </button>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            <button
+              onClick={() => setShowMoreText(!showMoreText)}
+              className="mt-4 mx-auto block transition-colors duration-200"
+              style={{ color: "var(--accent-color)" }}
+            >
+              {showMoreText ? "Ẩn bớt" : "Xem thêm"}
+            </button>
+
+            {showMoreText && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setCurrentTextPage(currentTextPage - 1)}
+                  disabled={currentTextPage === 1}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                     background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {"<"}
+                </button>
+                {Array.from({ length: totalTextPages }, (_, index) => (
+                  <button
+                    key={index + 1}
+                    onClick={() => setCurrentTextPage(index + 1)}
+                    className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                      currentTextPage === index + 1
+                        ? "shadow hover:shadow-lg"
+                        : "shadow-sm hover:shadow-md"
+                    }`}
+                    style={{
+                      background:
+                        currentTextPage === index + 1
+                          ? "var(--accent-color)"
+                          : "var(--background)",
+                      color:
+                        currentTextPage === index + 1
+                          ? "var(--background)"
+                          : "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentTextPage(currentTextPage + 1)}
+                  disabled={currentTextPage === totalTextPages}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {">"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -513,191 +705,245 @@ export default function NoteList() {
           border: "1px solid var(--border-color)",
         }}
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
           🖼️ Ghi chú văn bản phong phú
         </h2>
-
-        <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {paginate(filteredRichNotesWithoutImage, currentRichPage)
-              .slice(0, showMoreRich ? filteredRichNotesWithoutImage.length : 4)
-              .map((note) => (
-                <div
-                  key={note.id}
-                  className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
-                    pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
-                  } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
-                  style={{
-                    background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e, note.id)}
-                >
-                  <div className="relative">
-                    <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
-                      {note.title}
-                    </h3>
-                    <button
-                      onClick={() => togglePin(note.id)}
-                      className={`absolute top-0 right-0 text-lg ${
-                        pinnedNotes.has(note.id)
-                          ? "text-yellow-500"
-                          : "text-gray-400"
-                      } hover:text-yellow-600 transition-colors duration-200`}
-                      title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
-                    >
-                      📌
-                    </button>
-                  </div>
-                  {note.description && !hiddenNotes.has(note.id) && (
-                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                      {note.description}
-                    </p>
-                  )}
-                  {hiddenNotes.has(note.id) && (
-                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                      Ghi chú này đã bị ẩn
-                    </p>
-                  )}
-                  {!hiddenNotes.has(note.id) && (
-                    <button
-                      onClick={() => setViewDetailNoteId(note.id)}
-                      className="mt-2 block transition-colors duration-200"
-                      style={{ color: "var(--accent-color)" }}
-                    >
-                      Xem chi tiết →
-                    </button>
-                  )}
-                </div>
-              ))}
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
           </div>
-        </div>
-
-        <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {paginate(filteredRichNotesWithImage, currentRichPage)
-              .slice(0, showMoreRich ? filteredRichNotesWithImage.length : 4)
-              .map((note) => (
-                <div
-                  key={note.id}
-                  className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
-                    pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
-                  } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
-                  style={{
-                    background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e, note.id)}
-                >
-                  <div className="relative">
-                    {note.image && !hiddenNotes.has(note.id) && (
-                      <img
-                        src={note.image}
-                        alt={note.title}
-                        className="w-full h-32 object-cover rounded mb-2 transition-opacity duration-300 hover:opacity-90"
-                      />
-                    )}
-                    <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
-                      {note.title}
-                    </h3>
-                    <button
-                      onClick={() => togglePin(note.id)}
-                      className={`absolute top-0 right-0 text-lg ${
-                        pinnedNotes.has(note.id)
-                          ? "text-yellow-500"
-                          : "text-gray-400"
-                      } hover:text-yellow-600 transition-colors duration-200`}
-                      title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+        ) : filteredRichNotesWithoutImage.length === 0 &&
+          filteredRichNotesWithImage.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Không có ghi chú văn bản phong phú.
+          </p>
+        ) : (
+          <>
+            <div className="mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {paginate(filteredRichNotesWithoutImage, currentRichPage)
+                  .slice(
+                    0,
+                    showMoreRich ? filteredRichNotesWithoutImage.length : 4
+                  )
+                  .map((note) => (
+                    <div
+                      key={note.id}
+                      className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                        note.is_pinned ? "bg-yellow-100" : ""
+                      } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                      style={{
+                        background: note.is_pinned
+                          ? "#FEF3C7"
+                          : "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                      onContextMenu={(e) => handleContextMenu(e, note.id)}
                     >
-                      📌
-                    </button>
-                  </div>
-                  {note.description && !hiddenNotes.has(note.id) && (
-                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                      {note.description}
-                    </p>
-                  )}
-                  {hiddenNotes.has(note.id) && (
-                    <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                      Ghi chú này đã bị ẩn
-                    </p>
-                  )}
-                  {!hiddenNotes.has(note.id) && (
-                    <button
-                      onClick={() => setViewDetailNoteId(note.id)}
-                      className="mt-2 block transition-colors duration-200"
-                      style={{ color: "var(--accent-color)" }}
+                      <div className="relative">
+                        <h3
+                          className="font-semibold inline"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          {note.title}
+                        </h3>
+                        <button
+                          onClick={() => togglePin(note.id)}
+                          className={`absolute top-0 right-0 text-lg ${
+                            note.is_pinned
+                              ? "text-yellow-500"
+                              : "text-gray-400"
+                          } hover:text-yellow-600 transition-colors duration-200`}
+                          title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                        >
+                          📌
+                        </button>
+                      </div>
+                      {note.description && !hiddenNotes.has(note.id) && (
+                        <p
+                          className="min-h-[40px] line-clamp-2"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          {note.description}
+                        </p>
+                      )}
+                      {hiddenNotes.has(note.id) && (
+                        <p
+                          className="min-h-[40px] line-clamp-2"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          Ghi chú này đã bị ẩn
+                        </p>
+                      )}
+                      {!hiddenNotes.has(note.id) && (
+                        <button
+                          onClick={() => setViewDetailNoteId(note.id)}
+                          className="mt-2 block transition-colors duration-200"
+                          style={{ color: "var(--accent-color)" }}
+                        >
+                          Xem chi tiết →
+                        </button>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {paginate(filteredRichNotesWithImage, currentRichPage)
+                  .slice(
+                    0,
+                    showMoreRich ? filteredRichNotesWithImage.length : 4
+                  )
+                  .map((note) => (
+                    <div
+                      key={note.id}
+                      className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                        note.is_pinned ? "bg-yellow-100" : ""
+                      } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                      style={{
+                        background: note.is_pinned
+                          ? "#FEF3C7"
+                          : "var(--background)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                      onContextMenu={(e) => handleContextMenu(e, note.id)}
                     >
-                      Xem chi tiết →
-                    </button>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
+                      <div className="relative">
+                        {note.image && !hiddenNotes.has(note.id) && (
+                          <img
+                            src={note.image}
+                            alt={note.title}
+                            className="w-full h-32 object-cover rounded mb-2 transition-opacity duration-300 hover:opacity-90"
+                          />
+                        )}
+                        <h3
+                          className="font-semibold inline"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          {note.title}
+                        </h3>
+                        <button
+                          onClick={() => togglePin(note.id)}
+                          className={`absolute top-0 right-0 text-lg ${
+                            note.is_pinned
+                              ? "text-yellow-500"
+                              : "text-gray-400"
+                          } hover:text-yellow-600 transition-colors duration-200`}
+                          title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                        >
+                          📌
+                        </button>
+                      </div>
+                      {note.description && !hiddenNotes.has(note.id) && (
+                        <p
+                          className="min-h-[40px] line-clamp-2"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          {note.description}
+                        </p>
+                      )}
+                      {hiddenNotes.has(note.id) && (
+                        <p
+                          className="min-h-[40px] line-clamp-2"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          Ghi chú này đã bị ẩn
+                        </p>
+                      )}
+                      {!hiddenNotes.has(note.id) && (
+                        <button
+                          onClick={() => setViewDetailNoteId(note.id)}
+                          className="mt-2 block transition-colors duration-200"
+                          style={{ color: "var(--accent-color)" }}
+                        >
+                          Xem chi tiết →
+                        </button>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
 
-        <button
-          onClick={() => setShowMoreRich(!showMoreRich)}
-          className="mt-4 mx-auto block transition-colors duration-200"
-          style={{ color: "var(--accent-color)" }}
-        >
-          {showMoreRich ? "Ẩn bớt" : "Xem thêm"}
-        </button>
-
-        {showMoreRich && (
-          <div className="flex justify-center mt-4">
             <button
-              onClick={() => setCurrentRichPage(currentRichPage - 1)}
-              disabled={currentRichPage === 1}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
+              onClick={() => setShowMoreRich(!showMoreRich)}
+              className="mt-4 mx-auto block transition-colors duration-200"
+              style={{ color: "var(--accent-color)" }}
             >
-              {"<"}
+              {showMoreRich ? "Ẩn bớt" : "Xem thêm"}
             </button>
-            {Array.from(
-              { length: Math.max(totalRichWithoutImagePages, totalRichWithImagePages) },
-              (_, index) => (
+
+            {showMoreRich && (
+              <div className="flex justify-center mt-4">
                 <button
-                  key={index + 1}
-                  onClick={() => setCurrentRichPage(index + 1)}
-                  className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
-                    currentRichPage === index + 1
-                      ? "shadow hover:shadow-lg"
-                      : "shadow-sm hover:shadow-md"
-                  }`}
+                  onClick={() => setCurrentRichPage(currentRichPage - 1)}
+                  disabled={currentRichPage === 1}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
                   style={{
-                    background:
-                      currentRichPage === index + 1
-                        ? "var(--accent-color)"
-                        : "var(--background)",
-                    color:
-                      currentRichPage === index + 1
-                        ? "var(--background)"
-                        : "var(--text-color)",
+                    background: "var(--background)",
                     border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
                   }}
                 >
-                  {index + 1}
+                  {"<"}
                 </button>
-              )
+                {Array.from(
+                  {
+                    length: Math.max(
+                      totalRichWithoutImagePages,
+                      totalRichWithImagePages
+                    ),
+                  },
+                  (_, index) => (
+                    <button
+                      key={index + 1}
+                      onClick={() => setCurrentRichPage(index + 1)}
+                      className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                        currentRichPage === index + 1
+                          ? "shadow hover:shadow-lg"
+                          : "shadow-sm hover:shadow-md"
+                      }`}
+                      style={{
+                        background:
+                          currentRichPage === index + 1
+                            ? "var(--accent-color)"
+                            : "var(--background)",
+                        color:
+                          currentRichPage === index + 1
+                            ? "var(--background)"
+                            : "var(--text-color)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      {index + 1}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => setCurrentRichPage(currentRichPage + 1)}
+                  disabled={
+                    currentRichPage ===
+                    Math.max(totalRichWithoutImagePages, totalRichWithImagePages)
+                  }
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {">"}
+                </button>
+              </div>
             )}
-            <button
-              onClick={() => setCurrentRichPage(currentRichPage + 1)}
-              disabled={currentRichPage === Math.max(totalRichWithoutImagePages, totalRichWithImagePages)}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
-            >
-              {">"}
-            </button>
-          </div>
+          </>
         )}
       </div>
 
@@ -709,135 +955,172 @@ export default function NoteList() {
           border: "1px solid var(--border-color)",
         }}
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
           📝 Ghi chú danh sách công việc
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {paginate(filteredSketchNotes, currentSketchPage)
-            .slice(0, showMoreSketch ? filteredSketchNotes.length : 4)
-            .map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
-                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
-                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onContextMenu={(e) => handleContextMenu(e, note.id)}
-              >
-                <div className="relative">
-                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
-                    {note.title}
-                  </h3>
-                  <button
-                    onClick={() => togglePin(note.id)}
-                    className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-yellow-500"
-                        : "text-gray-400"
-                    } hover:text-yellow-600 transition-colors duration-200`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
-                  >
-                    📌
-                  </button>
-                </div>
-                {note.description && !hiddenNotes.has(note.id) && (
-                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                    {note.description}
-                  </p>
-                )}
-                {note.todos && note.todos.length > 0 && !hiddenNotes.has(note.id) && (
-                  <ul className="list-disc pl-5 min-h-[60px] line-clamp-3">
-                    {note.todos.slice(0, 3).map((todo, index) => (
-                      <li
-                        key={index}
-                        className={todo.completed ? "line-through text-gray-500" : ""}
-                        style={{ color: todo.completed ? "#6B7280" : "var(--text-color)" }}
-                      >
-                        {todo.text}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {hiddenNotes.has(note.id) && (
-                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                    Ghi chú này đã bị ẩn
-                  </p>
-                )}
-                {!hiddenNotes.has(note.id) && (
-                  <button
-                    onClick={() => setViewDetailNoteId(note.id)}
-                    className="mt-2 block transition-colors duration-200"
-                    style={{ color: "var(--accent-color)" }}
-                  >
-                    Xem chi tiết công việc →
-                  </button>
-                )}
-              </div>
-            ))}
-        </div>
-
-        <button
-          onClick={() => setShowMoreSketch(!showMoreSketch)}
-          className="mt-4 mx-auto block transition-colors duration-200"
-          style={{ color: "var(--accent-color)" }}
-        >
-          {showMoreSketch ? "Ẩn bớt" : "Xem thêm"}
-        </button>
-
-        {showMoreSketch && (
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={() => setCurrentSketchPage(currentSketchPage - 1)}
-              disabled={currentSketchPage === 1}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
-            >
-              {"<"}
-            </button>
-            {Array.from({ length: totalSketchPages }, (_, index) => (
-              <button
-                key={index + 1}
-                onClick={() => setCurrentSketchPage(index + 1)}
-                className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
-                  currentSketchPage === index + 1
-                    ? "shadow hover:shadow-lg"
-                    : "shadow-sm hover:shadow-md"
-                }`}
-                style={{
-                  background:
-                    currentSketchPage === index + 1
-                      ? "var(--accent-color)"
-                      : "var(--background)",
-                  color:
-                    currentSketchPage === index + 1
-                      ? "var(--background)"
-                      : "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                {index + 1}
-              </button>
-            ))}
-            <button
-              onClick={() => setCurrentSketchPage(currentSketchPage + 1)}
-              disabled={currentSketchPage === totalSketchPages}
-              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-color)",
-              }}
-            >
-              {">"}
-            </button>
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
           </div>
+        ) : filteredSketchNotes.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Không có ghi chú danh sách công việc.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginate(filteredSketchNotes, currentSketchPage)
+                .slice(0, showMoreSketch ? filteredSketchNotes.length : 4)
+                .map((note) => (
+                  <div
+                    key={note.id}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {note.description && !hiddenNotes.has(note.id) && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.description}
+                      </p>
+                    )}
+                    {note.todos &&
+                      note.todos.length > 0 &&
+                      !hiddenNotes.has(note.id) && (
+                        <ul className="list-disc pl-5 min-h-[60px] line-clamp-3">
+                          {note.todos.slice(0, 3).map((todo, index) => (
+                            <li
+                              key={index}
+                              className={
+                                todo.completed ? "line-through text-gray-500" : ""
+                              }
+                              style={{
+                                color: todo.completed
+                                  ? "#6B7280"
+                                  : "var(--text-color)",
+                              }}
+                            >
+                              {todo.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    {hiddenNotes.has(note.id) && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                    {!hiddenNotes.has(note.id) && (
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="mt-2 block transition-colors duration-200"
+                        style={{ color: "var(--accent-color)" }}
+                      >
+                        Xem chi tiết công việc →
+                      </button>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            <button
+              onClick={() => setShowMoreSketch(!showMoreSketch)}
+              className="mt-4 mx-auto block transition-colors duration-200"
+              style={{ color: "var(--accent-color)" }}
+            >
+              {showMoreSketch ? "Ẩn bớt" : "Xem thêm"}
+            </button>
+
+            {showMoreSketch && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setCurrentSketchPage(currentSketchPage - 1)}
+                  disabled={currentSketchPage === 1}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {"<"}
+                </button>
+                {Array.from({ length: totalSketchPages }, (_, index) => (
+                  <button
+                    key={index + 1}
+                    onClick={() => setCurrentSketchPage(index + 1)}
+                    className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                      currentSketchPage === index + 1
+                        ? "shadow hover:shadow-lg"
+                        : "shadow-sm hover:shadow-md"
+                    }`}
+                    style={{
+                      background:
+                        currentSketchPage === index + 1
+                          ? "var(--accent-color)"
+                          : "var(--background)",
+                      color:
+                        currentSketchPage === index + 1
+                          ? "var(--background)"
+                          : "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentSketchPage(currentSketchPage + 1)}
+                  disabled={currentSketchPage === totalSketchPages}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {">"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -849,104 +1132,578 @@ export default function NoteList() {
           border: "1px solid var(--border-color)",
         }}
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text-color)" }}>
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
           📊 Ghi chú bảng tính
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {paginate(filteredSpreadsheetNotes, currentSpreadsheetPage)
-            .slice(0, showMoreSpreadsheet ? filteredSpreadsheetNotes.length : 4)
-            .map((note) => (
-              <div
-                key={note.id}
-                className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
-                  pinnedNotes.has(note.id) ? "bg-yellow-100" : ""
-                } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
-                style={{
-                  background: pinnedNotes.has(note.id) ? "#FEF3C7" : "var(--background)",
-                  border: "1px solid var(--border-color)",
-                }}
-                onContextMenu={(e) => handleContextMenu(e, note.id)}
-              >
-                <div className="relative">
-                  <h3 className="font-semibold inline" style={{ color: "var(--text-color)" }}>
-                    {note.title}
-                  </h3>
-                  <button
-                    onClick={() => togglePin(note.id)}
-                    className={`absolute top-0 right-0 text-lg ${
-                      pinnedNotes.has(note.id)
-                        ? "text-yellow-500"
-                        : "text-gray-400"
-                    } hover:text-yellow-600 transition-colors duration-200`}
-                    title={pinnedNotes.has(note.id) ? "Bỏ ghim" : "Ghim"}
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+        ) : filteredSpreadsheetNotes.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Không có ghi chú bảng tính.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginate(filteredSpreadsheetNotes, currentSpreadsheetPage)
+                .slice(
+                  0,
+                  showMoreSpreadsheet ? filteredSpreadsheetNotes.length : 4
+                )
+                .map((note) => (
+                  <div
+                    key={note.id}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
                   >
-                    📌
-                  </button>
-                </div>
-                {note.description && !hiddenNotes.has(note.id) && (
-                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                    {note.description}
-                  </p>
-                )}
-                {note.spreadsheet_data && note.spreadsheet_data.length > 0 && !hiddenNotes.has(note.id) && (
-                  <div className="overflow-x-auto min-h-[80px]">
-                    <table
-                      className="border-collapse text-sm"
-                      style={{ border: "1px solid var(--border-color)" }}
-                    >
-                      <tbody>
-                        {note.spreadsheet_data.slice(0, 3).map((row, rowIndex) => (
-                          <tr key={rowIndex}>
-                            {row.slice(0, 3).map((cell, colIndex) => (
-                              <td
-                                key={colIndex}
-                                className="p-1"
-                                style={{ border: "1px solid var(--border-color)" }}
-                              >
-                                {cell}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <small style={{ color: "var(--text-color)" }}>
-                      (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
-                      {note.spreadsheet_data[0]?.length || 0})
-                    </small>
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {note.description && !hiddenNotes.has(note.id) && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.description}
+                      </p>
+                    )}
+                    {note.spreadsheet_data &&
+                      note.spreadsheet_data.length > 0 &&
+                      !hiddenNotes.has(note.id) && (
+                        <div className="overflow-x-auto min-h-[80px]">
+                          <table
+                            className="border-collapse text-sm"
+                            style={{ border: "1px solid var(--border-color)" }}
+                          >
+                            <tbody>
+                              {note.spreadsheet_data
+                                .slice(0, 3)
+                                .map((row, rowIndex) => (
+                                  <tr key={rowIndex}>
+                                    {row.slice(0, 3).map((cell, colIndex) => (
+                                      <td
+                                        key={colIndex}
+                                        className="p-1"
+                                        style={{
+                                          border:
+                                            "1px solid var(--border-color)",
+                                        }}
+                                      >
+                                        {cell}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                          <small style={{ color: "var(--text-color)" }}>
+                            (Hiển thị 3x3, tổng {note.spreadsheet_data.length}x
+                            {note.spreadsheet_data[0]?.length || 0})
+                          </small>
+                        </div>
+                      )}
+                    {hiddenNotes.has(note.id) && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                    {!hiddenNotes.has(note.id) && (
+                      <button
+                        onClick={() => setViewDetailNoteId(note.id)}
+                        className="mt-2 block transition-colors duration-200"
+                        style={{ color: "var(--accent-color)" }}
+                      >
+                        Đi đến bảng →
+                      </button>
+                    )}
                   </div>
-                )}
-                {hiddenNotes.has(note.id) && (
-                  <p className="min-h-[40px] line-clamp-2" style={{ color: "var(--text-color)" }}>
-                    Ghi chú này đã bị ẩn
-                  </p>
-                )}
-                {!hiddenNotes.has(note.id) && (
+                ))}
+            </div>
+
+            <button
+              onClick={() => setShowMoreSpreadsheet(!showMoreSpreadsheet)}
+              className="mt-4 mx-auto block transition-colors duration-200"
+              style={{ color: "var(--accent-color)" }}
+            >
+              {showMoreSpreadsheet ? "Ẩn bớt" : "Xem thêm"}
+            </button>
+
+            {showMoreSpreadsheet && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() =>
+                    setCurrentSpreadsheetPage(currentSpreadsheetPage - 1)
+                  }
+                  disabled={currentSpreadsheetPage === 1}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {"<"}
+                </button>
+                {Array.from({ length: totalSpreadsheetPages }, (_, index) => (
                   <button
-                    onClick={() => setViewDetailNoteId(note.id)}
-                    className="mt-2 block transition-colors duration-200"
-                    style={{ color: "var(--accent-color)" }}
+                    key={index + 1}
+                    onClick={() => setCurrentSpreadsheetPage(index + 1)}
+                    className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                      currentSpreadsheetPage === index + 1
+                        ? "shadow hover:shadow-lg"
+                        : "shadow-sm hover:shadow-md"
+                    }`}
+                    style={{
+                      background:
+                        currentSpreadsheetPage === index + 1
+                          ? "var(--accent-color)"
+                          : "var(--background)",
+                      color:
+                        currentSpreadsheetPage === index + 1
+                          ? "var(--background)"
+                          : "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                    }}
                   >
-                    Đi đến bảng →
+                    {index + 1}
                   </button>
-                )}
+                ))}
+                <button
+                  onClick={() =>
+                    setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)
+                  }
+                  disabled={currentSpreadsheetPage === totalSpreadsheetPages}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {">"}
+                </button>
               </div>
-            ))}
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Khung 5: Ghi chú Markdown/Code */}
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
+          💻 Ghi chú Markdown/Code
+        </h2>
+        {isLoading ? (
+          <div className="pro-spinner">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+        ) : filteredMarkdownNotes.length === 0 ? (
+          <p style={{ color: "var(--text-color)" }}>
+            Không có ghi chú Markdown/Code.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginate(filteredMarkdownNotes, currentMarkdownPage)
+                .slice(0, showMoreMarkdown ? filteredMarkdownNotes.length : 4)
+                .map((note) => (
+                  <div
+                    key={note.id}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {note.description && !hiddenNotes.has(note.id) && (
+                      <div className="markdown-preview min-h-[60px] line-clamp-3">
+                        <ReactMarkdown
+                          components={{
+                            code({ node, inline, className, children, ...props }) {
+                              const match = /language-(\w+)/.exec(
+                                className || ""
+                              );
+                              return !inline && match ? (
+                                <SyntaxHighlighter
+                                  style={vscDarkPlus}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  {...props}
+                                >
+                                  {String(children).replace(/\n$/, "")}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              );
+                            },
+                          }}
+                        >
+                          {note.description}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                    {hiddenNotes.has(note.id) && (
+                      <p
+                        className="min-h-[40px] line-clamp-2"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            <button
+              onClick={() => setShowMoreMarkdown(!showMoreMarkdown)}
+              className="mt-4 mx-auto block transition-colors duration-200"
+              style={{ color: "var(--accent-color)" }}
+            >
+              {showMoreMarkdown ? "Ẩn bớt" : "Xem thêm"}
+            </button>
+
+            {showMoreMarkdown && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setCurrentMarkdownPage(currentMarkdownPage - 1)}
+                  disabled={currentMarkdownPage === 1}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {"<"}
+                </button>
+                {Array.from({ length: totalMarkdownPages }, (_, index) => (
+                  <button
+                    key={index + 1}
+                    onClick={() => setCurrentMarkdownPage(index + 1)}
+                    className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
+                      currentMarkdownPage === index + 1
+                        ? "shadow hover:shadow-lg"
+                        : "shadow-sm hover:shadow-md"
+                    }`}
+                    style={{
+                      background:
+                        currentMarkdownPage === index + 1
+                          ? "var(--accent-color)"
+                          : "var(--background)",
+                      color:
+                        currentMarkdownPage === index + 1
+                          ? "var(--background)"
+                          : "var(--text-color)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentMarkdownPage(currentMarkdownPage + 1)}
+                  disabled={currentMarkdownPage === totalMarkdownPages}
+                  className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
+                  style={{
+                    background: "var(--background)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {">"}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Khung 6: Ghi chú đính kèm (Voice) */}
+      <div
+        className="rounded-lg p-4 transition duration-300 ease-in-out"
+        style={{
+          background: "var(--background)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-color)" }}
+        >
+          🎙 Ghi chú đính kèm
+        </h2>
+
+        {/* Audio Notes Section */}
+        <div className="mb-6">
+          <h3
+            className="text-lg font-semibold mb-2"
+            style={{ color: "var(--text-color)" }}
+          ></h3>
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : filteredVoiceNotes.filter((note) => note.audio_url).length ===
+            0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú âm thanh.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginate(
+                filteredVoiceNotes.filter((note) => note.audio_url),
+                currentVoicePage
+              )
+                .slice(0, showMoreVoice ? filteredVoiceNotes.length : 4)
+                .map((note) => (
+                  <div
+                    key={`audio-${note.id}`}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out h-[300px] flex flex-col justify-between ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {!hiddenNotes.has(note.id) ? (
+                      <div className="flex-1 overflow-y-auto">
+                        {note.description && (
+                          <p
+                            className="min-h-[40px] line-clamp-2"
+                            style={{ color: "var(--text-color)" }}
+                          >
+                            {note.description}
+                          </p>
+                        )}
+                        <div className="mt-2">
+                          <p style={{ color: "var(--text-color)" }}>
+                            Âm thanh: {note.audio_file_name || "Bản ghi âm"}
+                          </p>
+                          <audio
+                            controls
+                            src={note.audio_url}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        className="min-h-[40px] line-clamp-2 flex-1"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {/* Video Notes Section */}
+        <div className="mb-6">
+          <h3
+            className="text-lg font-semibold mb-2"
+            style={{ color: "var(--text-color)" }}
+          ></h3>
+          {isLoading ? (
+            <div className="pro-spinner">
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+          ) : filteredVoiceNotes.filter((note) => note.video_url).length ===
+            0 ? (
+            <p style={{ color: "var(--text-color)" }}>
+              Không có ghi chú video.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paginate(
+                filteredVoiceNotes.filter((note) => note.video_url),
+                currentVoicePage
+              )
+                .slice(0, showMoreVoice ? filteredVoiceNotes.length : 4)
+                .map((note) => (
+                  <div
+                    key={`video-${note.id}`}
+                    className={`p-4 shadow-md rounded-lg transition-all duration-300 ease-in-out h-[300px] flex flex-col justify-between ${
+                      note.is_pinned ? "bg-yellow-100" : ""
+                    } ${hiddenNotes.has(note.id) ? "opacity-50" : ""}`}
+                    style={{
+                      background: note.is_pinned
+                        ? "#FEF3C7"
+                        : "var(--background)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    <div className="relative">
+                      <h3
+                        className="font-semibold inline"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        {note.title}
+                      </h3>
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={`absolute top-0 right-0 text-lg ${
+                          note.is_pinned
+                            ? "text-yellow-500"
+                            : "text-gray-400"
+                        } hover:text-yellow-600 transition-colors duration-200`}
+                        title={note.is_pinned ? "Bỏ ghim" : "Ghim"}
+                      >
+                        📌
+                      </button>
+                    </div>
+                    {!hiddenNotes.has(note.id) ? (
+                      <div className="flex-1 overflow-y-auto">
+                        {note.description && (
+                          <p
+                            className="min-h-[40px] line-clamp-2"
+                            style={{ color: "var(--text-color)" }}
+                          >
+                            {note.description}
+                          </p>
+                        )}
+                        <div className="mt-2">
+                          <p style={{ color: "var(--text-color)" }}>
+                            Video: {note.video_file_name || "Video đính kèm"}
+                          </p>
+                          <video
+                            controls
+                            src={note.video_url}
+                            className="w-full h-[150px] object-cover rounded-md"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        className="min-h-[40px] line-clamp-2 flex-1"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        Ghi chú này đã bị ẩn
+                      </p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
         <button
-          onClick={() => setShowMoreSpreadsheet(!showMoreSpreadsheet)}
+          onClick={() => setShowMoreVoice(!showMoreVoice)}
           className="mt-4 mx-auto block transition-colors duration-200"
           style={{ color: "var(--accent-color)" }}
         >
-          {showMoreSpreadsheet ? "Ẩn bớt" : "Xem thêm"}
+          {showMoreVoice ? "Ẩn bớt" : "Xem thêm"}
         </button>
 
-        {showMoreSpreadsheet && (
+        {showMoreVoice && (
           <div className="flex justify-center mt-4">
             <button
-              onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage - 1)}
-              disabled={currentSpreadsheetPage === 1}
+              onClick={() => setCurrentVoicePage(currentVoicePage - 1)}
+              disabled={currentVoicePage === 1}
               className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
               style={{
                 background: "var(--background)",
@@ -956,22 +1713,22 @@ export default function NoteList() {
             >
               {"<"}
             </button>
-            {Array.from({ length: totalSpreadsheetPages }, (_, index) => (
+            {Array.from({ length: totalVoicePages }, (_, index) => (
               <button
                 key={index + 1}
-                onClick={() => setCurrentSpreadsheetPage(index + 1)}
+                onClick={() => setCurrentVoicePage(index + 1)}
                 className={`mx-1 px-4 py-2 rounded-full transition-all duration-200 ${
-                  currentSpreadsheetPage === index + 1
+                  currentVoicePage === index + 1
                     ? "shadow hover:shadow-lg"
                     : "shadow-sm hover:shadow-md"
                 }`}
                 style={{
                   background:
-                    currentSpreadsheetPage === index + 1
+                    currentVoicePage === index + 1
                       ? "var(--accent-color)"
                       : "var(--background)",
                   color:
-                    currentSpreadsheetPage === index + 1
+                    currentVoicePage === index + 1
                       ? "var(--background)"
                       : "var(--text-color)",
                   border: "1px solid var(--border-color)",
@@ -981,9 +1738,9 @@ export default function NoteList() {
               </button>
             ))}
             <button
-              onClick={() => setCurrentSpreadsheetPage(currentSpreadsheetPage + 1)}
-              disabled={currentSpreadsheetPage === totalSpreadsheetPages}
-              className="rounded-full px-4 px-4 py-2 mx-1 transition-colors duration-200"
+              onClick={() => setCurrentVoicePage(currentVoicePage + 1)}
+              disabled={currentVoicePage === totalVoicePages}
+              className="rounded-full px-4 py-2 mx-1 transition-colors duration-200"
               style={{
                 background: "var(--background)",
                 border: "1px solid var(--border-color)",
@@ -1020,9 +1777,15 @@ export default function NoteList() {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div
             className="p-6 rounded-lg shadow-lg"
-            style={{ background: "var(--background)", border: "1px solid var(--border-color)" }}
+            style={{
+              background: "var(--background)",
+              border: "1px solid var(--border-color)",
+            }}
           >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-color)" }}>
+            <h3
+              className="text-lg font-semibold mb-4"
+              style={{ color: "var(--text-color)" }}
+            >
               Nhập mã PIN để xem ghi chú
             </h3>
             <input
@@ -1069,7 +1832,10 @@ export default function NoteList() {
       )}
 
       {viewDetailNoteId && (
-        <ChiTiet noteId={viewDetailNoteId} onClose={() => setViewDetailNoteId(null)} />
+        <ChiTiet
+          noteId={viewDetailNoteId}
+          onClose={() => setViewDetailNoteId(null)}
+        />
       )}
       <ThemeSettings />
     </div>

@@ -41,116 +41,165 @@ export default function NoteReport() {
   useEffect(() => {
     const fetchNotesData = async () => {
       setLoading(true);
-      const { data, error } = await supabase2.from("notess").select("*");
-      if (error) {
-        console.error("Error fetching notes:", error);
-      } else {
-        setNotesData(data);
-        setFilteredNotes(data);
-        setTotalNotes(data.length);
-
-        const categoryMap = { 1: "personal", 2: "study", 3: "entertainment", 4: "upload" };
-        const categoryCounts = data.reduce((acc, note) => {
-          const category = categoryMap[note.category_id] || "unknown";
-          acc[category] = (acc[category] || 0) + 1;
-          return acc;
-        }, {});
-        setCategoryChartData({
-          labels: Object.keys(categoryCounts),
-          datasets: [
-            {
-              data: Object.values(categoryCounts),
-              backgroundColor: [
-                "rgba(107, 70, 193, 0.6)",
-                "rgba(163, 191, 250, 0.6)",
-                "rgba(212, 196, 251, 0.6)",
-                "rgba(107, 70, 193, 0.4)",
-              ],
-              borderWidth: 1,
-            },
-          ],
-        });
-
-        const noteTypeMap = {
-          plain: "Ghi chú văn bản thuần",
-          rich: "Ghi chú văn bản phong phú",
-          todo: "Ghi chú danh sách công việc",
-          spreadsheet: "Ghi chú bảng tính",
-        };
-        const noteTypeCounts = data.reduce((acc, note) => {
-          const noteType = noteTypeMap[note.note_type] || "Không xác định";
-          acc[noteType] = (acc[noteType] || 0) + 1;
-          return acc;
-        }, {});
-        setNoteTypeChartData({
-          labels: Object.keys(noteTypeCounts),
-          datasets: [
-            {
-              data: Object.values(noteTypeCounts),
-              backgroundColor: [
-                "rgba(107, 70, 193, 0.6)",
-                "rgba(163, 191, 250, 0.6)",
-                "rgba(212, 196, 251, 0.6)",
-                "rgba(107, 70, 193, 0.4)",
-              ],
-              borderWidth: 1,
-            },
-          ],
-        });
-
-        const today = new Date();
-        const weeks = [];
-        const weekData = [];
-        for (let i = 3; i >= 0; i--) {
-          const startOfWeek = new Date(today);
-          startOfWeek.setDate(today.getDate() - today.getDay() - i * 7);
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-          const count = data.filter((note) => {
-            const noteDate = new Date(note.created_at);
-            return noteDate >= startOfWeek && noteDate <= endOfWeek;
-          }).length;
-
-          weeks.push({
-            label: `Tuần ${4 - i}`,
-            start: startOfWeek.toLocaleDateString(),
-            end: endOfWeek.toLocaleDateString(),
-            count,
-          });
-          weekData.push(count);
+  
+      // Lấy thông tin người dùng từ localStorage
+      const userData = localStorage.getItem("user");
+      let user_id = null;
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          user_id = parsedUser.id; // Lấy user_id (UUID) từ localStorage
+          if (!user_id) {
+            console.error("Không tìm thấy user_id trong dữ liệu người dùng.");
+            alert("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Lỗi khi parse dữ liệu user từ localStorage:", err);
+          alert("Lỗi khi lấy thông tin người dùng. Vui lòng đăng nhập lại.");
+          setLoading(false);
+          return;
         }
-
-        setNoteChartData({
-          labels: weeks.map((w) => w.label),
-          datasets: [
-            {
-              label: "Số lượng ghi chú",
-              data: weekData,
-              backgroundColor: [
-                "rgba(107, 70, 193, 0.6)",
-                "rgba(163, 191, 250, 0.6)",
-                "rgba(212, 196, 251, 0.6)",
-                "rgba(107, 70, 193, 0.4)",
-              ],
-              borderColor: "rgba(107, 70, 193, 1)",
-              borderWidth: 1,
-            },
-          ],
-          tooltips: weeks.map((w) => `${w.start} - ${w.end}`),
-        });
-
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        const recentNotes = data
-          .filter((note) => new Date(note.created_at) >= weekAgo)
-          .map((note) => ({ name: note.title, type: "note" }));
-        const newTags = recentNotes.length > 0 ? recentNotes : [{ name: "Không có ghi chú trong tuần", type: "note" }];
-        setTags(newTags);
+      } else {
+        console.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập.");
+        alert("Vui lòng đăng nhập để xem ghi chú của bạn.");
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+  
+      try {
+        // Lọc dữ liệu ghi chú theo user_id
+        const { data, error } = await supabase2
+          .from("notess")
+          .select("*")
+          .eq("user_id", user_id); // Chỉ lấy ghi chú của người dùng hiện tại
+  
+        if (error) {
+          console.error("Lỗi khi lấy ghi chú:", error);
+          alert("Không thể tải ghi chú. Vui lòng thử lại sau.");
+          setLoading(false);
+          return;
+        }
+  
+        if (!data || data.length === 0) {
+          console.warn("Không tìm thấy ghi chú nào cho người dùng này.");
+          setNotesData([]);
+          setFilteredNotes([]);
+          setTotalNotes(0);
+          setTags([{ name: "Không có ghi chú nào", type: "note" }]);
+        } else {
+          setNotesData(data);
+          setFilteredNotes(data);
+          setTotalNotes(data.length); // Tổng số ghi chú chỉ tính của người dùng hiện tại
+  
+          const categoryMap = { 1: "personal", 2: "study", 3: "entertainment", 4: "upload" };
+          const categoryCounts = data.reduce((acc, note) => {
+            const category = categoryMap[note.category_id] || "unknown";
+            acc[category] = (acc[category] || 0) + 1;
+            return acc;
+          }, {});
+          setCategoryChartData({
+            labels: Object.keys(categoryCounts),
+            datasets: [
+              {
+                data: Object.values(categoryCounts),
+                backgroundColor: [
+                  "rgba(107, 70, 193, 0.6)",
+                  "rgba(163, 191, 250, 0.6)",
+                  "rgba(212, 196, 251, 0.6)",
+                  "rgba(107, 70, 193, 0.4)",
+                ],
+                borderWidth: 1,
+              },
+            ],
+          });
+  
+          const noteTypeMap = {
+            plain: "Ghi chú văn bản thuần",
+            rich: "Ghi chú văn bản phong phú",
+            todo: "Ghi chú danh sách công việc",
+            spreadsheet: "Ghi chú bảng tính",
+          };
+          const noteTypeCounts = data.reduce((acc, note) => {
+            const noteType = noteTypeMap[note.note_type] || "Không xác định";
+            acc[noteType] = (acc[noteType] || 0) + 1;
+            return acc;
+          }, {});
+          setNoteTypeChartData({
+            labels: Object.keys(noteTypeCounts),
+            datasets: [
+              {
+                data: Object.values(noteTypeCounts),
+                backgroundColor: [
+                  "rgba(107, 70, 193, 0.6)",
+                  "rgba(163, 191, 250, 0.6)",
+                  "rgba(212, 196, 251, 0.6)",
+                  "rgba(107, 70, 193, 0.4)",
+                ],
+                borderWidth: 1,
+              },
+            ],
+          });
+  
+          const today = new Date();
+          const weeks = [];
+          const weekData = [];
+          for (let i = 3; i >= 0; i--) {
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay() - i * 7);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+  
+            const count = data.filter((note) => {
+              const noteDate = new Date(note.created_at);
+              return noteDate >= startOfWeek && noteDate <= endOfWeek;
+            }).length;
+  
+            weeks.push({
+              label: `Tuần ${4 - i}`,
+              start: startOfWeek.toLocaleDateString(),
+              end: endOfWeek.toLocaleDateString(),
+              count,
+            });
+            weekData.push(count);
+          }
+  
+          setNoteChartData({
+            labels: weeks.map((w) => w.label),
+            datasets: [
+              {
+                label: "Số lượng ghi chú",
+                data: weekData,
+                backgroundColor: [
+                  "rgba(107, 70, 193, 0.6)",
+                  "rgba(163, 191, 250, 0.6)",
+                  "rgba(212, 196, 251, 0.6)",
+                  "rgba(107, 70, 193, 0.4)",
+                ],
+                borderColor: "rgba(107, 70, 193, 1)",
+                borderWidth: 1,
+              },
+            ],
+            tooltips: weeks.map((w) => `${w.start} - ${w.end}`),
+          });
+  
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          const recentNotes = data
+            .filter((note) => new Date(note.created_at) >= weekAgo)
+            .map((note) => ({ name: note.title, type: "note" }));
+          const newTags = recentNotes.length > 0 ? recentNotes : [{ name: "Không có ghi chú trong tuần", type: "note" }];
+          setTags(newTags);
+        }
+      } catch (err) {
+        console.error("Lỗi khi lấy ghi chú:", err);
+        alert("Có lỗi xảy ra khi tải ghi chú. Vui lòng thử lại sau.");
+      } finally {
+        setLoading(false);
+      }
     };
-
+  
     fetchNotesData();
   }, []);
 
@@ -621,7 +670,15 @@ export default function NoteReport() {
   return (
     <div className="mt-[75px] p-5 mb-[-7px] min-h-screen p-6">
       <div className="container mx-auto w-full p-6">
-        <h1 className="text-4xl font-extrabold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse">
+      <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap"
+          rel="stylesheet"
+        />
+
+        <h1
+          className="text-4xl font-extrabold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-[#6B46C1] to-[#A3BFFA] animate-pulse"
+          style={{ fontFamily: "'Inter', sans-serif" }}
+        >
           NoteStats - 📝 Thống kê ghi chú
         </h1>
 

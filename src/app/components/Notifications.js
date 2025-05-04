@@ -55,7 +55,8 @@ const Notifications = ({ sentEmails, todos, showNotifications, toggleNotificatio
     <div className="fixed top-28 right-5 z-50">
       <button
         onClick={toggleNotifications}
-        className="relative bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 border border-purple-100"
+        className="relative p-3 rounded-full shadow-lg hover:bg-gradient-to-r hover:from-purple-100 hover:to-blue-100 hover:border-purple-300 transition-all duration-300 border border-purple-100"
+        style={{ backgroundColor: 'var(--background, #FFFFFF)' }}
       >
         <MailOutlined className="text-2xl text-blue-500" />
         {allNotifications.length > 0 && (
@@ -66,7 +67,7 @@ const Notifications = ({ sentEmails, todos, showNotifications, toggleNotificatio
       </button>
 
       {showNotifications && (
-        <div className="absolute right-0 mt-3 w-80 bg-white border-2 border-purple-100 rounded-xl shadow-2xl p-4 max-h-96 overflow-y-auto">
+        <div className="absolute right-0 mt-3 w-80 border-2 border-purple-100 rounded-xl shadow-2xl p-4 max-h-96 overflow-y-auto" style={{ backgroundColor: 'var(--background, #FFFFFF)' }}>
           <h3 className="text-lg font-bold text-gray-800 mb-3">Thông báo</h3>
           {allNotifications.length === 0 ? (
             <p className="text-gray-500">Chưa có thông báo nào.</p>

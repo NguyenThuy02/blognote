@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase2 } from "../../lib/supabase";
 import Image from "next/image";
 import { FaArrowLeft, FaBell, FaBellSlash } from "react-icons/fa";
-import { motion, AnimatePresence } from "framer-motion"; // Import framer-motion
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function ChiTiet({ noteId, onClose }) {
   const [note, setNote] = useState(null);
@@ -149,7 +149,7 @@ export default function ChiTiet({ noteId, onClose }) {
   if (loading) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
+        className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-md z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -165,10 +165,10 @@ export default function ChiTiet({ noteId, onClose }) {
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           >
-            <span className="text-2xl">🐾</span> 
+            <span className="text-2xl">🐾</span>
           </motion.div>
           <p className="text-gray-700 text-lg font-medium mt-4 animate-bounce">
-            Đang tải nè... 
+            Đang tải nè...
           </p>
         </motion.div>
       </motion.div>
@@ -178,7 +178,7 @@ export default function ChiTiet({ noteId, onClose }) {
   if (error) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
+        className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-md z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -205,7 +205,7 @@ export default function ChiTiet({ noteId, onClose }) {
   if (!note) {
     return (
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
+        className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-md z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -234,7 +234,7 @@ export default function ChiTiet({ noteId, onClose }) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-transparent z-50"
+        className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-md z-50"
         initial="hidden"
         animate="visible"
         exit="exit"
@@ -257,17 +257,17 @@ export default function ChiTiet({ noteId, onClose }) {
           {/* Tiêu đề ghi chú */}
           <motion.h1
             className="text-4xl font-bold text-center mb-6 text-white drop-shadow-lg relative"
-            style={{ 
+            style={{
               fontFamily: "Lora, serif",
-              backgroundImage: "linear-gradient(135deg, #d8b9ff, #b9d8ff)", // Thay background bằng backgroundImage
+              backgroundImage: "linear-gradient(135deg, #d8b9ff, #b9d8ff)",
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               color: "transparent",
-              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)"
+              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
             }}
             whileHover={{
               rotate: [-5, 5, -5, 0],
-              transition: { rotate: { duration: 0.5, ease: "easeInOut" } }
+              transition: { rotate: { duration: 0.5, ease: "easeInOut" } },
             }}
           >
             {[...Array(4)].map((_, i) => (
@@ -275,20 +275,20 @@ export default function ChiTiet({ noteId, onClose }) {
                 key={i}
                 className="absolute text-pink-400 text-2xl pointer-events-none"
                 style={{
-                  left: `${20 + i * 20}%`, // Đặt vị trí ngẫu nhiên
-                  bottom: "0"
+                  left: `${20 + i * 20}%`,
+                  bottom: "0",
                 }}
                 initial={{ opacity: 0, y: 0 }}
                 animate={{
-                  opacity: [0, 1, 0], // Hiện lên rồi mờ đi
-                  y: -50, // Bay lên
-                  x: Math.random() * 20 - 10, // Lệch trái/phải ngẫu nhiên
+                  opacity: [0, 1, 0],
+                  y: -50,
+                  x: Math.random() * 20 - 10,
                   transition: {
-                    delay: i * 0.3, // Trái tim xuất hiện lần lượt (cách nhau 0.3 giây ban đầu)
-                    duration: 1.5, // Thời gian hiệu ứng kéo dài 1.5 giây
-                    repeat: Infinity, // Lặp vô hạn
-                    repeatDelay: 9 // Sau 9 giây sẽ lặp lại
-                  }
+                    delay: i * 0.3,
+                    duration: 1.5,
+                    repeat: Infinity,
+                    repeatDelay: 9,
+                  },
                 }}
               >
                 🩵
@@ -323,8 +323,8 @@ export default function ChiTiet({ noteId, onClose }) {
                   <Image
                     src={note.image_url}
                     alt={note.title}
-                    width={600}
-                    height={400}
+                    width={500}
+                    height={333}
                     className="object-contain rounded-lg shadow-sm"
                   />
                 </motion.div>
@@ -371,8 +371,8 @@ export default function ChiTiet({ noteId, onClose }) {
                   <Image
                     src={note.image_url}
                     alt={note.title}
-                    width={600}
-                    height={400}
+                    width={500}
+                    height={333}
                     className="object-contain rounded-lg shadow-sm"
                   />
                 </motion.div>
