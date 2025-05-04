@@ -422,7 +422,7 @@ export default function BloglistPurposePage() {
         launchFirework(canvas);
         setTimeout(() => {
           setShowFirework(false);
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }, 3000);
       }
@@ -436,7 +436,7 @@ export default function BloglistPurposePage() {
         launchFailure(canvas);
         setTimeout(() => {
           setShowFirework(false);
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }, 3000);
       }
@@ -752,12 +752,36 @@ export default function BloglistPurposePage() {
       selectedOptions.length === safeCorrectOptions.length &&
       selectedOptions.every((opt) => safeCorrectOptions.includes(opt));
 
+    const canvas = canvasRef.current;
+
     setQuestionFeedback((prev) => ({
       ...prev,
       [`${purposeId}-${questionIndex}`]: isCorrect
         ? "Chúc mừng! Đáp án đúng!"
         : "Sai rồi, hãy thử lại!",
     }));
+
+    if (isCorrect) {
+      if (canvas) {
+        setShowFirework(true);
+        launchFirework(canvas);
+        setTimeout(() => {
+          setShowFirework(false);
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }, 3000);
+      }
+    } else {
+      if (canvas) {
+        setShowFirework(true);
+        launchFailure(canvas);
+        setTimeout(() => {
+          setShowFirework(false);
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }, 3000);
+      }
+    }
 
     setQuestionSubmitted((prev) => ({
       ...prev,
@@ -1442,7 +1466,7 @@ export default function BloglistPurposePage() {
                         : {option}
                       </button>
                       {pollResults[purpose.id]?.optionResults?.[i] && (
-                        <div className="mt-2">
+                      <div className="mt-2">
                           <div className="w-full bg-gray-100 rounded-full h-2 sm:h-3 overflow-hidden">
                             <div
                               className="bg-indigo-500 h-2 sm:h-3 rounded-full transition-all duration-500"
@@ -1491,7 +1515,7 @@ export default function BloglistPurposePage() {
                       className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
                       fill="none"
                       stroke="currentColor"
-                      viewBox="0 24"
+                      viewBox="0 0 24 24"
                     >
                       <path
                         strokeLinecap="round"
@@ -1553,7 +1577,8 @@ export default function BloglistPurposePage() {
                         </div>
                       </div>
                     )}
-                  {purpose.story_doc && renderFilePreview(purpose.story_doc, purpose.id)}
+                  {purpose.story_doc &&
+                    renderFilePreview(purpose.story_doc, purpose.id)}
                   {purpose.description && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-3 sm:mt-4">
                       <span className="font-medium text-gray-800">Mô tả:</span>{" "}
@@ -1623,7 +1648,8 @@ export default function BloglistPurposePage() {
                         </div>
                       </div>
                     )}
-                  {purpose.story_doc && renderFilePreview(purpose.story_doc, purpose.id)}
+                  {purpose.story_doc &&
+                    renderFilePreview(purpose.story_doc, purpose.id)}
                   {purpose.story_content && (
                     <div className="mt-3 sm:mt-4">
                       <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3">
@@ -1928,67 +1954,59 @@ export default function BloglistPurposePage() {
         </div>
       )}
 
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-75"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedImage(null);
-          }}
-        >
-          <div className="relative max-w-[90vw] max-h-[90vh] flex justify-center items-center">
-            <Image
-              src={selectedImage}
-              alt="Hình ảnh toàn màn hình"
-              width={600}
-              height={400}
-              className="object-contain"
-              style={{
-                transform: `scale(${zoomLevel})`,
-                transition: "transform 0.2s ease-in-out",
-              }}
-              onError={(e) => (e.target.src = "/fallback-image.png")}
-            />
-            <div className="absolute top-2 right-2 flex gap-1 sm:gap-2">
-              <button
-                onClick={() => handleZoom("in")}
-                className="text-blue-500 hover:text-blue-700 rounded-full transition duration-200"
-                title="Phóng to"
-              >
-                <ZoomInOutlined className="text-base sm:text-lg" />
-              </button>
-              <button
-                onClick={() => handleZoom("out")}
-                className="text-gray-500 hover:text-gray-700 rounded-full transition duration-200"
-                title="Thu nhỏ"
-              >
-                <ZoomOutOutlined className="text-base sm:text-lg" />
-              </button>
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="text-red-500 hover:text-red-700 rounded-full transition duration-200"
-                title="Đóng"
-              >
-                <CloseOutlined className="text-base sm:text-lg" />
-              </button>
+{selectedImage && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75">
+          <div className="relative bg-white p-4 sm:p-6 rounded-lg max-w-[90vw] max-h-[90vh] overflow-auto">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-bold text-gray-800">
+                Xem trước hình ảnh
+              </h3>
+              <div className="flex gap-2 sm:gap-3">
+                <button
+                  onClick={() => handleZoom("in")}
+                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
+                  title="Phóng to"
+                >
+                  <ZoomInOutlined className="text-base sm:text-lg" />
+                </button>
+                <button
+                  onClick={() => handleZoom("out")}
+                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
+                  title="Thu nhỏ"
+                >
+                  <ZoomOutOutlined className="text-base sm:text-lg" />
+                </button>
+                <a
+                  href={selectedImage}
+                  download
+                  className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition duration-200"
+                  title="Tải xuống"
+                >
+                  <DownloadOutlined className="text-base sm:text-lg" />
+                </a>
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="p-2 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition duration-200"
+                  title="Đóng"
+                >
+                  <CloseOutlined className="text-base sm:text-lg" />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <Image
+                src={selectedImage}
+                alt="Hình ảnh xem trước"
+                width={800}
+                height={600}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                style={{ transform: `scale(${zoomLevel})` }}
+                onError={(e) => (e.target.src = "/fallback-image.png")}
+              />
             </div>
           </div>
         </div>
       )}
-
-      <style jsx>{`
-        .scrollbar-hidden::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hidden {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        textarea {
-          min-height: 80px;
-          resize: none;
-          overflow-y: auto;
-        }
-      `}</style>
     </div>
   );
 }
