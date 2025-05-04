@@ -18,6 +18,7 @@ import Notification from "../../../utils/notification";
 import Confirm from "../../../utils/error";
 import mammoth from "mammoth";
 import Link from "next/link";
+
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -33,8 +34,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <p className="text-red-500 text-base">
-          Lỗi: {this.state.error.message} (Thành phần:{" "}
-          {this.props.componentName})
+          Lỗi: {this.state.error.message} (Thành phần: {this.props.componentName})
         </p>
       );
     }
@@ -101,6 +101,10 @@ export default function BloglistPurposePage() {
   const [previewFile, setPreviewFile] = useState(null);
   const [expandedFiles, setExpandedFiles] = useState({});
   const [docxContent, setDocxContent] = useState({});
+  const [selectedUser, setSelectedUser] = useState("");
+  const [users, setUsers] = useState([]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editPurpose, setEditPurpose] = useState(null);
 
   const router = useRouter();
   const scrollContainerRef = useRef();
@@ -160,6 +164,15 @@ export default function BloglistPurposePage() {
     const fetchPurposesAndVotes = async () => {
       try {
         setLoading(true);
+
+        // Fetch all users for filtering
+        const { data: usersData, error: usersError } = await supabase
+          .from("postpurpose")
+          .select("name")
+          .not("name", "is", null);
+        if (usersError) throw new Error(usersError.message);
+        const uniqueUsers = [...new Set(usersData.map(item => item.name))];
+        setUsers(uniqueUsers);
 
         const { data: purposesData, error: purposesError } = await supabase
           .from("postpurpose")
@@ -360,12 +373,11 @@ export default function BloglistPurposePage() {
     setSearchTerm(event.target.value);
   };
 
-  const handleQuizSubmit = (
-    purposeId,
-    quizIndex,
-    correctAnswer,
-    userAnswer
-  ) => {
+  const handleUserFilterChange = (event) => {
+    setSelectedUser(event.target.value);
+  };
+
+  const handleQuizSubmit = (purposeId, quizIndex, correctAnswer, userAnswer) => {
     if (!userAnswer) return;
     const normalizedUserAnswer = userAnswer.trim().toLowerCase();
     const normalizedCorrectAnswer = correctAnswer.trim().toLowerCase();
@@ -524,8 +536,7 @@ export default function BloglistPurposePage() {
     }
 
     const purpose = purposes.find((p) => p.id === purposeId);
-    const isMultipleChoice =
-      purpose?.questions?.[questionIndex]?.multipleChoice;
+    const isMultipleChoice = purpose?.questions?.[questionIndex]?.multipleChoice;
     const optionKey = `question-${questionIndex}-option-${option}`;
 
     try {
@@ -578,7 +589,7 @@ export default function BloglistPurposePage() {
           const newVotesState = { ...prev };
           Object.keys(prev)
             .filter((key) =>
-              key.startsWith(`${purposeId}-question-${questionIndex}-option-`)
+              key.startsWith(`${purposeId}-question-${qIndex}-option-`)
             )
             .forEach((key) => delete newVotesState[key]);
           newVotes.forEach((vote) => {
@@ -632,21 +643,18 @@ export default function BloglistPurposePage() {
           sum + (voteCounts[`question-${questionIndex}-option-${opt}`] || 0),
         0
       );
-      const optionResults = purpose.questions[questionIndex].options.map(
-        (opt) => ({
-          option: opt,
-          votes: voteCounts[`question-${questionIndex}-option-${opt}`] || 0,
-          percentage:
-            totalVoters > 0
-              ? (
-                  ((voteCounts[`question-${questionIndex}-option-${opt}`] ||
-                    0) /
-                    totalVoters) *
-                  100
-                ).toFixed(1)
-              : 0,
-        })
-      );
+      const optionResults = purpose.questions[questionIndex].options.map((opt) => ({
+        option: opt,
+        votes: voteCounts[`question-${questionIndex}-option-${opt}`] || 0,
+        percentage:
+          totalVoters > 0
+            ? (
+                ((voteCounts[`question-${questionIndex}-option-${opt}`] || 0) /
+                  totalVoters) *
+                100
+              ).toFixed(1)
+            : 0,
+      }));
 
       setPollResults((prev) => ({
         ...prev,
@@ -687,9 +695,7 @@ export default function BloglistPurposePage() {
       return;
     }
 
-    const safeCorrectOptions = Array.isArray(correctOptions)
-      ? correctOptions
-      : [];
+    const safeCorrectOptions = Array.isArray(correctOptions) ? correctOptions : [];
     const isCorrect =
       selectedOptions.length === safeCorrectOptions.length &&
       selectedOptions.every((opt) => safeCorrectOptions.includes(opt));
@@ -705,6 +711,65 @@ export default function BloglistPurposePage() {
       ...prev,
       [`${purposeId}-${questionIndex}`]: true,
     }));
+  };
+
+  const handleEditClick = (purpose) => {
+    setEditPurpose({
+      id: purpose.id,
+      content: purpose.content || "",
+      customTopic: purpose.customTopic || "",
+      selectedTag: purpose.selectedTag || "",
+      customTag: purpose.customTag || "",
+      story_description: purpose.story_description || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("postpurpose")
+        .update({
+          content: editPurpose.content,
+          customTopic: editPurpose.customTopic,
+          selectedTag: editPurpose.selectedTag,
+          customTag: editPurpose.customTag,
+          story_description: editPurpose.story_description,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editPurpose.id);
+
+      if (error) throw new Error(error.message);
+
+      setPurposes((prev) =>
+        prev.map((p) =>
+          p.id === editPurpose.id
+            ? {
+                ...p,
+                content: editPurpose.content,
+                customTopic: editPurpose.customTopic,
+                selectedTag: editPurpose.selectedTag,
+                customTag: editPurpose.customTag,
+                story_description: editPurpose.story_description,
+                updated_at: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+
+      setNotification({
+        message: "Cập nhật bài viết thành công!",
+        type: "success",
+      });
+      setShowEditModal(false);
+      setEditPurpose(null);
+    } catch (err) {
+      setNotification({
+        message: `Lỗi khi cập nhật bài viết: ${err.message}`,
+        type: "error",
+      });
+    }
   };
 
   const renderImage = (src, alt, index, purposeId) => {
@@ -745,8 +810,7 @@ export default function BloglistPurposePage() {
         <h3 className="text-lg sm:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400 mb-3 sm:mb-4">
           Nội dung
         </h3>
-        {purposeImages?.[0] &&
-          renderImage(purposeImages[0], "Hình ảnh nội dung", 0, purposeId)}
+        {purposeImages?.[0] && renderImage(purposeImages[0], "Hình ảnh nội dung", 0, purposeId)}
         <p className="text-gray-700 text-sm sm:text-base">{content}</p>
       </div>
     );
@@ -793,67 +857,47 @@ export default function BloglistPurposePage() {
           key={`question-${purposeId}-${index}`}
           className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 rounded-lg shadow-sm border border-gray-100"
         >
-          {imageSrc &&
-            renderImage(
-              imageSrc,
-              `Hình ảnh câu hỏi ${index}`,
-              index,
-              purposeId
-            )}
+          {imageSrc && renderImage(imageSrc, `Hình ảnh câu hỏi ${index}`, index, purposeId)}
           <p className="font-bold text-base sm:text-lg text-gray-900">
             {q.question || "Câu hỏi không có nội dung"}
           </p>
           <div className="mt-2 sm:mt-3 space-y-2 sm:space-y-3">
             {Array.isArray(q.options) &&
               q.options.map((option, i) => (
-                <div
-                  key={`option-${purposeId}-${index}-${i}`}
-                  className="relative"
-                >
+                <div key={`option-${purposeId}-${index}-${i}`} className="relative">
                   <button
                     onClick={() => handleQuestionVote(purposeId, index, option)}
                     disabled={!isLoggedIn || questionSubmitted[questionKey]}
                     className={`w-full text-left p-3 sm:p-4 rounded-lg border transition-all duration-300 ${
-                      questionVotes[
-                        `${purposeId}-question-${index}-option-${option}`
-                      ]
+                      questionVotes[`${purposeId}-question-${index}-option-${option}`]
                         ? "bg-indigo-200 text-indigo-900 border-indigo-300 font-bold"
                         : !isLoggedIn
                         ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                        : questionSubmitted[questionKey] &&
-                          q.correctOptions.includes(option)
+                        : questionSubmitted[questionKey] && q.correctOptions.includes(option)
                         ? "bg-green-100 text-green-900 border-green-300"
                         : questionSubmitted[questionKey]
                         ? "bg-red-100 text-red-900 border-red-300"
                         : "bg-white text-gray-800 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300"
                     } shadow-sm text-sm sm:text-base`}
                   >
-                    <span className="font-medium text-indigo-600">
-                      {String.fromCharCode(65 + i)}.
-                    </span>{" "}
+                    <span className="font-medium text-indigo-600">{String.fromCharCode(65 + i)}.</span>{" "}
                     {option}
                   </button>
-                  {pollResults[`${purposeId}-question-${index}`]
-                    ?.optionResults?.[i] && (
+                  {pollResults[`${purposeId}-question-${index}`]?.optionResults?.[i] && (
                     <div className="mt-2">
                       <div className="w-full bg-gray-100 rounded-full h-2 sm:h-3 overflow-hidden">
                         <div
                           className="bg-indigo-500 h-2 sm:h-3 rounded-full transition-all duration-500"
                           style={{
                             width: `${
-                              pollResults[`${purposeId}-question-${index}`]
-                                .optionResults[i]?.percentage || 0
+                              pollResults[`${purposeId}-question-${index}`].optionResults[i]?.percentage || 0
                             }%`,
                           }}
                         ></div>
                       </div>
                       <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                        {pollResults[`${purposeId}-question-${index}`]
-                          .optionResults[i]?.votes || 0}{" "}
-                        lượt chọn (
-                        {pollResults[`${purposeId}-question-${index}`]
-                          .optionResults[i]?.percentage || 0}
-                        %)
+                        {pollResults[`${purposeId}-question-${index}`].optionResults[i]?.votes || 0} lượt chọn (
+                        {pollResults[`${purposeId}-question-${index}`].optionResults[i]?.percentage || 0}%)
                       </p>
                     </div>
                   )}
@@ -865,9 +909,7 @@ export default function BloglistPurposePage() {
           </p>
           {!questionSubmitted[questionKey] && (
             <button
-              onClick={() =>
-                handleQuestionSubmit(purposeId, index, q.correctOptions)
-              }
+              onClick={() => handleQuestionSubmit(purposeId, index, q.correctOptions)}
               disabled={!hasVoted}
               className={`mt-2 sm:mt-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
                 hasVoted
@@ -891,32 +933,12 @@ export default function BloglistPurposePage() {
               }`}
             >
               {questionFeedback[questionKey].includes("Đúng") ? (
-                <svg
-                  className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  />
+                <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
-                <svg
-                  className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               )}
               {questionFeedback[questionKey]}
@@ -924,47 +946,24 @@ export default function BloglistPurposePage() {
           )}
           {questionFeedback[questionKey]?.includes("Sai") && (
             <p className="mt-2 text-xs sm:text-sm text-gray-600">
-              <span className="font-medium text-green-600">Đáp án đúng:</span>{" "}
-              {q.correctOptions.join(", ")}
+              <span className="font-medium text-green-600">Đáp án đúng:</span> {q.correctOptions.join(", ")}
             </p>
           )}
           {questionMessages[questionKey] && (
             <div
               className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg flex items-center text-xs sm:text-sm font-medium ${
-                questionMessages[questionKey].includes("thành công") ||
-                questionMessages[questionKey].includes("bỏ chọn")
+                questionMessages[questionKey].includes("thành công") || questionMessages[questionKey].includes("bỏ chọn")
                   ? "bg-green-100 text-green-800"
                   : "bg-red-100 text-red-800"
               }`}
             >
-              {questionMessages[questionKey].includes("thành công") ||
-              questionMessages[questionKey].includes("bỏ chọn") ? (
-                <svg
-                  className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  />
+              {questionMessages[questionKey].includes("thành công") || questionMessages[questionKey].includes("bỏ chọn") ? (
+                <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
-                <svg
-                  className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               )}
               {questionMessages[questionKey]}
@@ -984,8 +983,7 @@ export default function BloglistPurposePage() {
           key={`quiz-${purposeId}-${index}`}
           className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 rounded-lg shadow-sm border border-gray-100"
         >
-          {imageSrc &&
-            renderImage(imageSrc, `Hình ảnh câu đố ${index}`, index, purposeId)}
+          {imageSrc && renderImage(imageSrc, `Hình ảnh câu đố ${index}`, index, purposeId)}
           <p className="font-bold text-base sm:text-lg text-gray-900">
             {quiz.question || "Câu đố không có nội dung"}
           </p>
@@ -1021,9 +1019,7 @@ export default function BloglistPurposePage() {
                           : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                       }`}
                     >
-                      <span className="font-medium">
-                        {String.fromCharCode(65 + i)}.
-                      </span>{" "}
+                      <span className="font-medium">{String.fromCharCode(65 + i)}.</span>{" "}
                       {option}
                     </button>
                   ))
@@ -1053,9 +1049,7 @@ export default function BloglistPurposePage() {
                   disabled={!quizAnswers[`${purposeId}-${index}`]?.trim()}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ml-3 sm:ml-5 ${
                     quizAnswers[`${purposeId}-${index}`]?.trim()
-                      ? quizFeedback[`${purposeId}-${index}`]?.includes(
-                          "Chúc mừng"
-                        )
+                      ? quizFeedback[`${purposeId}-${index}`]?.includes("Chúc mừng")
                         ? "bg-green-500 text-white hover:bg-green-600"
                         : quizFeedback[`${purposeId}-${index}`]?.includes("Sai")
                         ? "bg-red-500 text-white hover:bg-red-600"
@@ -1081,8 +1075,7 @@ export default function BloglistPurposePage() {
           )}
           {quizSubmitted[`${purposeId}-${index}`] && (
             <p className="mt-2 text-xs sm:text-sm text-gray-600">
-              <span className="font-medium text-green-600">Đáp án đúng:</span>{" "}
-              {quiz.answer}
+              <span className="font-medium text-green-600">Đáp án đúng:</span> {quiz.answer}
             </p>
           )}
         </div>
@@ -1092,17 +1085,16 @@ export default function BloglistPurposePage() {
 
   const renderFilePreview = (fileUrl, purposeId) => {
     if (!isValidUrl(fileUrl)) return null;
-  
+
     const fileExtension = fileUrl.split(".").pop().toLowerCase();
     const fileName = fileUrl.split("/").pop() || "Tệp không xác định";
     const isExpanded = expandedFiles[`${purposeId}-${fileName}`];
-  
-    // Hàm thu gọn tên file nếu vượt quá 9 ký tự
+
     const shortenFileName = (name, maxLength = 7) => {
       if (name.length <= maxLength) return name;
       return name.slice(0, maxLength - 3) + "...";
     };
-  
+
     const loadDocxContent = async (url) => {
       try {
         const response = await fetch(url);
@@ -1117,17 +1109,13 @@ export default function BloglistPurposePage() {
         console.error("Lỗi khi tải file .docx:", err);
         setDocxContent((prev) => ({
           ...prev,
-          [`${purposeId}-${fileName}`]:
-            "<p>Không thể hiển thị nội dung file .docx.</p>",
+          [`${purposeId}-${fileName}`]: "<p>Không thể hiển thị nội dung file .docx.</p>",
         }));
       }
     };
-  
+
     const toggleExpand = () => {
-      if (
-        fileExtension === "docx" &&
-        !docxContent[`${purposeId}-${fileName}`]
-      ) {
+      if (fileExtension === "docx" && !docxContent[`${purposeId}-${fileName}`]) {
         loadDocxContent(fileUrl);
       }
       setExpandedFiles((prev) => ({
@@ -1135,13 +1123,10 @@ export default function BloglistPurposePage() {
         [`${purposeId}-${fileName}`]: !prev[`${purposeId}-${fileName}`],
       }));
     };
-  
+
     return (
       <div className="mt-3 sm:mt-4 border border-gray-200 rounded-lg bg-gray-50">
-        <div
-          className="flex items-center justify-between p-2 sm:p-3 cursor-pointer"
-          onClick={toggleExpand}
-        >
+        <div className="flex items-center justify-between p-2 sm:p-3 cursor-pointer" onClick={toggleExpand}>
           <div className="flex items-center">
             <svg
               className="w-5 sm:w-6 h-5 sm:h-6 text-gray-500 mr-1 sm:mr-2"
@@ -1158,12 +1143,9 @@ export default function BloglistPurposePage() {
             </svg>
             <span
               className="text-xs sm:text-sm text-gray-700 md:truncate md:max-w-[200px] lg:max-w-full"
-              title={fileName} // Hiển thị tên đầy đủ khi hover
+              title={fileName}
             >
-              {/* Thu gọn tên file trên iPad (768px–1024px) */}
-              {window.innerWidth < 1024
-                ? shortenFileName(fileName)
-                : fileName}
+              {window.innerWidth < 1024 ? shortenFileName(fileName) : fileName}
             </span>
           </div>
           <div className="flex gap-1 sm:gap-2">
@@ -1184,12 +1166,7 @@ export default function BloglistPurposePage() {
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M19 9l-7 7-7-7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
             </svg>
           </div>
         </div>
@@ -1203,22 +1180,17 @@ export default function BloglistPurposePage() {
               />
             ) : fileExtension === "txt" ? (
               <pre className="text-xs sm:text-sm text-gray-700 bg-gray-100 p-3 sm:p-4 rounded-lg overflow-auto max-h-48 sm:max-h-64">
-                Nội dung tệp văn bản sẽ được hiển thị ở đây. (Yêu cầu API để tải
-                nội dung.)
+                Nội dung tệp văn bản sẽ được hiển thị ở đây. (Yêu cầu API để tải nội dung.)
               </pre>
             ) : fileExtension === "docx" ? (
               <div
                 className="text-xs sm:text-sm text-gray-700 bg-gray-100 p-3 sm:p-4 rounded-lg overflow-auto max-h-48 sm:max-h-64"
                 dangerouslySetInnerHTML={{
-                  __html:
-                    docxContent[`${purposeId}-${fileName}`] ||
-                    "Đang tải nội dung...",
+                  __html: docxContent[`${purposeId}-${fileName}`] || "Đang tải nội dung...",
                 }}
               />
             ) : (
-              <p className="text-xs sm:text-sm text-gray-600">
-                Không thể xem loại tệp này.
-              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Không thể xem loại tệp này.</p>
             )}
           </div>
         )}
@@ -1236,69 +1208,63 @@ export default function BloglistPurposePage() {
     return (
       <div key={purpose.id} className="relative">
         <div className="rounded-lg shadow-md border bg-white border-gray-200 p-3 sm:p-4 hover:shadow-[0_0_15px_rgba(0,0,0,0.2)] transition-shadow duration-200">
-          <div className="flex items-center mb-2 sm:mb-3">
-            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-purple-500 rounded-full mr-2 sm:mr-3 flex items-center justify-center text-white font-bold">
-              {purpose.name ? purpose.name[0]?.toUpperCase() : "?"}
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <div className="flex items-center">
+              <div className="w-8 sm:w-10 h-8 sm:h-10 bg-purple-500 rounded-full mr-2 sm:mr-3 flex items-center justify-center text-white font-bold">
+                {purpose.name ? purpose.name[0]?.toUpperCase() : "?"}
+              </div>
+              <div>
+                <p className="font-bold text-blue-600 text-xs sm:text-sm">{purpose.name || "Tác giả"}</p>
+                <p className="text-xs text-gray-500">
+                  {new Date(purpose.created_at).toLocaleDateString("vi-VN")}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-blue-600 text-xs sm:text-sm">
-                {purpose.name || "Tác giả"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {new Date(purpose.created_at).toLocaleDateString("vi-VN")}
-              </p>
-            </div>
+            {isLoggedIn && purpose.user_id === userId && (
+              <button
+                onClick={() => handleEditClick(purpose)}
+                className="text-indigo-600 hover:text-indigo-800 transition duration-200"
+                title="Chỉnh sửa"
+              >
+                <EditOutlined className="text-base sm:text-lg" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
             {purpose.customTopic && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">
-                  Chủ đề tùy chỉnh:
-                </span>{" "}
-                {purpose.customTopic}
+                <span className="font-medium text-gray-800">Chủ đề tùy chỉnh:</span> {purpose.customTopic}
               </p>
             )}
             {purpose.selectedTag && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">Thẻ đã chọn:</span>{" "}
-                {purpose.selectedTag}
+                <span className="font-medium text-gray-800">Thẻ đã chọn:</span> {purpose.selectedTag}
               </p>
             )}
             {purpose.customTag && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">
-                  Thẻ tùy chỉnh:
-                </span>{" "}
-                {purpose.customTag}
+                <span className="font-medium text-gray-800">Thẻ tùy chỉnh:</span> {purpose.customTag}
               </p>
             )}
             {purpose.updated_at && (
               <p className="text-gray-600 text-xs sm:text-sm">
-                <span className="font-medium text-gray-800">
-                  Ngày cập nhật:
-                </span>{" "}
+                <span className="font-medium text-gray-800">Ngày cập nhật:</span>{" "}
                 {new Date(purpose.updated_at).toLocaleDateString("vi-VN")}
               </p>
             )}
           </div>
 
           {purpose.questions?.length > 0 && (
-            <div className="mt-4 sm:mt-6">
-              {renderQuestions(purpose.questions, purpose.id, purpose.images)}
-            </div>
+            <div className="mt-4 sm:mt-6">{renderQuestions(purpose.questions, purpose.id, purpose.images)}</div>
           )}
 
           {purpose.content && (
-            <div className="mt-4 sm:mt-6">
-              {renderContent(purpose.content, purpose.images, purpose.id)}
-            </div>
+            <div className="mt-4 sm:mt-6">{renderContent(purpose.content, purpose.images, purpose.id)}</div>
           )}
 
           {purpose.quizzes?.length > 0 && (
-            <div className="mt-4 sm:mt-6">
-              {renderQuizzes(purpose.quizzes, purpose.id, purpose.images)}
-            </div>
+            <div className="mt-4 sm:mt-6">{renderQuizzes(purpose.quizzes, purpose.id, purpose.images)}</div>
           )}
 
           {purpose.poll?.title && (
@@ -1309,10 +1275,7 @@ export default function BloglistPurposePage() {
               <div className="space-y-2 sm:space-y-3">
                 {Array.isArray(purpose.poll.options) &&
                   purpose.poll.options.map((option, i) => (
-                    <div
-                      key={`poll-option-${purpose.id}-${i}`}
-                      className="relative"
-                    >
+                    <div key={`poll-option-${purpose.id}-${i}`} className="relative">
                       <button
                         onClick={() => handlePollVote(purpose.id, option)}
                         disabled={!isLoggedIn}
@@ -1324,10 +1287,7 @@ export default function BloglistPurposePage() {
                             : "bg-white text-gray-800 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300"
                         } shadow-sm text-xs sm:text-sm`}
                       >
-                        <span className="font-medium text-indigo-600">
-                          {`Lựa chọn ${i + 1}`}:
-                        </span>{" "}
-                        {option}
+                        <span className="font-medium text-indigo-600">{`Lựa chọn ${i + 1}`}:</span> {option}
                       </button>
                       {pollResults[purpose.id]?.optionResults?.[i] && (
                         <div className="mt-2">
@@ -1335,20 +1295,13 @@ export default function BloglistPurposePage() {
                             <div
                               className="bg-indigo-500 h-2 sm:h-3 rounded-full transition-all duration-500"
                               style={{
-                                width: `${
-                                  pollResults[purpose.id].optionResults[i]
-                                    ?.percentage || 0
-                                }%`,
+                                width: `${pollResults[purpose.id].optionResults[i]?.percentage || 0}%`,
                               }}
                             ></div>
                           </div>
                           <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                            {pollResults[purpose.id].optionResults[i]?.votes ||
-                              0}{" "}
-                            lượt bình chọn (
-                            {pollResults[purpose.id].optionResults[i]
-                              ?.percentage || 0}
-                            %)
+                            {pollResults[purpose.id].optionResults[i]?.votes || 0} lượt bình chọn (
+                            {pollResults[purpose.id].optionResults[i]?.percentage || 0}%)
                           </p>
                         </div>
                       )}
@@ -1361,47 +1314,23 @@ export default function BloglistPurposePage() {
                 </p>
               )}
               <p className="mt-2 text-xs text-gray-500 italic">
-                {purpose.poll.multipleChoice
-                  ? "Chọn nhiều đáp án"
-                  : "Chọn một đáp án"}
+                {purpose.poll.multipleChoice ? "Chọn nhiều đáp án" : "Chọn một đáp án"}
               </p>
               {pollMessages[purpose.id] && (
                 <div
                   className={`mt-2 sm:mt-3 p-2 sm:p-3 rounded-lg flex items-center text-xs sm:text-sm font-medium ${
-                    pollMessages[purpose.id].includes("thành công") ||
-                    pollMessages[purpose.id].includes("bỏ chọn")
+                    pollMessages[purpose.id].includes("thành công") || pollMessages[purpose.id].includes("bỏ chọn")
                       ? "bg-green-100 text-green-800"
                       : "bg-red-100 text-red-800"
                   }`}
                 >
-                  {pollMessages[purpose.id].includes("thành công") ||
-                  pollMessages[purpose.id].includes("bỏ chọn") ? (
-                    <svg
-                      className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M5 13l4 4L19 7"
-                      />
+                  {pollMessages[purpose.id].includes("thành công") || pollMessages[purpose.id].includes("bỏ chọn") ? (
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
-                    <svg
-                      className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   )}
                   {pollMessages[purpose.id]}
@@ -1422,153 +1351,100 @@ export default function BloglistPurposePage() {
               )}
               {purpose.story_type === "Truyện tranh" && (
                 <>
-                  {Array.isArray(purpose.images) &&
-                    purpose.images.length > 0 && (
-                      <div className="mb-3 sm:mb-4">
-                        <div className="space-y-3 sm:space-y-4">
-                          {purpose.images.map((img, index) => (
-                            <div
-                              key={`comic-image-${purpose.id}-${index}`}
-                              className="flex justify-center"
-                            >
-                              {renderImage(
-                                img,
-                                `Hình ảnh truyện tranh ${index}`,
-                                index,
-                                purpose.id
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                  {Array.isArray(purpose.images) && purpose.images.length > 0 && (
+                    <div className="mb-3 sm:mb-4">
+                      <div className="space-y-3 sm:space-y-4">
+                        {purpose.images.map((img, index) => (
+                          <div key={`comic-image-${purpose.id}-${index}`} className="flex justify-center">
+                            {renderImage(img, `Hình ảnh truyện tranh ${index}`, index, purpose.id)}
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  {purpose.story_doc &&
-                    renderFilePreview(purpose.story_doc, purpose.id)}
+                    </div>
+                  )}
+                  {purpose.story_doc && renderFilePreview(purpose.story_doc, purpose.id)}
                   {purpose.description && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-3 sm:mt-4">
-                      <span className="font-medium text-gray-800">Mô tả:</span>{" "}
-                      {purpose.description}
+                      <span className="font-medium text-gray-800">Mô tả:</span> {purpose.description}
                     </p>
                   )}
                   {purpose.author && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Tác giả:
-                      </span>{" "}
-                      {purpose.author}
+                      <span className="font-medium text-gray-800">Tác giả:</span> {purpose.author}
                     </p>
                   )}
                   {purpose.category && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Thể loại:
-                      </span>{" "}
-                      {purpose.category}
+                      <span className="font-medium text-gray-800">Thể loại:</span> {purpose.category}
                     </p>
                   )}
                   {purpose.publish_date && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Ngày xuất bản:
-                      </span>{" "}
-                      {new Date(purpose.publish_date).toLocaleDateString(
-                        "vi-VN"
-                      )}
+                      <span className="font-medium text-gray-800">Ngày xuất bản:</span>{" "}
+                      {new Date(purpose.publish_date).toLocaleDateString("vi-VN")}
                     </p>
                   )}
                   {purpose.status && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Trạng thái:
-                      </span>{" "}
-                      {purpose.status}
+                      <span className="font-medium text-gray-800">Trạng thái:</span> {purpose.status}
                     </p>
                   )}
                   {purpose.chapter_info && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Thông tin chương:
-                      </span>{" "}
-                      {purpose.chapter_info}
+                      <span className="font-medium text-gray-800">Thông tin chương:</span> {purpose.chapter_info}
                     </p>
                   )}
                 </>
               )}
               {purpose.story_type === "Truyện chữ" && (
                 <>
-                  {Array.isArray(purpose.images) &&
-                    purpose.images.length > 0 && (
-                      <div className="mb-3 sm:mb-4">
-                        <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3">
-                          Hình ảnh truyện chữ
-                        </h4>
-                        <div className="space-y-3 sm:space-y-4">
-                          {purpose.images.map((img, index) => (
-                            <div
-                              key={`text-image-${purpose.id}-${index}`}
-                              className="flex justify-center"
-                            >
-                              {renderImage(
-                                img,
-                                `Hình ảnh truyện chữ ${index}`,
-                                index,
-                                purpose.id
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                  {Array.isArray(purpose.images) && purpose.images.length > 0 && (
+                    <div className="mb-3 sm:mb-4">
+                      <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3">
+                        Hình ảnh truyện chữ
+                      </h4>
+                      <div className="space-y-3 sm:space-y-4">
+                        {purpose.images.map((img, index) => (
+                          <div key={`text-image-${purpose.id}-${index}`} className="flex justify-center">
+                            {renderImage(img, `Hình ảnh truyện chữ ${index}`, index, purpose.id)}
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  {purpose.story_doc &&
-                    renderFilePreview(purpose.story_doc, purpose.id)}
+                    </div>
+                  )}
+                  {purpose.story_doc && renderFilePreview(purpose.story_doc, purpose.id)}
                   {purpose.story_content && (
                     <div className="mt-3 sm:mt-4">
                       <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-2 sm:mb-3">
                         Nội dung truyện:
                       </h4>
-                      <p className="text-gray-700 text-xs sm:text-sm">
-                        {purpose.story_content}
-                      </p>
+                      <p className="text-gray-700 text-xs sm:text-sm">{purpose.story_content}</p>
                     </div>
                   )}
                   {purpose.description && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-3 sm:mt-4">
-                      <span className="font-medium text-gray-800">Mô tả:</span>{" "}
-                      {purpose.description}
+                      <span className="font-medium text-gray-800">Mô tả:</span> {purpose.description}
                     </p>
                   )}
                   {purpose.author && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Tác giả:
-                      </span>{" "}
-                      {purpose.author}
+                      <span className="font-medium text-gray-800">Tác giả:</span> {purpose.author}
                     </p>
                   )}
                   {purpose.category && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Thể loại:
-                      </span>{" "}
-                      {purpose.category}
+                      <span className="font-medium text-gray-800">Thể loại:</span> {purpose.category}
                     </p>
                   )}
                   {purpose.publish_date && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Ngày xuất bản:
-                      </span>{" "}
-                      {new Date(purpose.publish_date).toLocaleDateString(
-                        "vi-VN"
-                      )}
+                      <span className="font-medium text-gray-800">Ngày xuất bản:</span>{" "}
+                      {new Date(purpose.publish_date).toLocaleDateString("vi-VN")}
                     </p>
                   )}
                   {purpose.status && (
                     <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
-                      <span className="font-medium text-gray-800">
-                        Trạng thái:
-                      </span>{" "}
-                      {purpose.status}
+                      <span className="font-medium text-gray-800">Trạng thái:</span> {purpose.status}
                     </p>
                   )}
                 </>
@@ -1589,11 +1465,12 @@ export default function BloglistPurposePage() {
     );
   };
 
-  // Filter purposes based on search term
+  // Filter purposes based on search term and selected user
   const filteredPurposes = purposes.filter((purpose) =>
-    searchTerm
-      ? purpose.purpose?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        purpose.content?.toLowerCase().includes(searchTerm.toLowerCase())
+    searchTerm || selectedUser
+      ? (purpose.purpose?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          purpose.content?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (!selectedUser || purpose.name === selectedUser)
       : true
   );
 
@@ -1616,21 +1493,35 @@ export default function BloglistPurposePage() {
           <h1 className="text-xl sm:text-2xl font-bold font-montserrat bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent mb-2 sm:mb-0">
             Danh sách bài viết theo mục đích
           </h1>
-          <div className="relative w-full sm:w-1/2 max-w-xs sm:max-w-md">
-            <input
-              type="text"
-              placeholder="Tìm kiếm mục đích..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="w-full bg-blue-100 border border-gray-300 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 pr-8 sm:pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-xs sm:text-sm"
-            />
-            <Image
-              src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681498/nkydita1doyqs2igrdbd.svg"
-              alt="Biểu tượng tìm kiếm"
-              width={16}
-              height={16}
-              className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2"
-            />
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
+            <div className="relative w-full sm:w-1/2 max-w-xs sm:max-w-md">
+              <input
+                type="text"
+                placeholder="Tìm kiếm mục đích..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="w-full bg-blue-100 border border-gray-300 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 pr-8 sm:pr-10 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-xs sm:text-sm"
+              />
+              <Image
+                src="http://res.cloudinary.com/dlaoxrnad/image/upload/v1741681498/nkydita1doyqs2igrdbd.svg"
+                alt="Biểu tượng tìm kiếm"
+                width={16}
+                height={16}
+                className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2"
+              />
+            </div>
+            <select
+              value={selectedUser}
+              onChange={handleUserFilterChange}
+              className="w-full sm:w-auto bg-blue-100 border border-gray-300 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 hover:border-blue-400 hover:ring-1 hover:ring-blue-400 transition duration-200 text-xs sm:text-sm"
+            >
+              <option value="">Tất cả người dùng</option>
+              {users.map((user) => (
+                <option key={user} value={user}>
+                  {user}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -1638,13 +1529,11 @@ export default function BloglistPurposePage() {
           ref={scrollContainerRef}
           className="px-2 sm:px-4 flex flex-col md:flex-row gap-4 scrollbar-hidden max-h-[calc(100vh-200px)] sm:max-h-[calc(100vh-220px)] overflow-y-auto"
         >
-          {/* Cột trái */}
           <div className="flex-1 flex flex-col gap-3 sm:gap-4 min-w-0">
             {filteredPurposes
               .slice(0, Math.ceil(filteredPurposes.length / 2))
               .map((purpose) => renderPurpose(purpose))}
           </div>
-          {/* Cột phải */}
           <div className="flex-1 flex flex-col gap-3 sm:gap-4 min-w-0">
             {filteredPurposes
               .slice(Math.ceil(filteredPurposes.length / 2))
@@ -1703,6 +1592,101 @@ export default function BloglistPurposePage() {
                 Đăng nhập
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editPurpose && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="bg-white p-4 sm:p-6 rounded-lg max-w-sm sm:max-w-md w-full">
+            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
+              Chỉnh sửa bài viết
+            </h3>
+            <form onSubmit={handleEditSubmit} className="space-y-3 sm:space-y-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Nội dung
+                </label>
+                <textarea
+                  value={editPurpose.content}
+                  onChange={(e) =>
+                    setEditPurpose({ ...editPurpose, content: e.target.value })
+                  }
+                  className="w-full p-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-all duration-200"
+                  rows="4"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Chủ đề tùy chỉnh
+                </label>
+                <input
+                  type="text"
+                  value={editPurpose.customTopic}
+                  onChange={(e) =>
+                    setEditPurpose({ ...editPurpose, customTopic: e.target.value })
+                  }
+                  className="w-full p-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Thẻ đã chọn
+                </label>
+                <input
+                  type="text"
+                  value={editPurpose.selectedTag}
+                  onChange={(e) =>
+                    setEditPurpose({ ...editPurpose, selectedTag: e.target.value })
+                  }
+                  className="w-full p-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Thẻ tùy chỉnh
+                </label>
+                <input
+                  type="text"
+                  value={editPurpose.customTag}
+                  onChange={(e) =>
+                    setEditPurpose({ ...editPurpose, customTag: e.target.value })
+                  }
+                  className="w-full p-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  Mô tả truyện
+                </label>
+                <textarea
+                  value={editPurpose.story_description}
+                  onChange={(e) =>
+                    setEditPurpose({ ...editPurpose, story_description: e.target.value })
+                  }
+                  className="w-full p-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:border-indigo-500 focus:outline-none transition-all duration-200"
+                  rows="4"
+                />
+              </div>
+              <div className="flex justify-end gap-2 sm:gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditPurpose(null);
+                  }}
+                  className="bg-gray-300 text-gray-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-gray-400 transition duration-200 text-xs sm:text-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-blue-600 transition duration-200 text-xs sm:text-sm"
+                >
+                  Lưu
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
