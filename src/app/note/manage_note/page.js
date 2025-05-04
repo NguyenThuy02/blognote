@@ -32,6 +32,7 @@ export default function ManageNotes() {
   const [viewVersionNote, setViewVersionNote] = useState(null);
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const trashRef = useRef(null);
 
   const categoryRefs = useRef({});
 
@@ -347,6 +348,15 @@ export default function ManageNotes() {
     fetchNotes();
     if (!isOffline) fetchTrashNotes();
   }, [isOffline]);
+
+  useEffect(() => {
+    if (isTrashOpen && trashRef.current) {
+      console.log("Scrolling to TrashDisplay:", trashRef.current);
+      trashRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (isTrashOpen) {
+      console.log("trashRef.current is null or undefined");
+    }
+  }, [isTrashOpen]);
 
   const togglePin = async (noteId) => {
     const note = notes.find((n) => n.id === noteId);
@@ -2094,7 +2104,7 @@ export default function ManageNotes() {
 
   const TrashDisplay = () => {
     return (
-      <div className="mt-6">
+      <div className="mt-6" ref={trashRef}>
         <h2
           className="text-xl font-bold mb-4 text-left"
           style={{ color: "var(--text-color)" }}
