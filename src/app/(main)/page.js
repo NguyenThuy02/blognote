@@ -419,7 +419,7 @@ export default function Home() {
   };
 
   return (
-    <div className="mt-[97px] min-h-screen flex" style={{ backgroundColor: 'var(--background)' }}>
+    <div className="mt-[97px] min-h-screen flex rounded-lg" style={{ backgroundColor: 'var(--background)' }}>
       <main className="flex-1 p-6 relative">
         {isLoading && (
           <div className="loading-overlay">
@@ -431,7 +431,7 @@ export default function Home() {
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 rounded-lg">
           <h1 className="text-4xl font-bold font-montserrat text-transparent bg-clip-text" style={{ backgroundImage: 'var(--accent-color)' }}>
             Smart Notes Dashboard
           </h1>

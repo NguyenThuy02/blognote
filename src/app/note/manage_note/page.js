@@ -1844,13 +1844,6 @@ export default function ManageNotes() {
               </div>
             )}
             <div>
-              <button
-                onClick={() => setViewDetailNoteId(note.id)}
-                className="mt-2 text-left"
-                style={{ color: "var(--accent-color)" }}
-              >
-                Xem chi tiết →
-              </button>
               <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
                 <button
                   onClick={() => handleEdit(note)}
@@ -2027,13 +2020,6 @@ export default function ManageNotes() {
                   </div>
                 )}
                 <div>
-                  <button
-                    onClick={() => setViewDetailNoteId(note.id)}
-                    className="mt-2 text-left"
-                    style={{ color: "var(--accent-color)" }}
-                  >
-                    Xem chi tiết →
-                  </button>
                   <div className="flex sm:flex-wrap overflow-x-auto gap-1 mt-2">
                     <button
                       onClick={() => handleEdit(note)}
