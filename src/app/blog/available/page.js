@@ -2078,7 +2078,7 @@ export default function CreatePost() {
                     name="storyType"
                     value={formData.storyType}
                     onChange={handleFormChange}
-                    className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                    className="h-9 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
                   >
                     <option value="Truyện chữ">Truyện chữ</option>
                     <option value="Truyện tranh">Truyện tranh</option>
@@ -2258,7 +2258,7 @@ export default function CreatePost() {
                           name={`milestone-status-${index}`}
                           value={milestone.status}
                           onChange={handleFormChange}
-                          className="h-8 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
+                          className="h-9 p-2 rounded-lg w-full border-2 border-teal-300 hover:border-teal-500 focus:border-teal-500 focus:outline-none transition-all duration-300"
                         >
                           <option value="Hoàn thành">Hoàn thành</option>
                           <option value="Đang thực hiện">Đang thực hiện</option>
