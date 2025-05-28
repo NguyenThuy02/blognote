@@ -1453,10 +1453,7 @@ export default function BloglistApp() {
 
                 {isLoggedIn && (
                   <div
-                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
-                      theme,
-                      "support"
-                    )} ${
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-white ${
                       showCommentsForArticle === post.id
                         ? "opacity-100"
                         : "max-h-0 opacity-0 overflow-hidden"
@@ -1467,9 +1464,9 @@ export default function BloglistApp() {
                       <p className="text-gray-600 text-base">Đang tải...</p>
                     ) : (
                       <>
-                        <h1 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400 mb-6">
+                        <h2 className="mb-3 text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-400">
                           Nhận xét và phản hồi
-                        </h1>
+                        </h2>
 
                         {!isWriting && (
                           <button
@@ -1888,10 +1885,7 @@ export default function BloglistApp() {
 
                 {isLoggedIn && (
                   <div
-                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 ease-in-out ${getThemeClasses(
-                      theme,
-                      "support"
-                    )} ${
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-white ${
                       showDiagramForArticle === post.id
                         ? "max-h-[600px] opacity-100"
                         : "max-h-0 opacity-0 overflow-hidden"

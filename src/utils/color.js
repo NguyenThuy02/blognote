@@ -97,7 +97,11 @@ export const getThemeClasses = (theme, type) => {
 };
 
 export default function ThemeSelector({ currentTheme, onThemeChange }) {
-  const [theme, setTheme] = useState("light");
+  // Khởi tạo theme từ localStorage hoặc fallback về currentTheme hoặc "light"
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem("theme");
+    return savedTheme && themes[savedTheme] ? savedTheme : currentTheme || "light";
+  });
   const [showSelector, setShowSelector] = useState(false);
   const selectorRef = useRef(null); // Tham chiếu
 
@@ -142,7 +146,7 @@ export default function ThemeSelector({ currentTheme, onThemeChange }) {
 
   return (
     <>
-      {/* Floating Icon Button */}
+      {/* Nút biểu tượng nổi */}
       <button
         onClick={() => setShowSelector(!showSelector)}
         className="fixed bottom-19 right-6 z-50 p-2 rounded-full shadow-lg bg-gray-400 text-white hover:bg-gray-500 transition-all"
@@ -150,7 +154,7 @@ export default function ThemeSelector({ currentTheme, onThemeChange }) {
         {getThemeIcon()}
       </button>
 
-      {/* Selector Panel */}
+      {/* Bảng chọn chủ đề */}
       {showSelector && (
         <div
           ref={selectorRef}
