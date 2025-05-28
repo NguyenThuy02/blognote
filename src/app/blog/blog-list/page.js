@@ -1453,7 +1453,7 @@ export default function BloglistApp() {
 
                 {isLoggedIn && (
                   <div
-                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-white ${
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-gray-100 ${
                       showCommentsForArticle === post.id
                         ? "opacity-100"
                         : "max-h-0 opacity-0 overflow-hidden"
@@ -1885,7 +1885,7 @@ export default function BloglistApp() {
 
                 {isLoggedIn && (
                   <div
-                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-white ${
+                    className={`text-gray-700 p-5 rounded-lg shadow-md mt-4 relative transition-all duration-700 bg-gray-100 ${
                       showDiagramForArticle === post.id
                         ? "max-h-[600px] opacity-100"
                         : "max-h-0 opacity-0 overflow-hidden"
