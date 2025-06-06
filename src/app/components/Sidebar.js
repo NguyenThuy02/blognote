@@ -51,6 +51,14 @@ export default function Sidebar() {
                 📈 Thống kê bài viết
               </Link>
             </li>
+            <li>
+              <Link
+                href="/design"
+                className="block hover:bg-gradient-to-r hover:from-[#A1C4FD] hover:to-[#C2B9E3] px-3 py-2 rounded"
+              >
+                Vẽ tranh
+              </Link>
+            </li>
           </ul>
         </div>
 
