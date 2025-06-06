@@ -717,47 +717,73 @@ export default function ManageNotes() {
     }
   };
 
-  const handleShare = (note) => {
-    let shareText = `${note.title}\n${note.content}\nCategory: ${note.category}`;
-    if (note.note_type === "whiteboard" && note.todos?.length) {
-      shareText +=
-        "\n\nTodos:\n" +
-        note.todos
-          .map((todo) => `- [${todo.completed ? "x" : " "}] ${todo.text}`)
-          .join("\n");
-    }
-    if (note.note_type === "spreadsheet" && note.spreadsheet_data?.length) {
-      shareText +=
-        "\n\nSpreadsheet Data:\n" +
-        note.spreadsheet_data.map((row) => row.join("\t")).join("\n");
-    }
-    if (note.note_type === "markdown") {
-      shareText += "\n\nMarkdown Content:\n" + note.content;
-    }
-    if (note.note_type === "voice") {
-      shareText += "\n\nVoice Attachments:\n";
-      if (note.audio_url) shareText += `- Audio: ${note.audio_file_name || "Bản ghi âm"} (${note.audio_url})\n`;
-      if (note.video_url) shareText += `- Video: ${note.video_file_name || "Video đính kèm"} (${note.video_url})\n`;
-    }
 
-    if (navigator.share) {
-      navigator
-        .share({
-          title: note.title,
-          text: shareText,
-          url: window.location.href,
-        })
-        .catch((err) => console.error("Error sharing:", err.message));
-    } else {
-      navigator.clipboard
-        .writeText(shareText)
-        .then(() => showNotification("Đã sao chép nội dung vào clipboard!"))
-        .catch((err) => {
-          console.error("Error copying to clipboard:", err.message);
-          showNotification("Lỗi khi sao chép nội dung.");
-        });
-    }
-  };
+const handleShare = (note) => {
+  // Use the latest network URL from your terminal output
+  const baseUrl = "http://192.168.1.64:3001"; // Update this with the latest Network URL from terminal
+  const noteUrl = `${baseUrl}/notes/${note.id}`; // Construct the specific note URL
+
+  // Prepare the shareable text
+  let shareText = `${note.title}\n${note.content}\nCategory: ${note.category}\nLink: ${noteUrl}`;
+
+  if (note.note_type === "whiteboard" && note.todos?.length) {
+    shareText +=
+      "\n\nTodos:\n" +
+      note.todos
+        .map((todo) => `- [${todo.completed ? "x" : " "}] ${todo.text}`)
+        .join("\n");
+  }
+  if (note.note_type === "spreadsheet" && note.spreadsheet_data?.length) {
+    shareText +=
+      "\n\nSpreadsheet Data:\n" +
+      note.spreadsheet_data.map((row) => row.join("\t")).join("\n");
+  }
+  if (note.note_type === "markdown") {
+    shareText += "\n\nMarkdown Content:\n" + note.content;
+  }
+  if (note.note_type === "voice") {
+    shareText += "\n\nVoice Attachments:\n";
+    if (note.audio_url) shareText += `- Audio: ${note.audio_file_name || "Bản ghi âm"} (${note.audio_url})\n`;
+    if (note.video_url) shareText += `- Video: ${note.video_file_name || "Video đính kèm"} (${note.video_url})\n`;
+  }
+
+  // Check if Web Share API is supported
+  if (navigator.share && typeof navigator.share === "function") {
+    navigator
+      .share({
+        title: note.title,
+        text: shareText,
+        url: noteUrl, // Share the specific note URL
+      })
+      .then(() => {
+        showNotification("Đã chia sẻ ghi chú thành công!");
+      })
+      .catch((err) => {
+        console.error("Error sharing via Web Share API:", err.message);
+        // Fallback to clipboard if Web Share fails
+        navigator.clipboard
+          .writeText(shareText)
+          .then(() => {
+            showNotification("Web Share thất bại. Đã sao chép nội dung và link vào clipboard!");
+          })
+          .catch((clipErr) => {
+            console.error("Error copying to clipboard:", clipErr.message);
+            showNotification("Lỗi khi chia sẻ hoặc sao chép nội dung: " + clipErr.message);
+          });
+      });
+  } else {
+    // Fallback to copying to clipboard
+    navigator.clipboard
+      .writeText(shareText)
+      .then(() => {
+        showNotification("Đã sao chép nội dung và link vào clipboard!");
+      })
+      .catch((err) => {
+        console.error("Error copying to clipboard:", err.message);
+        showNotification("Lỗi khi sao chép nội dung: " + err.message);
+      });
+  }
+};
 
   const handleDownload = (note) => {
     let content = `${note.title}\n\n${note.content}\n\nCategory: ${note.category}`;
