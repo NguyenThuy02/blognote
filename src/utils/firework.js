@@ -6,7 +6,6 @@ const playSound = (url) => {
   audio.play();
 };
 
-// Thêm CSS rung màn hình vào DOM (chỉ 1 lần)
 let hasInjectedShakeStyle = false;
 const injectShakeCSS = () => {
   if (hasInjectedShakeStyle) return;
@@ -29,7 +28,7 @@ const injectShakeCSS = () => {
   hasInjectedShakeStyle = true;
 };
 
-// 🎆 Khi đúng – dùng 7 màu cầu vồng, random 3
+// Khi đúng – dùng 7 màu cầu vồng, random 3
 export function launchFirework() {
   const rainbowColors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#8F00FF'];
 
@@ -49,7 +48,7 @@ export function launchFirework() {
 }
 
 
-// ❌ Khi sai
+// Khi sai
 export function launchFailure() {
   injectShakeCSS();
 

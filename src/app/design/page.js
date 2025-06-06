@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import toast, { Toaster } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { ArrowLeftOutlined } from "@ant-design/icons";
+import { supabase } from "../../lib/supabase";
 
 const Sketch = dynamic(() => import("react-p5").then((mod) => mod.default), {
   ssr: false,
