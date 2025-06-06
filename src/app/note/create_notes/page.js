@@ -173,19 +173,6 @@ const NoteApp = () => {
         return false;
       }
     };
-    
-    const startRecording = async () => {
-      const hasPermission = await checkMicrophonePermission();
-      if (!hasPermission) return;
-    
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorderRef.current = new MediaRecorder(stream);
-        // Tiếp tục logic ghi âm...
-      } catch (err) {
-        setError("Không thể truy cập micro: " + err.message);
-      }
-    };
   
     // Lấy ghi chú từ IndexedDB khi khởi động
     const initOfflineNotes = async () => {
@@ -318,70 +305,85 @@ const NoteApp = () => {
       }
     };
     
-      // ghi âm 
+      // Phát triển thêm phần ghi âm chuyển thể thành văn bản
       useEffect(() => {
-        if (typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
-          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          recognitionRef.current = new SpeechRecognition();
-          recognitionRef.current.lang = "en-US"; // Thử với tiếng Anh
-          recognitionRef.current.interimResults = true;
-          recognitionRef.current.continuous = true;
-      
-          let hasSpeech = false;
-      
-          recognitionRef.current.onresult = (event) => {
-            let interimTranscript = "";
-            let finalTranscript = "";
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0].transcript;
-              if (event.results[i].isFinal) {
-                finalTranscript += transcript;
-              } else {
-                interimTranscript += transcript;
-              }
-            }
-            console.log("Interim:", interimTranscript, "Final:", finalTranscript);
-            if (finalTranscript.trim()) {
-              setContent((prev) => prev + " " + finalTranscript);
-            }
-          };
+        if (typeof window === "undefined") return;
 
-          recognitionRef.current.onend = () => {
-            console.log("SpeechRecognition ended");
-            if (!hasSpeech && isRecording) {
-              setError("Không phát hiện giọng nói. Vui lòng thử lại hoặc kiểm tra micro.");
-            }
-            // Tự động khởi động lại nếu vẫn đang ghi âm
-            if (isRecording) {
-              recognitionRef.current.start();
-            }
-          };
-      
-          recognitionRef.current.onerror = (event) => {
-            console.error("SpeechRecognition error details:", {
-              error: event.error,
-              message: event.message,
-              event: event,
-            });
-            let errorMessage = `Lỗi Speech-to-Text: ${event.error}`;
-            if (event.error === "network") {
-              errorMessage += ". Vui lòng kiểm tra kết nối internet.";
-            } else if (event.error === "no-speech") {
-              errorMessage += ". Không phát hiện giọng nói.";
-            }
-            setError(errorMessage);
-            stopRecording();
-          };
-        } else {
-          setError("Trình duyệt không hỗ trợ SpeechRecognition. Vui lòng dùng Chrome hoặc Edge.");
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          setError("Trình duyệt không hỗ trợ SpeechRecognition. Vui lòng sử dụng Edge hoặc Chrome.");
+          return;
         }
-      
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.lang = "vi-VN"; // Hoặc "en-US" tùy thuộc vào ngôn ngữ
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
+          let transcript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+              transcript += event.results[i][0].transcript + " ";
+            }
+          }
+          console.log("Transcribed:", transcript);
+          if (transcript) {
+            setContent((prev) => prev + transcript.trim() + " ");
+          }
+        };
+
+        recognition.onstart = () => {
+          console.log("SpeechRecognition started");
+          setError("");
+        };
+
+        recognition.onend = () => {
+          console.log("SpeechRecognition onend triggered");
+          if (isRecordingRef.current) {
+            try {
+              recognition.start();
+              console.log("SpeechRecognition restarted");
+            } catch (err) {
+              setError("Không thể khởi động lại SpeechRecognition: " + err.message);
+              stopRecording();
+            }
+          } else {
+            console.log("SpeechRecognition stopped");
+          }
+        };
+
+        recognition.onerror = (event) => {
+          console.error("SpeechRecognition error:", event.error);
+          let errorMessage = "Lỗi Speech-to-Text: ";
+          switch (event.error) {
+            case "no-speech":
+              errorMessage += "Không phát hiện giọng nói. Vui lòng nói to và rõ.";
+              break;
+            case "audio-capture":
+              errorMessage += "Không thể truy cập micro. Vui lòng kiểm tra quyền micro.";
+              break;
+            case "not-allowed":
+              errorMessage += "Quyền truy cập micro bị từ chối.";
+              break;
+            case "network":
+              errorMessage += "Lỗi mạng. Vui lòng kiểm tra kết nối internet.";
+              break;
+            default:
+              errorMessage += event.error;
+          }
+          setError(errorMessage);
+          stopRecording();
+        };
+
         return () => {
           if (recognitionRef.current) {
             recognitionRef.current.stop();
+            recognitionRef.current = null;
           }
         };
-      }, [isRecording]);
+      }, []); 
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1600,48 +1602,99 @@ const NoteApp = () => {
 
       // Ghi chú bằng giọng nói 
       const startRecording = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorderRef.current = new MediaRecorder(stream);
-          const chunks = [];
-      
-          mediaRecorderRef.current.ondataavailable = (e) => {
-            if (e.data.size > 0) chunks.push(e.data);
-          };
-      
-          mediaRecorderRef.current.onstop = async () => {
-            const blob = new Blob(chunks, { type: "audio/webm" });
-            setVoiceBlob(blob);
-            setVoiceUrl(URL.createObjectURL(blob));
-            mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-          };
-      
-          mediaRecorderRef.current.start();
-          setIsRecording(true);
-          console.log("Recording started, isRecording:", true);
-          
-          if (recognitionRef.current) {
-            recognitionRef.current.start();
-            console.log("SpeechRecognition started");
+          const hasPermission = await checkMicrophonePermission();
+          if (!hasPermission) return;
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            const chunks = [];
+
+            mediaRecorderRef.current.ondataavailable = (e) => {
+              if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+              const blob = new Blob(chunks, { type: "audio/webm" });
+              setVoiceBlob(blob);
+              setVoiceUrl(URL.createObjectURL(blob));
+              stream.getTracks().forEach((track) => track.stop());
+            };
+
+            mediaRecorderRef.current.start();
+            setIsRecording(true);
+
+            // Khởi động SpeechRecognition
+            if (recognitionRef.current) {
+              recognitionRef.current.start();
+            }
+            setError("");
+          } catch (err) {
+            setError("Không thể truy cập micro: " + err.message);
+            console.error("Start recording error:", err);
           }
-          setError("");
-        } catch (err) {
-          setError("Không thể truy cập micro. Vui lòng kiểm tra quyền truy cập micro: " + err.message);
-          console.error("Start recording error:", err);
-        }
-      };
-      
-      const stopRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
+        };
+
+        const stopRecording = () => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          }
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
           setIsRecording(false);
-          console.log("Recording stopped, isRecording:", false);
-        }
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-          console.log("SpeechRecognition stopped");
+        };
+
+      // theo dõi trạng thái 
+      const isRecordingRef = useRef(isRecording);
+        useEffect(() => {
+          isRecordingRef.current = isRecording;
+        }, [isRecording]);
+      // di chuyển kiểm tea quyền micro vào một hành riêng và gọi nó khi component mount khi cần
+      const checkMicrophonePermission = async () => {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: "microphone" });
+          if (permissionStatus.state === "denied") {
+            setError("Quyền truy cập micro bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.");
+            return false;
+          }
+          return true;
+        } catch (err) {
+          setError("Không thể kiểm tra quyền micro: " + err.message);
+          return false;
         }
       };
+
+      useEffect(() => {
+        fetchNotes();
+        checkMicrophonePermission(); // Kiểm tra quyền khi component mount
+
+        const handleOnline = async () => {
+          setIsOffline(false);
+          await syncPendingActions();
+        };
+        const handleOffline = () => setIsOffline(true);
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        const initOfflineNotes = async () => {
+          try {
+            const offlineNotes = await db.notes.toArray();
+            // ... (giữ nguyên logic hiện có)
+          } catch (err) {
+            setError("Không thể tải ghi chú cục bộ: " + err.message);
+          }
+        };
+
+        initOfflineNotes();
+
+        return () => {
+          window.removeEventListener("online", handleOnline);
+          window.removeEventListener("offline", handleOffline);
+        };
+      }, []);
+
 
       // tải âm thanh lên 
       const handleAudioUpload = async (e) => {
@@ -2729,12 +2782,22 @@ const NoteApp = () => {
                   
                       {/* Nút ghi âm, tải video, và tải âm thanh */}
                       <div className="flex flex-wrap gap-4 mb-4">
+                      {/* Trạng thái ghi âm */}
                         <button
                           onClick={isRecording ? stopRecording : startRecording}
                           className="menu-btn flex items-center gap-2 px-4 py-2 rounded-xl shadow-md transition-all duration-300 ease-in-out hover:shadow-lg"
                         >
-                          {isRecording ? <FaPause /> : <FaPlay />}
-                          <span>{isRecording ? "Dừng ghi âm" : "Bắt đầu ghi âm"}</span>
+                          {isRecording ? (
+                            <>
+                              <FaPause />
+                              <span className="animate-pulse">Đang ghi âm...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FaPlay />
+                              <span>Bắt đầu ghi âm</span>
+                            </>
+                          )}
                         </button>
                         <button
                           onClick={() => videoInputRef.current?.click()}
@@ -2824,7 +2887,6 @@ const NoteApp = () => {
                   
                       {/* Textarea cho nội dung văn bản (từ Speech-to-Text hoặc chỉnh sửa thủ công) */}
                       <textarea
-                        key={content} // Force re-render khi content thay đổi
                         ref={textAreaRef}
                         placeholder="Nội dung được chuyển từ giọng nói sẽ hiển thị ở đây..."
                         value={content}
@@ -3494,6 +3556,7 @@ const NoteApp = () => {
 };
 
 export default NoteApp;
+
 
 
 
